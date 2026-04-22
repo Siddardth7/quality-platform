@@ -7,6 +7,7 @@ import streamlit as st
 
 from src.spc_engine.capability import compute_capability, normality_test
 from src.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
+from src.spc_engine.utils import subgroup_rows
 from src.visualizer import build_capability_histogram, build_cpk_gauge
 
 st.set_page_config(page_title="Process Capability", layout="wide")
@@ -31,9 +32,6 @@ CAPABILITY_REFERENCE = pd.DataFrame(
 def load_demo_data() -> pd.DataFrame:
     return pd.read_csv(DEMO_PATH)
 
-
-def subgroup_rows(frame: pd.DataFrame) -> list[list[float]]:
-    return frame.groupby("subgroup", sort=True)["value"].apply(list).tolist()
 
 
 def compute_sigma_hat(stream_name: str, frame: pd.DataFrame) -> float:

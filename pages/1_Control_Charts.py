@@ -7,6 +7,7 @@ import streamlit as st
 
 from src.spc_engine.control_charts import compute_imr, compute_p, compute_u, compute_xbar_r, compute_xbar_s
 from src.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
+from src.spc_engine.utils import subgroup_rows
 from src.visualizer import build_control_chart
 
 st.set_page_config(page_title="Control Charts", layout="wide")
@@ -44,10 +45,6 @@ def load_source_data(uploaded_file) -> pd.DataFrame:
         return load_demo_data()
     return pd.read_csv(uploaded_file)
 
-
-def subgroup_rows(frame: pd.DataFrame) -> list[list[float]]:
-    grouped = frame.groupby("subgroup", sort=True)["value"].apply(list)
-    return grouped.tolist()
 
 
 def detect_rule_violations(points: list[float], cl: float, sigma: float, rule_set: str):
@@ -111,9 +108,10 @@ if stream_frame.empty:
     st.stop()
 
 if config["compute"] == "xbar_r":
-    result = compute_xbar_r(subgroup_rows(stream_frame))
+    subgroups = subgroup_rows(stream_frame)
+    result = compute_xbar_r(subgroups)
     points = result["subgroup_means"]
-    sigma = result["sigma_hat"] / len(subgroup_rows(stream_frame)[0]) ** 0.5
+    sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
     figure = build_control_chart(
         points=points,
         cl=result["xbarbar"],
@@ -124,9 +122,10 @@ if config["compute"] == "xbar_r":
         y_axis_title="Subgroup Mean",
     )
 elif config["compute"] == "xbar_s":
-    result = compute_xbar_s(subgroup_rows(stream_frame))
+    subgroups = subgroup_rows(stream_frame)
+    result = compute_xbar_s(subgroups)
     points = result["subgroup_means"]
-    sigma = result["sigma_hat"] / len(subgroup_rows(stream_frame)[0]) ** 0.5
+    sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
     figure = build_control_chart(
         points=points,
         cl=result["xbarbar"],
