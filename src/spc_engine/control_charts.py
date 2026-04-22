@@ -134,7 +134,7 @@ def compute_u(
         "sample_sizes": sizes.tolist(),
         "u_values": u_values.tolist(),
         "ubar": ubar,
-        "ucl": np.maximum(0.0, ubar + (3.0 * sigma)).tolist(),
+        "ucl": (ubar + (3.0 * sigma)).tolist(),
         "lcl": np.maximum(0.0, ubar - (3.0 * sigma)).tolist(),
     }
 

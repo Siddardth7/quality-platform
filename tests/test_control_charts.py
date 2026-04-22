@@ -220,3 +220,14 @@ def test_compute_u_ucl_formula_uses_variable_n():
 def test_compute_u_lcl_clamped_to_zero():
     result = compute_u(U_COUNTS, U_SAMPLE_SIZES)
     assert result["lcl"][0] == pytest.approx(0.0)
+
+
+def test_compute_u_ucl_exceeds_ubar_for_nonzero_rate():
+    result = compute_u([2, 4, 3], [1.0, 2.0, 1.5])
+    for ucl_val in result["ucl"]:
+        assert ucl_val > result["ubar"]
+
+
+def test_compute_u_lcl_still_clamped_to_zero():
+    result = compute_u([0, 0, 1], [10.0, 10.0, 10.0])
+    assert all(v >= 0.0 for v in result["lcl"])
