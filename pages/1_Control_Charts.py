@@ -37,6 +37,10 @@ CHART_OPTIONS = {
 
 @st.cache_data
 def load_demo_data() -> pd.DataFrame:
+    if not DEMO_PATH.exists():
+        from src.spc_engine.data_generator import generate_demo_dataset
+        DEMO_PATH.parent.mkdir(parents=True, exist_ok=True)
+        generate_demo_dataset().to_csv(DEMO_PATH, index=False)
     return pd.read_csv(DEMO_PATH)
 
 
