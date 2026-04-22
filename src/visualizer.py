@@ -138,7 +138,31 @@ def build_capability_histogram(
     return figure
 
 
-def build_cpk_gauge(cpk: float, title: str = "Cpk") -> go.Figure:
+def build_cpk_gauge(cpk: float | None, title: str = "Cpk") -> go.Figure:
+    if cpk is None:
+        figure = go.Figure(
+            go.Indicator(
+                mode="gauge+number",
+                value=0,
+                title={"text": f"{title} — N/A"},
+                gauge={
+                    "axis": {"range": [0, 2.0]},
+                    "bar": {"color": "#374151"},
+                    "steps": [
+                        {"range": [0.0, 1.0], "color": "#1a1f2e"},
+                        {"range": [1.0, 1.33], "color": "#1a1f2e"},
+                        {"range": [1.33, 2.0], "color": "#1a1f2e"},
+                    ],
+                },
+            )
+        )
+        figure.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            font={"color": "#f1f5f9"},
+            margin={"l": 30, "r": 30, "t": 60, "b": 30},
+        )
+        return figure
+
     figure = go.Figure(
         go.Indicator(
             mode="gauge+number",
@@ -146,17 +170,21 @@ def build_cpk_gauge(cpk: float, title: str = "Cpk") -> go.Figure:
             title={"text": title},
             gauge={
                 "axis": {"range": [0, max(2.0, cpk + 0.3)]},
-                "bar": {"color": "#2e4053"},
+                "bar": {"color": "#f59e0b"},
                 "steps": [
-                    {"range": [0.0, 1.0], "color": "#f5b7b1"},
-                    {"range": [1.0, 1.33], "color": "#f9e79f"},
-                    {"range": [1.33, max(2.0, cpk + 0.3)], "color": "#abebc6"},
+                    {"range": [0.0, 1.0], "color": "#3b0d0d"},
+                    {"range": [1.0, 1.33], "color": "#3b2800"},
+                    {"range": [1.33, max(2.0, cpk + 0.3)], "color": "#0d2b1e"},
                 ],
-                "threshold": {"line": {"color": "#d62728", "width": 4}, "value": 1.33},
+                "threshold": {"line": {"color": "#ef4444", "width": 4}, "value": 1.33},
             },
         )
     )
-    figure.update_layout(template="plotly_white", margin={"l": 30, "r": 30, "t": 60, "b": 30})
+    figure.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#f1f5f9"},
+        margin={"l": 30, "r": 30, "t": 60, "b": 30},
+    )
     return figure
 
 
