@@ -8,9 +8,11 @@ import streamlit as st
 from src.spc_engine.capability import compute_capability, normality_test
 from src.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
 from src.spc_engine.utils import subgroup_rows
+from src.ui.theme import apply_theme
 from src.visualizer import build_capability_histogram, build_cpk_gauge
 
 st.set_page_config(page_title="Process Capability", layout="wide")
+apply_theme()
 
 DEMO_PATH = Path(__file__).resolve().parents[1] / "data" / "demo_composites_aerospace.csv"
 STREAM_OPTIONS = {

@@ -7,9 +7,11 @@ import streamlit as st
 from src.simulation.engine import PROCESS_CONFIGS, SimulationEngine
 from src.spc_engine.control_charts import compute_imr, compute_xbar_r
 from src.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
+from src.ui.theme import apply_theme
 from src.visualizer import build_control_chart
 
 st.set_page_config(page_title="Live Simulation", layout="wide")
+apply_theme()
 
 
 def get_engine(process_stream: str, subgroup_size: int) -> SimulationEngine:

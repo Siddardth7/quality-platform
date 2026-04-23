@@ -8,9 +8,11 @@ import streamlit as st
 from src.spc_engine.control_charts import compute_imr, compute_p, compute_u, compute_xbar_r, compute_xbar_s
 from src.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
 from src.spc_engine.utils import subgroup_rows
+from src.ui.theme import apply_theme
 from src.visualizer import build_control_chart
 
 st.set_page_config(page_title="Control Charts", layout="wide")
+apply_theme()
 
 DEMO_PATH = Path(__file__).resolve().parents[1] / "data" / "demo_composites_aerospace.csv"
 RULE_REFERENCE = pd.DataFrame(

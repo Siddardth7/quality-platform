@@ -1,9 +1,12 @@
 import streamlit as st
 
+from src.ui.theme import apply_theme, AMBER, BG_CARD, BORDER, TEXT_SECONDARY
+
 st.set_page_config(
     page_title="SPC Manufacturing Quality Dashboard",
     layout="wide",
 )
+apply_theme()
 
 st.title("SPC Manufacturing Quality Dashboard")
 st.caption("A manufacturing-focused SPC portfolio app for composites, curing, and aerospace machining workflows.")
@@ -20,8 +23,14 @@ with intro_left:
     )
 
 with intro_right:
-    st.info(
-        "Use the sidebar to move between Control Charts, Process Capability, and Live Simulation."
+    st.markdown(
+        f"""<div style="background:{BG_CARD};border:1px solid {AMBER};border-radius:10px;
+        padding:18px 20px;color:#f1f5f9;font-size:0.9rem;line-height:1.6;">
+        📐 Use the <strong style="color:{AMBER};">sidebar</strong> to navigate
+        between <strong>Control Charts</strong>, <strong>Process Capability</strong>,
+        and <strong>Live Simulation</strong>.
+        </div>""",
+        unsafe_allow_html=True,
     )
 
 feature_cols = st.columns(3)
@@ -38,11 +47,12 @@ feature_cols[2].write(
     "Real-time subgroup generation with mean shift, spike, and drift disturbances for SPC storytelling."
 )
 
+st.markdown("---")
 st.subheader("Standards Context")
 standards_cols = st.columns(3)
 standards_cols[0].metric("AIAG SPC", "4th Edition")
-standards_cols[1].metric("Nelson Rules", "Rules 1-8")
-standards_cols[2].metric("Capability Target", "Cpk >= 1.33")
+standards_cols[1].metric("Nelson Rules", "Rules 1–8")
+standards_cols[2].metric("Capability Target", "Cpk ≥ 1.33")
 
 st.markdown(
     """
