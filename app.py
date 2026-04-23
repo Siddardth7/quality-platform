@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.ui.theme import apply_theme, AMBER, BG_CARD, BORDER, TEXT_SECONDARY
+from src.ui.theme import apply_theme, AMBER, BG_CARD, TEXT_PRIMARY
 
 st.set_page_config(
     page_title="SPC Manufacturing Quality Dashboard",
@@ -25,7 +25,7 @@ with intro_left:
 with intro_right:
     st.markdown(
         f"""<div style="background:{BG_CARD};border:1px solid {AMBER};border-radius:10px;
-        padding:18px 20px;color:#f1f5f9;font-size:0.9rem;line-height:1.6;">
+        padding:18px 20px;color:{TEXT_PRIMARY};font-size:0.9rem;line-height:1.6;">
         📐 Use the <strong style="color:{AMBER};">sidebar</strong> to navigate
         between <strong>Control Charts</strong>, <strong>Process Capability</strong>,
         and <strong>Live Simulation</strong>.
