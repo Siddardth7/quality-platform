@@ -56,15 +56,34 @@ def default_limit(series: pd.Series):
 st.title("Process Capability")
 st.caption("Capability indices, distribution fit, and normality feedback for variable-data demo streams.")
 
-frame = load_demo_data()
-
 with st.sidebar:
     st.header("Controls")
-    stream_label = st.selectbox("Process Stream", options=list(STREAM_OPTIONS.keys()))
-    stream_name = STREAM_OPTIONS[stream_label]
+    source_mode = st.radio("Data Source", options=["Demo", "Upload CSV"], horizontal=True)
+    upload = None
+    if source_mode == "Upload CSV":
+        upload = st.file_uploader("Upload CSV", type=["csv"])
+
+if source_mode == "Demo" or upload is None:
+    frame = load_demo_data()
+    stream_options = STREAM_OPTIONS
+else:
+    frame = pd.read_csv(upload)
+    stream_options = {s: s for s in sorted(frame["stream"].unique().tolist())}
+
+with st.sidebar:
+    stream_label = st.selectbox("Process Stream", options=list(stream_options.keys()))
+    stream_name = stream_options[stream_label]
     stream_frame = frame[frame["stream"] == stream_name].copy().sort_values("subgroup")
-    default_lsl = default_limit(stream_frame["lsl"])
-    default_usl = default_limit(stream_frame["usl"])
+
+    if stream_frame.empty:
+        st.error("No rows found for the selected stream.")
+        st.stop()
+    if "value" not in stream_frame.columns:
+        st.error("Uploaded CSV must contain a 'value' column.")
+        st.stop()
+
+    default_lsl = default_limit(stream_frame["lsl"]) if "lsl" in stream_frame.columns else None
+    default_usl = default_limit(stream_frame["usl"]) if "usl" in stream_frame.columns else None
     lsl_enabled = default_lsl is not None
     usl_enabled = default_usl is not None
     lsl = st.number_input("LSL", value=default_lsl if lsl_enabled else 0.0, disabled=not lsl_enabled)
