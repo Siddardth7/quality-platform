@@ -288,7 +288,7 @@ def render_sidebar():
 # Hero header
 # ---------------------------------------------------------------------------
 
-def render_header(source_active: bool) -> None:
+def render_header() -> None:
     st.markdown(
         """
         <div style="
@@ -345,7 +345,7 @@ def render_metric_badges(df: pd.DataFrame) -> None:
         ("Action Priority H", action_h, "#922b21", "#FDEDEC", "RPN ≥ 200 OR Severity ≥ 9"),
     ]
 
-    html_parts = ["<div style='display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin:0.75rem 0 1rem;'>"]
+    html_parts = ["<div style='display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:0.75rem 0 1rem;'>"]
     for label, value, accent, bg, tip in cards:
         html_parts.append(
             f"""<div title="{tip}" style="
@@ -657,7 +657,7 @@ def render_validation_summary(df: pd.DataFrame) -> None:
 
     for col in text_cols:
         if col in df.columns:
-            long = int((df[col].str.len() > 120).sum())
+            long = int((df[col].astype(str).str.len() > 120).sum())
             if long > 0:
                 warnings.append(f"{long} row(s) have long '{col}' text (>120 chars — may truncate in PDF)")
 
@@ -681,7 +681,7 @@ def main() -> None:
     raw_df, rpn_min, sev9_only, dark = render_sidebar()
 
     _inject_css(dark)
-    render_header(source_active=raw_df is not None)
+    render_header()
 
     if raw_df is None:
         st.sidebar.divider()
