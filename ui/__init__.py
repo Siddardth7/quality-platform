@@ -1,9 +1,8 @@
 """ui — FMEA Risk Analyzer UI module package."""
-import hashlib
-
 import pandas as pd
 
 
 def df_content_hash(df: pd.DataFrame) -> str:
-    """Return a stable MD5 hex digest of the DataFrame contents for cache keying."""
-    return hashlib.md5(df.reset_index(drop=True).to_json().encode()).hexdigest()
+    """Return a stable hash of the DataFrame contents for cache keying."""
+    row_hash = pd.util.hash_pandas_object(df.reset_index(drop=True), index=True).sum()
+    return format(row_hash & 0xFFFFFFFFFFFFFFFF, "016x")
