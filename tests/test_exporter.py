@@ -172,3 +172,34 @@ def test_csv_no_formula_injection():
     # Escaped versions should be present
     assert "'=SUM(1,2)" in csv_text
     assert "'+bad" in csv_text
+
+
+def test_pdf_export_cleans_tempfile_on_chart_error(monkeypatch, tmp_path):
+    """F-009 regression: if a chart-embed step raises during PDF generation,
+    we must not leave orphan PNG files in the system temp directory."""
+    import os
+    import tempfile
+
+    import pandas as pd
+
+    from src import exporter
+    from src.rpn_engine import run_pipeline
+
+    df = pd.read_csv("data/composite_panel_fmea_demo.csv")
+    df = run_pipeline(df)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("simulated chart embed failure")
+
+    tmp_root = tempfile.gettempdir()
+    before = {f for f in os.listdir(tmp_root) if f.endswith(".png")}
+
+    monkeypatch.setattr(exporter, "_pdf_chart_page_from_file", boom)
+    try:
+        exporter.export_pdf(df)
+    except RuntimeError:
+        pass  # expected — testing cleanup, not error handling
+
+    after = {f for f in os.listdir(tmp_root) if f.endswith(".png")}
+    leaked = after - before
+    assert not leaked, f"PDF export leaked tempfile(s): {leaked}"

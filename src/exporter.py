@@ -230,17 +230,19 @@ def export_pdf(df: pd.DataFrame) -> bytes:
     _pdf_page1(pdf, df)
 
     # Use matplotlib (no Chrome/kaleido needed on Streamlit Cloud)
-    for chart_fn, title in [
-        (lambda: mpl_pareto(df),   "Pareto Chart - Failure Modes Ranked by RPN"),
-        (lambda: mpl_heatmap(df),  "Risk Heatmap - Severity x Occurrence"),
-    ]:
-        fig = chart_fn()
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            fig.savefig(tmp.name, dpi=150, bbox_inches="tight")
-            tmp_path = tmp.name
-        plt.close(fig)
-        _pdf_chart_page_from_file(pdf, tmp_path, title)
-        os.unlink(tmp_path)
+    with tempfile.TemporaryDirectory(prefix="fmea_pdf_") as tmp_dir:
+        for idx, (chart_fn, title) in enumerate([
+            (lambda: mpl_pareto(df),   "Pareto Chart - Failure Modes Ranked by RPN"),
+            (lambda: mpl_heatmap(df),  "Risk Heatmap - Severity x Occurrence"),
+        ]):
+            fig = chart_fn()
+            tmp_path = os.path.join(tmp_dir, f"chart_{idx}.png")
+            try:
+                fig.savefig(tmp_path, dpi=150, bbox_inches="tight")
+            finally:
+                plt.close(fig)
+            _pdf_chart_page_from_file(pdf, tmp_path, title)
+    # TemporaryDirectory removes tmp_dir and its contents on exit, even on exception.
 
     return bytes(pdf.output())
 
