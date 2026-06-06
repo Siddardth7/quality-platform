@@ -39,6 +39,10 @@ TIER_COLORS = {
     "Green":  "#27ae60",
 }
 
+# Pareto chart safety + presentation caps
+PARETO_TOP_N = 30                # show this many highest-RPN bars individually
+PARETO_FIGWIDTH_MAX = 24.0       # inches; hard cap so savefig cannot blow up memory
+
 # ---------------------------------------------------------------------------
 # pareto_chart
 # ---------------------------------------------------------------------------
@@ -78,29 +82,45 @@ def pareto_chart(
     _check_columns(df, ["Failure_Mode", "RPN", "Risk_Tier"])
 
     df_sorted = df.sort_values("RPN", ascending=False).reset_index(drop=True)
+    total_rpn = float(df_sorted["RPN"].sum())
+
+    # --- Top-N + Others aggregation (F-038) ---
+    if len(df_sorted) > PARETO_TOP_N:
+        top = df_sorted.head(PARETO_TOP_N)
+        others = df_sorted.iloc[PARETO_TOP_N:]
+        others_row = pd.DataFrame([{
+            "Failure_Mode": f"Others (N={len(others)})",
+            "RPN":          int(others["RPN"].sum()),
+            "Risk_Tier":    "Green",  # aggregate bar is informational only
+        }])
+        df_sorted = pd.concat([top, others_row], ignore_index=True)
 
     labels = [str(fm)[:30] for fm in df_sorted["Failure_Mode"]]
     rpns   = df_sorted["RPN"].values
     tiers  = df_sorted["Risk_Tier"].values
     colors = [TIER_COLORS.get(t, "#95a5a6") for t in tiers]
 
-    cumulative_pct = np.cumsum(rpns) / rpns.sum() * 100
+    cumulative_pct = (
+        np.cumsum(rpns) / total_rpn * 100 if total_rpn > 0 else np.zeros_like(rpns, dtype=float)
+    )
 
-    fig, ax1 = plt.subplots(figsize=(max(12, len(labels) * 0.55), 7))
+    # --- Width-capped figure (F-038) ---
+    desired_w = max(12.0, len(labels) * 0.55)
+    fig_w = min(desired_w, PARETO_FIGWIDTH_MAX)
+    fig, ax1 = plt.subplots(figsize=(fig_w, 7))
 
     # --- Bar chart (left axis) ---
     bars = ax1.bar(range(len(labels)), rpns, color=colors, edgecolor="white", linewidth=0.5)
     ax1.set_ylabel("RPN", fontsize=11, fontweight="bold")
-    ax1.set_ylim(0, max(rpns) * 1.18)
+    ax1.set_ylim(0, max(rpns) * 1.18 if len(rpns) else 1)
     ax1.set_xticks(range(len(labels)))
     ax1.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
     ax1.tick_params(axis="y", labelsize=9)
 
-    # Value labels on bars
     for bar, rpn in zip(bars, rpns):
         ax1.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + max(rpns) * 0.01,
+            bar.get_height() + (max(rpns) if len(rpns) else 1) * 0.01,
             str(int(rpn)),
             ha="center", va="bottom", fontsize=7, fontweight="bold",
         )
@@ -117,7 +137,6 @@ def pareto_chart(
     ax2.set_ylim(0, 110)
     ax2.tick_params(axis="y", labelsize=9)
 
-    # --- Legend ---
     legend_patches = [
         mpatches.Patch(color=TIER_COLORS["Red"],    label="Red — Immediate action"),
         mpatches.Patch(color=TIER_COLORS["Yellow"], label="Yellow — Action recommended"),

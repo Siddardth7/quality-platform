@@ -153,3 +153,38 @@ class TestRiskHeatmap:
         df = run_pipeline(pd.DataFrame(data))
         fig = risk_heatmap(df)
         assert isinstance(fig, plt.Figure)
+
+
+def test_pareto_chart_caps_bars_at_topN_on_large_input(tmp_path):
+    """F-038 regression: matplotlib pareto must not produce an unbounded-width
+    figure on large datasets. At 1000 rows we expect at most TOP_N+1 bars
+    (top-N individual + one 'Others' aggregate) and figsize width <= cap."""
+    from src.rpn_engine import run_pipeline
+    from src.visualizer import PARETO_FIGWIDTH_MAX, PARETO_TOP_N, pareto_chart
+
+    n = 1000
+    df = pd.DataFrame({
+        "ID": range(1, n + 1),
+        "Process_Step":    [f"Step_{i%20}" for i in range(n)],
+        "Component":       [f"Comp_{i%50}" for i in range(n)],
+        "Function":        [f"Function_{i%30}" for i in range(n)],
+        "Failure_Mode":    [f"Failure_mode_{i}" for i in range(n)],
+        "Effect":          [f"Effect_{i%40}" for i in range(n)],
+        "Severity":        [(i % 10) + 1 for i in range(n)],
+        "Cause":           [f"Cause_{i%60}" for i in range(n)],
+        "Occurrence":      [((i * 7) % 10) + 1 for i in range(n)],
+        "Current_Control": [f"Control_{i%25}" for i in range(n)],
+        "Detection":       [((i * 3) % 10) + 1 for i in range(n)],
+    })
+    df = run_pipeline(df)
+
+    fig = pareto_chart(df)
+    ax = fig.axes[0]
+    bars = [p for p in ax.patches]
+    assert len(bars) <= PARETO_TOP_N + 1, (
+        f"Expected <= {PARETO_TOP_N + 1} bars (top-N + Others), got {len(bars)}"
+    )
+    width, _ = fig.get_size_inches()
+    assert width <= PARETO_FIGWIDTH_MAX, (
+        f"figsize width {width} exceeds cap {PARETO_FIGWIDTH_MAX}"
+    )
