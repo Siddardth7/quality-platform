@@ -82,6 +82,7 @@ def test_oversized_upload_rejected_with_friendly_error():
     """F-029 regression: an uploaded file above MAX_UPLOAD_BYTES must be
     rejected with a ValueError carrying a user-friendly message."""
     import pytest
+
     from app import MAX_UPLOAD_BYTES, _load_uploaded
 
     class _FakeUpload:

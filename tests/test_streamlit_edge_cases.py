@@ -234,11 +234,11 @@ def test_demo_button_overrides_lingering_uploaded_file():
     and uses elif (not if) for the uploaded branch.
     Full AppTest simulation is incompatible with the Streamlit session-state
     pre-write introduced by F-020; covered here by code inspection + unit test."""
-    from app import _escape_source_label  # smoke-import to ensure app loads
-
     # Structural check: verify the fix is in place at source level
     import inspect
+
     import app as _app_mod
+    from app import _escape_source_label  # smoke-import to ensure app loads
     src = inspect.getsource(_app_mod)
     assert "uploaded = None" in src, "F-019 fix: 'uploaded = None' must appear in app.py"
     assert "elif uploaded is not None" in src, "F-019 fix: elif guard must be present"
