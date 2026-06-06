@@ -6,6 +6,8 @@ Author: Siddardth | M.S. Aerospace Engineering, UIUC
 Engineering reference: AIAG FMEA-4 + AIAG/VDA FMEA Handbook (5th Ed., 2019)
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd
