@@ -34,13 +34,14 @@ def render_export_buttons(
     # Excel
     xl_key = _export_cache_key(df, rpn_min, sev9_only, process_steps, "excel")
     if st.session_state.get("_xl_cache_key") != xl_key:
-        try:
-            st.session_state["_xl_bytes"] = export_excel(df)
-            st.session_state["_xl_cache_key"] = xl_key
-        except Exception as exc:
-            st.session_state["_xl_bytes"] = None
-            st.session_state["_xl_cache_key"] = xl_key
-            st.warning(f"Excel export unavailable: {exc}")
+        with st.spinner("Building Excel report…"):
+            try:
+                st.session_state["_xl_bytes"] = export_excel(df)
+                st.session_state["_xl_cache_key"] = xl_key
+            except Exception as exc:
+                st.session_state["_xl_bytes"] = None
+                st.session_state["_xl_cache_key"] = xl_key
+                st.warning(f"Excel export unavailable: {exc}")
 
     with col_xl:
         xl_bytes = st.session_state.get("_xl_bytes")
@@ -57,14 +58,15 @@ def render_export_buttons(
     # PDF
     pdf_key = _export_cache_key(df, rpn_min, sev9_only, process_steps, "pdf")
     if st.session_state.get("_pdf_cache_key") != pdf_key:
-        try:
-            pdf_data = export_pdf(df) if not df.empty else None
-            st.session_state["_pdf_bytes"] = pdf_data
-            st.session_state["_pdf_cache_key"] = pdf_key
-        except Exception as exc:
-            st.session_state["_pdf_bytes"] = None
-            st.session_state["_pdf_cache_key"] = pdf_key
-            st.warning(f"PDF export unavailable: {exc}")
+        with st.spinner("Building PDF report…"):
+            try:
+                pdf_data = export_pdf(df) if not df.empty else None
+                st.session_state["_pdf_bytes"] = pdf_data
+                st.session_state["_pdf_cache_key"] = pdf_key
+            except Exception as exc:
+                st.session_state["_pdf_bytes"] = None
+                st.session_state["_pdf_cache_key"] = pdf_key
+                st.warning(f"PDF export unavailable: {exc}")
 
     with col_pdf:
         pdf_bytes = st.session_state.get("_pdf_bytes")

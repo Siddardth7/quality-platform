@@ -18,6 +18,7 @@ from src.rpn_engine import (
     run_pipeline,
     validate_input,
 )
+from ui import df_content_hash
 from ui.charts import get_or_build_charts
 from ui.exports import render_export_buttons
 from ui.filters import (
@@ -699,13 +700,19 @@ def main() -> None:
         st.error(f"**Input validation failed:** {exc}")
         st.stop()
 
-    # ── Pipeline ──────────────────────────────────────────────────────────
-    try:
-        df_analyzed = run_pipeline(raw_df)
-        st.session_state["_dataset_rpn_max"] = int(df_analyzed["RPN"].max())
-    except (ValueError, KeyError) as exc:
-        st.error(f"**Pipeline error:** {exc}")
-        st.stop()
+    # ── Pipeline (memoized — only reruns when raw data changes) ──────────
+    raw_hash = df_content_hash(raw_df)
+    if st.session_state.get("_pipeline_cache_key") != raw_hash:
+        try:
+            df_analyzed = run_pipeline(raw_df)
+            st.session_state["_pipeline_cache_key"] = raw_hash
+            st.session_state["_pipeline_result"] = df_analyzed
+            st.session_state["_dataset_rpn_max"] = int(df_analyzed["RPN"].max())
+        except (ValueError, KeyError) as exc:
+            st.error(f"**Pipeline error:** {exc}")
+            st.stop()
+    else:
+        df_analyzed = st.session_state["_pipeline_result"]
 
     render_validation_summary(df_analyzed)
 

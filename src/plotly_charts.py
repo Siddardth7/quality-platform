@@ -98,13 +98,19 @@ def pareto_chart_plotly(df: pd.DataFrame, dark: bool = False) -> go.Figure:
         f"<b>{labels[i]}</b><br>RPN: {int(rpns[i])}<br>Tier: {tiers[i]}"
         for i in range(len(labels))
     ]
+    _TIER_LETTER = {"Red": "R", "Yellow": "Y", "Green": "G"}
+    bar_text = [
+        f"{int(r)} [{_TIER_LETTER.get(t_name, '?')}]"
+        for r, t_name in zip(rpns, tiers)
+    ]
+
     fig.add_trace(go.Bar(
         x=labels,
         y=rpns,
         marker_color=bar_colors,
         marker_line_width=0,
         yaxis="y1",
-        text=[str(int(r)) for r in rpns],
+        text=bar_text,
         textposition="outside",
         textfont=dict(size=9, color=t["text"]),
         hovertext=hover_texts,
