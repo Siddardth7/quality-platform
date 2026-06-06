@@ -60,10 +60,16 @@ def _bold(text: str) -> str:
 
 def _load_file(path: Path) -> pd.DataFrame:
     """Load CSV or Excel FMEA file into a DataFrame."""
+    MAX_BYTES = 20 * 1024 * 1024  # 20 MB — mirror app.py MAX_UPLOAD_BYTES
+    if path.exists() and path.stat().st_size > MAX_BYTES:
+        raise ValueError(
+            f"File exceeds the {MAX_BYTES // (1024 * 1024)} MB limit: {path}. "
+            "Split your FMEA or process in chunks."
+        )
     suffix = path.suffix.lower()
     if suffix == ".csv":
         return pd.read_csv(path)
-    elif suffix in (".xlsx", ".xls"):
+    elif suffix == ".xlsx":
         return pd.read_excel(path)
     else:
         raise ValueError(

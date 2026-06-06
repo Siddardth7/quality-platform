@@ -162,7 +162,16 @@ def _inject_css(dark: bool) -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB — see AUDIT_REPORT.md F-029
+
+
 def _load_uploaded(file) -> pd.DataFrame:
+    if getattr(file, "size", 0) > MAX_UPLOAD_BYTES:
+        raise ValueError(
+            f"Uploaded file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit. "
+            "FMEA spreadsheets larger than this are unusual; if your dataset is legitimately "
+            "this size, split it or use the CLI."
+        )
     name = file.name.lower()
     if name.endswith(".csv"):
         return pd.read_csv(file)

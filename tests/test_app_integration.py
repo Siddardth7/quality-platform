@@ -76,3 +76,18 @@ def test_formula_prefixed_strings_not_stored_as_formulas():
     for row in ws.iter_rows(min_row=2):
         for cell in row:
             assert cell.data_type != "f", f"Formula found in cell {cell.coordinate}"
+
+
+def test_oversized_upload_rejected_with_friendly_error():
+    """F-029 regression: an uploaded file above MAX_UPLOAD_BYTES must be
+    rejected with a ValueError carrying a user-friendly message."""
+    import pytest
+    from app import MAX_UPLOAD_BYTES, _load_uploaded
+
+    class _FakeUpload:
+        def __init__(self, size, name="huge.csv"):
+            self.size = size
+            self.name = name
+
+    with pytest.raises(ValueError, match="exceeds"):
+        _load_uploaded(_FakeUpload(size=MAX_UPLOAD_BYTES + 1))
