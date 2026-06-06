@@ -48,7 +48,10 @@ def render_process_filter(df: pd.DataFrame) -> list[str]:
         key="process_steps",
         help="Filter to specific manufacturing process steps",
     )
-    return selected if selected else all_steps
+    if not selected:
+        st.sidebar.caption("No steps selected — showing all.")
+        return all_steps
+    return selected
 
 
 def apply_filters(

@@ -59,9 +59,9 @@ _FORMULA_PREFIXES = ("=", "+", "-", "@")
 
 
 def _sanitize_for_export(df: pd.DataFrame) -> pd.DataFrame:
-    """Escape formula-injection prefixes in all string columns to prevent spreadsheet attacks."""
+    """Escape formula-injection prefixes in all columns to prevent spreadsheet attacks."""
     df = df.copy()
-    for col in df.select_dtypes(include=["object", "string"]).columns:
+    for col in df.columns:
         df[col] = df[col].apply(
             lambda v: f"'{v}" if isinstance(v, str) and v.startswith(_FORMULA_PREFIXES) else v
         )

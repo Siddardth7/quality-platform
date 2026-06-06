@@ -122,12 +122,11 @@ def validate_input(df: pd.DataFrame) -> None:
         first = exc.errors()[0]
         field = " -> ".join(str(loc) for loc in first["loc"]) or "<dataset>"
         msg = first["msg"]
-        # Detect range violations for S/O/D — Pydantic says "less than or equal to"
-        # or "greater than or equal to"; we must preserve "out-of-range" in message
-        # so existing tests that match on that string keep passing.
+        # Detect range violations for S/O/D via stable type codes (not message strings
+        # which can change between pydantic patch releases).
         field_lower = field.lower().split(" -> ")[-1]
-        if field_lower in _RANGE_FIELDS and (
-            "less than or equal" in msg or "greater than or equal" in msg
+        if field_lower in _RANGE_FIELDS and first["type"] in (
+            "less_than_equal", "greater_than_equal"
         ):
             raise ValueError(
                 f"Column '{field}' contains out-of-range values. "
