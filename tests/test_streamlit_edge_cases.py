@@ -194,3 +194,23 @@ class TestMissingSeverityColumn:
         df = _minimal_df().drop(columns=["Severity", "Occurrence", "Detection"])
         with pytest.raises(ValueError):
             validate_input(df)
+
+
+def test_rpn_slider_clamps_on_smaller_dataset_swap():
+    """F-020 regression: switching from a high-RPN dataset to a low-RPN one
+    must not crash the slider widget. Stored session_state value must be
+    clamped to the new dataset's max_value before the slider is rendered."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file("app.py", default_timeout=10)
+    at.session_state["use_demo"] = True
+    at.run()
+    assert not at.exception
+
+    # Simulate user dragging slider above what a smaller dataset will allow
+    at.session_state["rpn_slider"] = 700
+    # And simulate the dataset shrink (the app sets _dataset_rpn_max on every run)
+    at.session_state["_dataset_rpn_max"] = 100
+    at.run()
+    assert not at.exception, f"Slider crashed on dataset swap: {at.exception}"
+    assert at.session_state["rpn_slider"] <= 100

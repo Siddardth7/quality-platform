@@ -10,11 +10,18 @@ import streamlit as st
 
 def render_rpn_slider() -> int:
     _rpn_max = int(st.session_state.get("_dataset_rpn_max", 1000))
+    _rpn_max = max(_rpn_max, 10)
+
+    # F-020: session_state is source of truth once widget has a key; the value=
+    # kwarg is ignored on reruns. Clamp the stored value before instantiating
+    # the widget to prevent StreamlitAPIException when the dataset shrinks.
+    current = int(st.session_state.get("rpn_slider", 0))
+    st.session_state["rpn_slider"] = min(current, _rpn_max)
+
     return st.sidebar.slider(
         "Minimum RPN",
         min_value=0,
-        max_value=max(_rpn_max, 10),
-        value=min(st.session_state.get("rpn_slider", 0), _rpn_max),
+        max_value=_rpn_max,
         step=10,
         help="Show only failure modes with RPN ≥ this value (max reflects your dataset)",
         key="rpn_slider",
