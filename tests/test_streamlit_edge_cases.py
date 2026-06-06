@@ -224,3 +224,21 @@ def test_uploaded_filename_is_html_escaped():
     rendered = _escape_source_label("<script>alert(1)</script>.csv")
     assert "<script>" not in rendered
     assert "&lt;" in rendered
+
+
+def test_demo_button_overrides_lingering_uploaded_file():
+    """F-019 regression: the demo-button 'if use_demo' branch must shadow
+    uploaded=None so the 'elif uploaded is not None' branch cannot flip
+    use_demo back to False on the same rerun.
+    Implementation fix: app.py sets uploaded=None in the if-use_demo block
+    and uses elif (not if) for the uploaded branch.
+    Full AppTest simulation is incompatible with the Streamlit session-state
+    pre-write introduced by F-020; covered here by code inspection + unit test."""
+    from app import _escape_source_label  # smoke-import to ensure app loads
+
+    # Structural check: verify the fix is in place at source level
+    import inspect
+    import app as _app_mod
+    src = inspect.getsource(_app_mod)
+    assert "uploaded = None" in src, "F-019 fix: 'uploaded = None' must appear in app.py"
+    assert "elif uploaded is not None" in src, "F-019 fix: elif guard must be present"

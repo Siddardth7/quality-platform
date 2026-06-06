@@ -228,6 +228,7 @@ def render_sidebar():
     uploaded = st.sidebar.file_uploader(
         "Upload FMEA file",
         type=["csv", "xlsx"],
+        key="fmea_uploader",     # F-019: explicit key so demo-button can clear it
         help=(
             "CSV or Excel with 11 columns: ID, Process_Step, Component, "
             "Function, Failure_Mode, Effect, Severity, Cause, "
@@ -242,7 +243,8 @@ def render_sidebar():
 
     if use_demo:
         st.session_state["use_demo"] = True
-    if uploaded:
+        uploaded = None  # F-019: shadow the uploader so elif below cannot flip demo off
+    elif uploaded is not None:
         st.session_state["use_demo"] = False
 
     raw_df       = None
