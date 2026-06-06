@@ -188,3 +188,14 @@ def test_pareto_chart_caps_bars_at_topN_on_large_input(tmp_path):
     assert width <= PARETO_FIGWIDTH_MAX, (
         f"figsize width {width} exceeds cap {PARETO_FIGWIDTH_MAX}"
     )
+
+
+def test_visualizer_pareto_chart_handles_empty_df():
+    """F-012 regression: pareto_chart must not crash on an empty DataFrame."""
+    import matplotlib.pyplot as plt
+    from src.visualizer import pareto_chart
+
+    df = pd.DataFrame(columns=["Failure_Mode", "RPN", "Risk_Tier"])
+    fig = pareto_chart(df)
+    assert fig is not None
+    plt.close(fig)
