@@ -231,7 +231,7 @@ def risk_heatmap(
     ax.imshow(
         rgba_grid,
         origin="lower",
-        extent=[0.5, 10.5, 0.5, 10.5],
+        extent=(0.5, 10.5, 0.5, 10.5),
         aspect="auto",
         interpolation="nearest",
     )
@@ -249,8 +249,8 @@ def risk_heatmap(
 
     ax.set_xticks(range(1, 11))
     ax.set_yticks(range(1, 11))
-    ax.set_xticklabels(range(1, 11), fontsize=9)
-    ax.set_yticklabels(range(1, 11), fontsize=9)
+    ax.set_xticklabels([str(i) for i in range(1, 11)], fontsize=9)
+    ax.set_yticklabels([str(i) for i in range(1, 11)], fontsize=9)
     ax.set_xlabel("Occurrence (O)", fontsize=12, fontweight="bold", labelpad=8)
     ax.set_ylabel("Severity (S)", fontsize=12, fontweight="bold", labelpad=8)
     ax.set_title(
