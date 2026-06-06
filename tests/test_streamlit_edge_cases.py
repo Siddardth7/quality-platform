@@ -214,3 +214,13 @@ def test_rpn_slider_clamps_on_smaller_dataset_swap():
     at.run()
     assert not at.exception, f"Slider crashed on dataset swap: {at.exception}"
     assert at.session_state["rpn_slider"] <= 100
+
+
+def test_uploaded_filename_is_html_escaped():
+    """F-028 regression: a filename containing HTML/JS must be rendered
+    as escaped text in the sidebar, never as live markup."""
+    from app import _escape_source_label  # introduced in the fix
+
+    rendered = _escape_source_label("<script>alert(1)</script>.csv")
+    assert "<script>" not in rendered
+    assert "&lt;" in rendered

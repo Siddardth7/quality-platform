@@ -8,6 +8,7 @@ Engineering reference: AIAG FMEA-4 + AIAG/VDA FMEA Handbook (5th Ed., 2019)
 
 from __future__ import annotations
 
+import html
 from pathlib import Path
 
 import pandas as pd
@@ -165,6 +166,11 @@ def _inject_css(dark: bool) -> None:
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB — see AUDIT_REPORT.md F-029
 
 
+def _escape_source_label(name: str) -> str:
+    """F-028: filenames flow into unsafe_allow_html markdown; escape first."""
+    return html.escape(name, quote=True)
+
+
 def _load_uploaded(file) -> pd.DataFrame:
     if getattr(file, "size", 0) > MAX_UPLOAD_BYTES:
         raise ValueError(
@@ -256,8 +262,9 @@ def render_sidebar():
         source_ok    = True
 
     if source_label:
-        dot   = "🟢" if source_ok else "🔴"
-        label = source_label[:42] + "…" if len(source_label) > 44 else source_label
+        dot  = "🟢" if source_ok else "🔴"
+        safe = _escape_source_label(source_label)
+        label = safe[:42] + "…" if len(safe) > 44 else safe
         st.sidebar.markdown(
             f"<div style='font-size:0.82rem; padding:6px 10px; border-radius:6px; "
             f"background:rgba(39,174,96,0.08); border:1px solid rgba(39,174,96,0.25); "
