@@ -95,7 +95,7 @@ def pareto_chart(
         }])
         df_sorted = pd.concat([top, others_row], ignore_index=True)
 
-    labels = [str(fm)[:30] for fm in df_sorted["Failure_Mode"]]
+    labels = [str(fm)[:40] for fm in df_sorted["Failure_Mode"]]
     rpns   = df_sorted["RPN"].values
     tiers  = df_sorted["Risk_Tier"].values
     colors = [TIER_COLORS.get(t, "#95a5a6") for t in tiers]
@@ -211,7 +211,7 @@ def risk_heatmap(
         s = int(row["Severity"]) - 1      # 0-indexed
         o = int(row["Occurrence"]) - 1
         grid_count[s, o] += 1
-        tier_r = TIER_RANK.get(row["Risk_Tier"], 0)
+        tier_r = TIER_RANK.get(row["Risk_Tier"], -1)
         if tier_r > grid_tier_rank[s, o]:
             grid_tier_rank[s, o] = tier_r
 

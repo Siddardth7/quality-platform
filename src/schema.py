@@ -14,15 +14,15 @@ class FMEARow(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(strict=True)
 
     ID:              Annotated[int, pydantic.Field(gt=0)]
-    Process_Step:    Annotated[str, pydantic.Field(min_length=1)]
-    Component:       Annotated[str, pydantic.Field(min_length=1)]
-    Function:        Annotated[str, pydantic.Field(min_length=1)]
-    Failure_Mode:    Annotated[str, pydantic.Field(min_length=1)]
-    Effect:          Annotated[str, pydantic.Field(min_length=1)]
+    Process_Step:    Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
+    Component:       Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
+    Function:        Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
+    Failure_Mode:    Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
+    Effect:          Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
     Severity:        Annotated[int, pydantic.Field(ge=1, le=10)]
-    Cause:           Annotated[str, pydantic.Field(min_length=1)]
+    Cause:           Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
     Occurrence:      Annotated[int, pydantic.Field(ge=1, le=10)]
-    Current_Control: Annotated[str, pydantic.Field(min_length=1)]
+    Current_Control: Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
     Detection:       Annotated[int, pydantic.Field(ge=1, le=10)]
 
     @pydantic.field_validator(
@@ -34,7 +34,7 @@ class FMEARow(pydantic.BaseModel):
     def reject_blank(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():
             raise ValueError("field must not be blank or whitespace-only")
-        return v
+        return v.strip() if isinstance(v, str) else v
 
     @property
     def RPN(self) -> int:

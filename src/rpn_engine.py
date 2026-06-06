@@ -278,19 +278,18 @@ def rank_by_rpn(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
 
-    # Assign Risk_Tier — RULE 4
-    def _assign_tier(row: pd.Series) -> str:
-        if row["RPN"] > RPN_RED_THRESHOLD or row["Severity"] >= SEVERITY_HIGH_THRESHOLD:
-            return "Red"
-        elif row["RPN"] >= RPN_YELLOW_MIN:
-            return "Yellow"
-        else:
-            return "Green"
+    # Assign Risk_Tier — RULE 4 (vectorized for performance)
+    conditions = [
+        (df["RPN"] > RPN_RED_THRESHOLD) | (df["Severity"] >= SEVERITY_HIGH_THRESHOLD),
+        df["RPN"] >= RPN_YELLOW_MIN,
+    ]
+    df["Risk_Tier"] = np.select(conditions, ["Red", "Yellow"], default="Green")
 
-    df["Risk_Tier"] = df.apply(_assign_tier, axis=1)
-
-    # Sort descending by RPN, reset index
-    df = df.sort_values("RPN", ascending=False).reset_index(drop=True)
+    # Sort descending by RPN; stable secondary keys prevent arbitrary ordering of ties
+    df = df.sort_values(
+        ["RPN", "Severity", "Occurrence", "ID"],
+        ascending=[False, False, False, True],
+    ).reset_index(drop=True)
 
     return df
 
