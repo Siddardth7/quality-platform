@@ -7,8 +7,11 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from src._logging import get_logger
 from src.exporter import export_csv, export_excel, export_pdf
 from ui import df_content_hash
+
+logger = get_logger(__name__)
 
 
 def _export_cache_key(
@@ -38,7 +41,8 @@ def render_export_buttons(
             try:
                 st.session_state["_xl_bytes"] = export_excel(df)
                 st.session_state["_xl_cache_key"] = xl_key
-            except Exception as exc:
+            except (ValueError, KeyError, OSError, RuntimeError) as exc:
+                logger.exception("Excel export failed")
                 st.session_state["_xl_bytes"] = None
                 st.session_state["_xl_cache_key"] = xl_key
                 st.warning(f"Excel export unavailable: {exc}")
@@ -63,7 +67,8 @@ def render_export_buttons(
                 pdf_data = export_pdf(df) if not df.empty else None
                 st.session_state["_pdf_bytes"] = pdf_data
                 st.session_state["_pdf_cache_key"] = pdf_key
-            except Exception as exc:
+            except (ValueError, KeyError, OSError, RuntimeError) as exc:
+                logger.exception("PDF export failed")
                 st.session_state["_pdf_bytes"] = None
                 st.session_state["_pdf_cache_key"] = pdf_key
                 st.warning(f"PDF export unavailable: {exc}")
