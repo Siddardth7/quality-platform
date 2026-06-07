@@ -18,15 +18,14 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+from src.theme import TIER_HEX
+from src.theme import TIER_RANK as _TIER_RANK_BASE
+
 # ---------------------------------------------------------------------------
-# Color palette — aligned with Risk_Tier thresholds in rpn_engine.py
+# Color palette — imported from src.theme (single source of truth)
 # ---------------------------------------------------------------------------
 
-TIER_COLORS = {
-    "Red":    "#e74c3c",
-    "Yellow": "#f39c12",
-    "Green":  "#27ae60",
-}
+TIER_COLORS = TIER_HEX
 
 TIER_LABELS = {
     "Red":    "Red — Immediate action",
@@ -227,7 +226,8 @@ def risk_heatmap_plotly(df: pd.DataFrame, dark: bool = False) -> go.Figure:
     t = _theme(dark)
     empty_color = "#2a2f3e" if dark else "#f0f0f0"
 
-    TIER_RANK = {"Green": 1, "Yellow": 2, "Red": 3}
+    # Shift theme's 0-based TIER_RANK by 1: 0 is reserved for empty cells in the colorscale
+    TIER_RANK = {k: v + 1 for k, v in _TIER_RANK_BASE.items()}
 
     grid_count     = np.zeros((10, 10), dtype=int)
     grid_tier_rank = np.zeros((10, 10), dtype=int)
@@ -243,11 +243,11 @@ def risk_heatmap_plotly(df: pd.DataFrame, dark: bool = False) -> go.Figure:
     colorscale = [
         [0.00, empty_color],
         [0.01, empty_color],
-        [0.34, "#27ae60"],
-        [0.34, "#27ae60"],
-        [0.67, "#f39c12"],
-        [0.67, "#f39c12"],
-        [1.00, "#e74c3c"],
+        [0.34, TIER_HEX["Green"]],
+        [0.34, TIER_HEX["Green"]],
+        [0.67, TIER_HEX["Yellow"]],
+        [0.67, TIER_HEX["Yellow"]],
+        [1.00, TIER_HEX["Red"]],
     ]
 
     text_matrix = [

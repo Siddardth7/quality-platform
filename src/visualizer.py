@@ -29,15 +29,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from src.theme import TIER_HEX
+from src.theme import TIER_RANK as _TIER_RANK_MAP
+
 # ---------------------------------------------------------------------------
-# Color palette — aligned with Risk_Tier thresholds in rpn_engine.py
+# Color palette — imported from src.theme (single source of truth)
 # ---------------------------------------------------------------------------
 
-TIER_COLORS = {
-    "Red":    "#e74c3c",
-    "Yellow": "#f39c12",
-    "Green":  "#27ae60",
-}
+TIER_COLORS = TIER_HEX
 
 # Pareto chart safety + presentation caps
 PARETO_TOP_N = 30                # show this many highest-RPN bars individually
@@ -203,29 +202,27 @@ def risk_heatmap(
     _check_columns(df, ["Severity", "Occurrence", "Risk_Tier"])
 
     # Build a 10×10 grid: rows = Severity 1–10, cols = Occurrence 1–10
-    TIER_RANK = {"Green": 0, "Yellow": 1, "Red": 2}
-    grid_count    = np.zeros((10, 10), dtype=int)
+    grid_count     = np.zeros((10, 10), dtype=int)
     grid_tier_rank = np.full((10, 10), -1, dtype=int)
 
     for _, row in df.iterrows():
         s = int(row["Severity"]) - 1      # 0-indexed
         o = int(row["Occurrence"]) - 1
         grid_count[s, o] += 1
-        tier_r = TIER_RANK.get(row["Risk_Tier"], -1)
+        tier_r = _TIER_RANK_MAP.get(row["Risk_Tier"], -1)
         if tier_r > grid_tier_rank[s, o]:
             grid_tier_rank[s, o] = tier_r
 
-    # Build RGBA image
-    tier_rgba = {
-        -1: (0.96, 0.96, 0.96, 1.0),   # empty cell — light grey
-         0: (0.39, 0.68, 0.38, 0.75),   # Green
-         1: (0.95, 0.61, 0.07, 0.80),   # Yellow
-         2: (0.91, 0.30, 0.24, 0.85),   # Red
-    }
-    rgba_grid = np.zeros((10, 10, 4))
-    for i in range(10):
-        for j in range(10):
-            rgba_grid[i, j] = tier_rgba[grid_tier_rank[i, j]]
+    # Build RGBA image — vectorized via np.take on a lookup table (F-035)
+    # Rank indices: -1 → 0 (sentinel), 0 → 1 (Green), 1 → 2 (Yellow), 2 → 3 (Red)
+    _RGBA_LUT = np.array([
+        [0.96, 0.96, 0.96, 1.00],   # index 0: empty cell (rank -1) — light grey
+        [0.39, 0.68, 0.38, 0.75],   # index 1: Green  (rank 0)
+        [0.95, 0.61, 0.07, 0.80],   # index 2: Yellow (rank 1)
+        [0.91, 0.30, 0.24, 0.85],   # index 3: Red    (rank 2)
+    ])  # shape (4, 4)
+    lut_indices = grid_tier_rank + 1          # shift -1…2 → 0…3
+    rgba_grid = _RGBA_LUT[lut_indices]        # shape (10, 10, 4) — no Python loop
 
     fig, ax = plt.subplots(figsize=(10, 9))
     ax.imshow(

@@ -23,14 +23,15 @@ import openpyxl
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from src.theme import TIER_FILL_HEX, TIER_RGB
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 _TIER_FILL = {
-    "Red":    PatternFill(start_color="FCE4E4", end_color="FCE4E4", fill_type="solid"),
-    "Yellow": PatternFill(start_color="FFF9E6", end_color="FFF9E6", fill_type="solid"),
-    "Green":  PatternFill(start_color="E8F8EF", end_color="E8F8EF", fill_type="solid"),
+    tier: PatternFill(start_color=hex_val, end_color=hex_val, fill_type="solid")
+    for tier, hex_val in TIER_FILL_HEX.items()
 }
 
 _HEADER_FILL = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
@@ -80,12 +81,8 @@ def export_csv(df: pd.DataFrame) -> bytes:
     return _sanitize_for_export(df).to_csv(index=False).encode("utf-8")
 
 
-# PDF layout constants
-_PDF_TIER_RGB = {
-    "Red":    (252, 228, 228),
-    "Yellow": (255, 249, 230),
-    "Green":  (232, 248, 239),
-}
+# PDF layout constants — row fill colors imported from src.theme
+_PDF_TIER_RGB = TIER_RGB
 
 _PDF_TABLE_COLS = [
     ("ID",           10),

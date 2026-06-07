@@ -14,11 +14,25 @@ See docs/ASSUMPTIONS_LOG.md for every threshold decision.
 Author: Siddardth | M.S. Aerospace Engineering, UIUC
 """
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pydantic as _pydantic
 
 from src.schema import FMEADataset, FMEARow
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _format_pydantic_error(err: Any) -> str:
+    """Format a single pydantic error dict into a human-readable string."""
+    loc = " → ".join(str(x) for x in err.get("loc", []))
+    msg = err.get("msg", "invalid value")
+    return f"{loc}: {msg}" if loc else msg
+
 
 # ---------------------------------------------------------------------------
 # Constants — all thresholds sourced from ASSUMPTIONS_LOG.md
@@ -121,7 +135,6 @@ def validate_input(df: pd.DataFrame) -> None:
     except _pydantic.ValidationError as exc:
         first = exc.errors()[0]
         field = " -> ".join(str(loc) for loc in first["loc"]) or "<dataset>"
-        msg = first["msg"]
         # Detect range violations for S/O/D via stable type codes (not message strings
         # which can change between pydantic patch releases).
         field_lower = field.lower().split(" -> ")[-1]
@@ -133,8 +146,9 @@ def validate_input(df: pd.DataFrame) -> None:
                 f"Valid range is {SCORE_MIN}–{SCORE_MAX} (AIAG FMEA-4 scale). "
                 f"Check your data against the template at data/fmea_input_template.csv."
             ) from exc
+        _formatted = _format_pydantic_error(first)
         raise ValueError(
-            f"Validation error in column '{field}': {msg}. "
+            f"{_formatted}. "
             f"Check your data against the template at data/fmea_input_template.csv."
         ) from exc
 
