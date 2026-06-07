@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.56-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 [![Plotly](https://img.shields.io/badge/Plotly-6.6-3F4F75?logo=plotly&logoColor=white)](https://plotly.com)
-[![Tests](https://img.shields.io/badge/Tests-98%20passing-brightgreen?logo=pytest)](https://github.com/Siddardth7/fmea-risk-analyzer)
+[![Tests](https://img.shields.io/badge/Tests-105%20passing-brightgreen?logo=pytest)](https://github.com/Siddardth7/fmea-risk-analyzer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/Siddardth7/fmea-risk-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddardth7/fmea-risk-analyzer/actions/workflows/ci.yml)
 
@@ -241,7 +241,7 @@ Plotly figures are generated once per filter-state change and cached in `st.sess
 | **Excel export** | 2-sheet openpyxl workbook with tier color fills + metadata sheet |
 | **PDF export** | 3-page A4 landscape: summary table + Pareto PNG + Heatmap PNG |
 | **CLI mode** | `fmea_analyzer.py --input FILE --charts` for terminal/pipeline use |
-| **78 tests** | Full pytest suite covering RPN logic, visualizations, edge cases, export |
+| **105 tests** | Full pytest suite covering RPN logic, visualizations, edge cases, export |
 
 ---
 
@@ -379,7 +379,7 @@ Severity, Occurrence, and Detection scores are calibrated to reflect realistic a
 | PDF Export | [fpdf2 2.8](https://py-pdf.github.io/fpdf2/) | Multi-page A4 landscape PDF report |
 | Excel Export | [openpyxl 3.1](https://openpyxl.readthedocs.io) | Color-coded .xlsx workbook |
 | CLI Charts | [matplotlib 3.10](https://matplotlib.org) | Static chart generation for terminal use and PDF embedding |
-| Testing | [pytest 9.0](https://pytest.org) | 78 unit tests across 4 test modules (install via requirements-dev.txt) |
+| Testing | [pytest 9.0](https://pytest.org) | 105 unit tests across 6 test modules (install via requirements-dev.txt) |
 
 ---
 
@@ -409,8 +409,9 @@ tests/test_streamlit_edge_cases.py    passed
 tests/test_visualizer.py              passed
 tests/test_exporter.py                passed
 tests/test_app_integration.py         passed
+tests/test_ui_modules.py              passed
 ------------------------------------------------
-78+ passed
+105 passed
 ```
 
 Every threshold decision (RPN > 100, Severity ≥ 9, Action Priority H thresholds) has a corresponding test that verifies the correct row is flagged or not flagged. See `docs/ASSUMPTIONS_LOG.md` for the source citations behind each decision.
