@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+venv_test/
+env/
+.env
+*.egg-info/
+dist/
+build/
+
+# Testing / coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated reports
+reports/*.pdf
+reports/*.xlsx
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
