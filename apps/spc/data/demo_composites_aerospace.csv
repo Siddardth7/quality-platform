@@ -1,0 +1,441 @@
+stream,parameter,chart_type,subgroup,value,sample_size,lsl,usl
+ply_thickness,Ply Thickness,xbar_r,1,0.250457,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,1,0.24844,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,1,0.251126,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,1,0.251411,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,1,0.247073,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,2,0.248047,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,2,0.250192,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,2,0.249526,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,2,0.249975,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,2,0.24872,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,3,0.251319,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,3,0.251167,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,3,0.250099,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,3,0.251691,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,3,0.250701,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,4,0.248711,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,4,0.250553,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,4,0.248562,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,4,0.251318,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,4,0.249925,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,5,0.249723,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,5,0.248979,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,5,0.251834,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,5,0.249768,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,5,0.249358,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,6,0.249472,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,6,0.250798,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,6,0.250548,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,6,0.250619,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,6,0.250646,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,7,0.253212,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,7,0.24939,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,7,0.249232,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,7,0.248779,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,7,0.250924,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,8,0.251693,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,8,0.249829,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,8,0.24874,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,8,0.248763,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,8,0.250976,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,9,0.251115,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,9,0.250815,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,9,0.249002,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,9,0.250348,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,9,0.250175,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,10,0.250328,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,10,0.251307,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,10,0.250335,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,10,0.251018,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,10,0.250101,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,11,0.250434,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,11,0.250947,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,11,0.247814,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,11,0.24952,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,11,0.249294,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,12,0.249042,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,12,0.249587,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,12,0.252242,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,12,0.248701,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,12,0.251452,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,13,0.247476,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,13,0.249498,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,13,0.250244,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,13,0.250879,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,13,0.251067,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,14,0.25119,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,14,0.249477,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,14,0.249306,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,14,0.251287,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,14,0.249713,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,15,0.248086,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,15,0.2483,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,15,0.248621,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,15,0.250746,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,15,0.250214,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,16,0.251036,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,16,0.249359,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,16,0.250238,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,16,0.250938,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,16,0.249536,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,17,0.250685,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,17,0.249007,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,17,0.249455,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,17,0.249427,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,17,0.248206,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,18,0.25088,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,18,0.249446,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,18,0.250169,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,18,0.250871,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,18,0.25082,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,19,0.251298,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,19,0.250152,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,19,0.249665,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,19,0.25018,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,19,0.247769,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,20,0.248279,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,20,0.248466,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,20,0.248954,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,20,0.25105,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,20,0.249092,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,21,0.250033,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,21,0.252549,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,21,0.250066,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,21,0.251706,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,21,0.2492,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,22,0.250442,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,22,0.249325,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,22,0.250241,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,22,0.25201,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,22,0.248159,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,23,0.251552,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,23,0.251257,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,23,0.250009,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,23,0.248731,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,23,0.251008,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,24,0.250256,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,24,0.251399,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,24,0.251083,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,24,0.253453,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,24,0.250691,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,25,0.249665,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,25,0.251469,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,25,0.25153,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,25,0.253239,5.0,0.245,0.255
+ply_thickness,Ply Thickness,xbar_r,25,0.252453,5.0,0.245,0.255
+autoclave_temp,Autoclave Cure Temperature,imr,1,180.6424,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,2,182.6339,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,3,177.8602,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,4,178.8484,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,5,178.3322,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,6,179.2983,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,7,177.522,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,8,181.1433,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,9,179.6,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,10,177.3525,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,11,178.172,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,12,180.5643,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,13,181.5086,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,14,183.5941,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,15,185.245,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,16,180.7459,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,17,178.2188,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,18,176.1623,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,19,180.4819,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,20,178.5367,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,21,179.2524,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,22,178.8982,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,23,179.7466,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,24,181.9188,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,25,180.2827,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,26,179.7145,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,27,178.1358,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,28,176.9856,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,29,179.1246,1.0,175.0,185.0
+autoclave_temp,Autoclave Cure Temperature,imr,30,179.9032,1.0,175.0,185.0
+hole_diameter,Hole Diameter,xbar_s,1,10.007425,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,10.000547,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,10.004128,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,9.997903,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,9.995023,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,9.995947,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,9.996954,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,10.00894,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,9.99655,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,10.003522,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,9.996208,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,1,10.003913,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,10.001617,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,9.999342,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,9.999829,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,9.99725,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,10.001874,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,9.998089,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,9.994852,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,9.994633,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,10.000725,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,10.006632,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,10.000672,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,2,9.999502,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.0012,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.005485,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.000921,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,9.998274,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.004646,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.001801,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.00645,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.00077,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,9.994857,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,9.994254,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.006934,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,3,10.007239,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,9.999246,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,9.998391,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,10.006138,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,9.99535,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,9.996242,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,10.002702,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,9.998343,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,9.999978,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,9.999314,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,10.001418,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,10.005911,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,4,10.00038,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,10.002705,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.991389,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.999795,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.996458,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.994881,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.996312,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.998597,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,10.003847,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.994429,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,10.000129,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.997966,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,5,9.998624,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,10.004212,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,10.00226,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,10.005617,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,9.999351,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,9.997077,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,9.99906,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,10.001018,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,10.000742,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,9.995446,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,10.00038,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,10.000959,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,6,10.010573,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,10.007883,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.996416,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.998793,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.993854,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.997519,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,10.001326,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,10.005065,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.996938,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.997253,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.990981,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.999317,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,7,9.995538,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.997776,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.996317,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.999604,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.992618,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.993838,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,10.008943,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.994593,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.995394,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,10.007715,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,10.012201,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.995079,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,8,9.998453,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,10.001435,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,10.007261,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,9.995855,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,9.99897,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,10.003265,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,10.001826,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,9.99842,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,9.999438,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,9.994225,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,9.999,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,9.998881,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,9,10.000975,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,9.997668,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.00198,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.004253,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.000653,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.001477,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.000223,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.0,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,9.996969,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.001329,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,9.999591,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.008791,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,10,10.006608,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,10.001621,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,9.996795,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,9.995328,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,10.005003,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,10.001104,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,10.002017,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,9.992673,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,10.003895,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,10.001909,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,9.995336,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,9.99802,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,11,10.001108,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,10.00022,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,9.998773,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,9.999565,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,9.998942,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,10.000641,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,10.00618,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,9.98922,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,9.999005,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,10.000741,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,10.001243,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,9.998438,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,12,9.992622,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,10.001378,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,10.007255,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,9.993558,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,10.003628,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,9.99862,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,9.999742,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,9.995578,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,9.998595,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,10.00546,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,10.002447,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,10.007276,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,13,10.004945,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,10.001844,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,10.007325,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,10.001844,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,10.003478,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,9.998754,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,10.000279,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,9.997071,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,10.004156,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,9.995051,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,10.003286,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,9.999199,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,14,10.004919,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,10.003154,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,10.007647,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,10.003069,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,9.993397,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,9.999719,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,9.995078,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,9.997823,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,10.006347,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,10.002678,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,9.997064,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,9.995742,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,15,10.000138,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,9.99489,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,9.997181,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,10.00131,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,10.004852,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,10.002557,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,9.990377,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,10.001278,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,10.000303,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,10.001738,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,10.006788,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,9.991334,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,16,9.997517,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.002482,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,9.993357,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.006199,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.001547,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.003556,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,9.997602,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.003418,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.004488,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.000978,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.000984,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,10.001135,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,17,9.996374,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,9.99938,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,9.999359,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,10.00161,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,10.004199,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,9.995554,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,9.999475,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,10.006222,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,9.996877,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,9.996547,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,10.00085,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,10.003546,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,18,10.000048,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,10.005582,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,10.003599,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,10.003536,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,10.002327,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,10.009776,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,9.999138,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,9.991585,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,10.006738,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,9.998078,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,10.000453,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,10.0055,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,19,9.993271,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,9.994743,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,9.993275,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,9.996665,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,10.001846,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,10.002202,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,10.00116,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,9.994066,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,9.990298,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,10.000228,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,9.998019,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,10.001929,12.0,9.985,10.015
+hole_diameter,Hole Diameter,xbar_s,20,10.002948,12.0,9.985,10.015
+reject_proportion,Visual Inspection Reject Rate,p,1,3.0,107.0,,
+reject_proportion,Visual Inspection Reject Rate,p,2,4.0,120.0,,
+reject_proportion,Visual Inspection Reject Rate,p,3,5.0,105.0,,
+reject_proportion,Visual Inspection Reject Rate,p,4,0.0,83.0,,
+reject_proportion,Visual Inspection Reject Rate,p,5,1.0,90.0,,
+reject_proportion,Visual Inspection Reject Rate,p,6,4.0,89.0,,
+reject_proportion,Visual Inspection Reject Rate,p,7,6.0,113.0,,
+reject_proportion,Visual Inspection Reject Rate,p,8,3.0,88.0,,
+reject_proportion,Visual Inspection Reject Rate,p,9,0.0,117.0,,
+reject_proportion,Visual Inspection Reject Rate,p,10,0.0,81.0,,
+reject_proportion,Visual Inspection Reject Rate,p,11,4.0,113.0,,
+reject_proportion,Visual Inspection Reject Rate,p,12,1.0,104.0,,
+reject_proportion,Visual Inspection Reject Rate,p,13,0.0,91.0,,
+reject_proportion,Visual Inspection Reject Rate,p,14,4.0,114.0,,
+reject_proportion,Visual Inspection Reject Rate,p,15,4.0,119.0,,
+reject_proportion,Visual Inspection Reject Rate,p,16,3.0,118.0,,
+reject_proportion,Visual Inspection Reject Rate,p,17,0.0,113.0,,
+reject_proportion,Visual Inspection Reject Rate,p,18,1.0,114.0,,
+reject_proportion,Visual Inspection Reject Rate,p,19,2.0,84.0,,
+reject_proportion,Visual Inspection Reject Rate,p,20,3.0,85.0,,
+reject_proportion,Visual Inspection Reject Rate,p,21,4.0,102.0,,
+reject_proportion,Visual Inspection Reject Rate,p,22,1.0,105.0,,
+reject_proportion,Visual Inspection Reject Rate,p,23,1.0,113.0,,
+reject_proportion,Visual Inspection Reject Rate,p,24,2.0,110.0,,
+reject_proportion,Visual Inspection Reject Rate,p,25,5.0,84.0,,
+surface_defects,Surface Defects per Unit Area,u,1,0.0,1.29,,3.0
+surface_defects,Surface Defects per Unit Area,u,2,0.0,1.29,,3.0
+surface_defects,Surface Defects per Unit Area,u,3,1.0,1.51,,3.0
+surface_defects,Surface Defects per Unit Area,u,4,0.0,0.87,,3.0
+surface_defects,Surface Defects per Unit Area,u,5,3.0,1.58,,3.0
+surface_defects,Surface Defects per Unit Area,u,6,1.0,0.92,,3.0
+surface_defects,Surface Defects per Unit Area,u,7,3.0,1.26,,3.0
+surface_defects,Surface Defects per Unit Area,u,8,1.0,1.21,,3.0
+surface_defects,Surface Defects per Unit Area,u,9,0.0,0.9,,3.0
+surface_defects,Surface Defects per Unit Area,u,10,0.0,1.02,,3.0
+surface_defects,Surface Defects per Unit Area,u,11,2.0,1.14,,3.0
+surface_defects,Surface Defects per Unit Area,u,12,0.0,1.13,,3.0
+surface_defects,Surface Defects per Unit Area,u,13,1.0,1.27,,3.0
+surface_defects,Surface Defects per Unit Area,u,14,1.0,1.13,,3.0
+surface_defects,Surface Defects per Unit Area,u,15,2.0,1.26,,3.0
+surface_defects,Surface Defects per Unit Area,u,16,1.0,1.32,,3.0
+surface_defects,Surface Defects per Unit Area,u,17,1.0,1.24,,3.0
+surface_defects,Surface Defects per Unit Area,u,18,3.0,1.09,,3.0
+surface_defects,Surface Defects per Unit Area,u,19,2.0,1.2,,3.0
+surface_defects,Surface Defects per Unit Area,u,20,1.0,1.47,,3.0
