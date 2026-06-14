@@ -11,6 +11,15 @@ env/
 dist/
 build/
 
+# Testing / coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Jupyter
 .ipynb_checkpoints/
 
