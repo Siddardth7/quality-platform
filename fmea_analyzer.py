@@ -19,8 +19,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from src._logging import get_logger
 from src.rpn_engine import run_pipeline
 from src.visualizer import pareto_chart, risk_heatmap
+
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # ANSI color codes for terminal output
@@ -217,7 +220,8 @@ def main() -> None:
 
     try:
         df_raw = _load_file(input_path)
-    except Exception as exc:
+    except (ValueError, OSError, RuntimeError) as exc:
+        logger.exception("CLI failed to load input file: %s", input_path)
         print(f"[ERROR] Failed to load file: {exc}", file=sys.stderr)
         sys.exit(1)
 
@@ -255,7 +259,8 @@ def main() -> None:
             risk_heatmap(df_result, output_path=heatmap_path)
             print(f"  Risk heatmap saved  → {heatmap_path}")
             print()
-        except Exception as exc:
+        except (ValueError, KeyError, OSError, RuntimeError) as exc:
+            logger.exception("CLI chart generation failed")
             print(f"[ERROR] Chart generation failed: {exc}", file=sys.stderr)
             sys.exit(1)
 

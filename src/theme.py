@@ -54,3 +54,11 @@ TIER_FILL_HEX: dict[str, str] = {
     "Yellow": "FFF9E6",
     "Green":  "E8F8EF",
 }
+
+# ---------------------------------------------------------------------------
+# Shared display constants (F-015). Used by both matplotlib (visualizer.py)
+# and plotly (plotly_charts.py) Pareto renderers so x-axis labels truncate
+# consistently across surfaces.
+# ---------------------------------------------------------------------------
+
+FAILURE_MODE_TRUNC = 40

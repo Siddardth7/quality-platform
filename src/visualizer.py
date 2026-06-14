@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.theme import TIER_HEX
+from src.theme import FAILURE_MODE_TRUNC, TIER_HEX
 from src.theme import TIER_RANK as _TIER_RANK_MAP
 
 # ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ def pareto_chart(
         }])
         df_sorted = pd.concat([top, others_row], ignore_index=True)
 
-    labels = [str(fm)[:40] for fm in df_sorted["Failure_Mode"]]
+    labels = [str(fm)[:FAILURE_MODE_TRUNC] for fm in df_sorted["Failure_Mode"]]
     rpns   = df_sorted["RPN"].values
     tiers  = df_sorted["Risk_Tier"].values
     colors = [TIER_COLORS.get(t, "#95a5a6") for t in tiers]
