@@ -1,0 +1,24 @@
+[project]
+name = "fmea-app"
+version = "0.1.0"
+description = "FMEA Risk Analyzer — Streamlit app (RPN / AIAG-VDA Action Priority)."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "quality-core",
+    "streamlit==1.56.0",
+    "pandas==3.0.2",
+    "plotly==6.6.0",
+    "fpdf2==2.8.7",
+    "openpyxl==3.1.5",
+    "numpy==2.4.4",
+    "matplotlib==3.10.8",
+    "pydantic>=2.0",
+]
+
+[tool.uv.sources]
+quality-core = { workspace = true }
+
+# Run from this directory (`streamlit run app.py`); not built/installed as a wheel.
+[tool.uv]
+package = false

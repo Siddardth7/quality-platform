@@ -1,0 +1,40 @@
+[project]
+name = "quality-platform"
+version = "0.1.0"
+description = "Integrated manufacturing quality platform — FMEA, SPC, and Control Plan over a shared core."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "quality-core",
+    "fmea-app",
+    "spc-app",
+]
+
+[tool.uv.workspace]
+members = ["packages/*", "apps/*"]
+
+[tool.uv.sources]
+quality-core = { workspace = true }
+fmea-app = { workspace = true }
+spc-app = { workspace = true }
+
+# The workspace root is a coordinator, not an installable package.
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pandas-stubs>=2.0",
+    "types-openpyxl>=3.1",
+]
+
+# Per-app unified test runs land after the W01-4/W01-5 restructure removes the
+# shared top-level `src` package name. Until then, run a suite per app, e.g.
+#   uv run pytest apps/fmea/tests
+#   uv run pytest apps/spc/tests
+[tool.pytest.ini_options]
+addopts = "--tb=short"
