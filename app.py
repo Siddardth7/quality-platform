@@ -23,19 +23,23 @@ from typing import Callable
 import streamlit as st
 
 # ---------------------------------------------------------------------------
-# Make both apps importable
+# Make all first-party code importable from the checked-out repo
 # ---------------------------------------------------------------------------
 # The apps are workspace members built as runnable Streamlit folders, not wheels
-# (``package = false``), so their top-level packages (``fmea_app`` / ``ui`` /
-# ``spc_app``) are not on ``sys.path`` by default. Add each app directory so the
-# shell can import their render callables.
+# (``package = false``), so ``fmea_app`` / ``ui`` / ``spc_app`` are not on
+# ``sys.path`` by default. quality-core IS an installed (editable) package locally,
+# but on a plain ``pip install -r requirements.txt`` host (Streamlit Cloud) it is
+# not installed — requirements.txt carries only third-party deps. Putting its
+# source root on the path too lets the shell run from the repo with no editable
+# install, the same way the apps are resolved.
 
 _ROOT = Path(__file__).resolve().parent
 _FMEA_DIR = _ROOT / "apps" / "fmea"
 _SPC_DIR = _ROOT / "apps" / "spc"
+_CORE_SRC = _ROOT / "packages" / "quality-core" / "src"
 
-for _app_dir in (_SPC_DIR, _FMEA_DIR):
-    _path = str(_app_dir)
+for _src_dir in (_CORE_SRC, _SPC_DIR, _FMEA_DIR):
+    _path = str(_src_dir)
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
