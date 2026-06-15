@@ -179,13 +179,16 @@ def test_pdf_export_cleans_tempfile_on_chart_error(monkeypatch, tmp_path):
     we must not leave orphan PNG files in the system temp directory."""
     import os
     import tempfile
+    from pathlib import Path
 
     import pandas as pd
 
     from fmea_app import exporter
     from fmea_app.rpn_engine import run_pipeline
 
-    df = pd.read_csv("data/composite_panel_fmea_demo.csv")
+    # Absolute path so the read works regardless of pytest CWD.
+    demo_csv = Path(__file__).parent.parent / "data" / "composite_panel_fmea_demo.csv"
+    df = pd.read_csv(demo_csv)
     df = run_pipeline(df)
 
     def boom(*args, **kwargs):
