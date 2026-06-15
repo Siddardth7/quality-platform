@@ -1,6 +1,8 @@
 import streamlit as st
 from quality_core.theme import AMBER, BG_CARD, TEXT_PRIMARY, apply_theme
 
+from spc_app import __version__
+
 st.set_page_config(
     page_title="SPC Manufacturing Quality Dashboard",
     layout="wide",
@@ -8,7 +10,10 @@ st.set_page_config(
 apply_theme()
 
 st.title("SPC Manufacturing Quality Dashboard")
-st.caption("A manufacturing-focused SPC portfolio app for composites, curing, and aerospace machining workflows.")
+st.caption(
+    f"v{__version__} · A manufacturing-focused SPC portfolio app for composites, curing, "
+    "and aerospace machining workflows."
+)
 
 intro_left, intro_right = st.columns([2, 1])
 
@@ -35,7 +40,7 @@ with intro_right:
 feature_cols = st.columns(3)
 feature_cols[0].subheader("Control Charts")
 feature_cols[0].write(
-    "Variables and attributes charts using Xbar-R, Xbar-S, I-MR, p, and u workflows with rule overlays."
+    "Variables and attributes charts using Xbar-R, Xbar-S, I-MR, p, u, and c workflows with rule overlays."
 )
 feature_cols[1].subheader("Process Capability")
 feature_cols[1].write(
