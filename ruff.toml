@@ -3,10 +3,7 @@
 target-version = "py311"
 line-length = 100
 
-# apps/spc is excluded until W02-1 brings the SPC sources up to the lint bar
-# (its only outstanding findings are import-ordering). Drop it from this list in
-# W02-1 so SPC is linted workspace-wide like everything else.
-extend-exclude = [".venv", "**/__pycache__", "apps/spc"]
+extend-exclude = [".venv", "**/__pycache__"]
 
 [lint]
 select = ["E", "F", "W", "I"]
@@ -17,6 +14,9 @@ ignore = [
 
 [lint.per-file-ignores]
 "**/tests/**" = ["F811"]  # allow redefinition in tests
+# SPC import-ordering cleanup is deferred to W02-1; defer only I001 so SPC stays
+# covered for real-bug rules (E/F/W) now. Drop this entry in W02-1.
+"apps/spc/**" = ["I001"]
 
 # The apps are not installed (package = false) and live under apps/*, so ruff's
 # isort cannot auto-detect their top-level packages as first-party. Declare them
