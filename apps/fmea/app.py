@@ -41,15 +41,8 @@ from ui.filters import (
 from ui.styles import apply_css
 
 # ---------------------------------------------------------------------------
-# Page config
+# Paths
 # ---------------------------------------------------------------------------
-
-st.set_page_config(
-    page_title="FMEA Risk Analyzer",
-    page_icon="🛡️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 DEMO_CSV     = Path(__file__).parent / "data" / "composite_panel_fmea_demo.csv"
 TEMPLATE_CSV = Path(__file__).parent / "data" / "fmea_input_template.csv"
@@ -165,10 +158,17 @@ def render_sidebar():  # type: ignore[no-untyped-def]
 
 
 # ---------------------------------------------------------------------------
-# App entry point
+# Mountable page body
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+def render_fmea() -> None:
+    """Draw the full FMEA page into the *current* Streamlit container.
+
+    This is the mountable render callable consumed by the unified platform shell
+    (``app.py`` at the repo root). It owns no ``set_page_config`` — the host sets
+    that once. The thin standalone wrapper ``main()`` below supplies page config
+    for ``streamlit run app.py``.
+    """
     raw_df, rpn_min, sev9_only, dark = render_sidebar()
 
     apply_css(dark)
@@ -250,6 +250,21 @@ def main() -> None:
 
     st.divider()
     render_export_buttons(df_filtered, rpn_min, sev9_only, process_steps)
+
+
+# ---------------------------------------------------------------------------
+# Standalone entry point
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    """Standalone entry: own the page chrome, then render the FMEA body."""
+    st.set_page_config(
+        page_title="FMEA Risk Analyzer",
+        page_icon="🛡️",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+    render_fmea()
 
 
 if __name__ == "__main__":
