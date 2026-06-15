@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Mapping, Sequence
 
 import numpy as np
 import plotly.graph_objects as go
@@ -14,7 +14,7 @@ def build_control_chart(
     cl: float,
     ucl: float | Sequence[float],
     lcl: float | Sequence[float],
-    violations: Sequence[dict[str, object]] | None = None,
+    violations: Sequence[Mapping[str, int | str]] | None = None,
     title: str = "Control Chart",
     y_axis_title: str = "Value",
 ) -> go.Figure:
@@ -88,7 +88,7 @@ def build_control_chart(
 
 
 def build_capability_histogram(
-    data: Sequence[float],
+    data: Sequence[float] | np.ndarray,
     lsl: float | None,
     usl: float | None,
     mean: float,

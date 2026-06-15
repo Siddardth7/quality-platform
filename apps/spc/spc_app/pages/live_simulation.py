@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any, Mapping
 
 import streamlit as st
 
@@ -34,6 +35,9 @@ def current_chart(engine: SimulationEngine, rule_set: str):
     if not engine.history:
         return None, [], 0.0, 0.0
 
+    # Runtime dispatch over subgroup size; the shared `result` is the read-only
+    # union surface while engine functions keep their exact TypedDicts.
+    result: Mapping[str, Any]
     if engine.subgroup_size == 1:
         points = [group[0] for group in engine.history][-50:]
         if len(points) < 2:

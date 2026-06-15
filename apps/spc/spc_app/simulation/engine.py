@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TypedDict
 
 import numpy as np
 
-PROCESS_CONFIGS = {
+
+class ProcessConfig(TypedDict):
+    label: str
+    unit: str
+    target_mu: float
+    target_sigma: float
+
+
+PROCESS_CONFIGS: dict[str, ProcessConfig] = {
     "Composites": {
         "label": "Ply Thickness",
         "unit": "mm",
