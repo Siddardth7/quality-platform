@@ -1,0 +1,28 @@
+# One ruff config for the whole monorepo (ported from the FMEA app).
+# quality-core + the FMEA app are linted against the same bar.
+target-version = "py311"
+line-length = 100
+
+# apps/spc is excluded until W02-1 brings the SPC sources up to the lint bar
+# (its only outstanding findings are import-ordering). Drop it from this list in
+# W02-1 so SPC is linted workspace-wide like everything else.
+extend-exclude = [".venv", "**/__pycache__", "apps/spc"]
+
+[lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # line too long — handled by formatter
+    "F401",  # unused import — some are re-exports
+]
+
+[lint.per-file-ignores]
+"**/tests/**" = ["F811"]  # allow redefinition in tests
+
+# The apps are not installed (package = false) and live under apps/*, so ruff's
+# isort cannot auto-detect their top-level packages as first-party. Declare them
+# so import groups match how each app is written. quality-core is intentionally
+# omitted: it is an installed (editable) workspace package, so both apps already
+# import it as a third-party dependency — listing it here would churn their
+# existing import blocks.
+[lint.isort]
+known-first-party = ["fmea_app", "ui", "spc_app", "shell"]

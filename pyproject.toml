@@ -32,9 +32,15 @@ dev = [
     "types-openpyxl>=3.1",
 ]
 
-# Per-app unified test runs land after the W01-4/W01-5 restructure removes the
-# shared top-level `src` package name. Until then, run a suite per app, e.g.
-#   uv run pytest apps/fmea/tests
-#   uv run pytest apps/spc/tests
+# One pytest config for the whole workspace: discovers quality-core + both apps.
+# `importlib` import mode keeps the two same-named `tests` packages (and duplicate
+# basenames like `test_visualizer.py`) isolated; each app dir is put on sys.path by
+# its own conftest.py so `fmea_app` / `ui` / `spc_app` resolve.
 [tool.pytest.ini_options]
-addopts = "--tb=short"
+addopts = "--tb=short --import-mode=importlib"
+testpaths = ["packages", "apps"]
+
+# Coverage across the shared core and both apps (`uv run pytest --cov`).
+[tool.coverage.run]
+source = ["quality_core", "fmea_app", "ui", "spc_app"]
+omit = ["*/tests/*"]

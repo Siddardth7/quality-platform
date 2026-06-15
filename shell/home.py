@@ -8,7 +8,6 @@ sets those once before mounting it via ``st.navigation``.
 from __future__ import annotations
 
 import streamlit as st
-
 from quality_core.theme import AMBER, BG_CARD, BORDER, TEXT_PRIMARY, TEXT_SECONDARY
 
 
