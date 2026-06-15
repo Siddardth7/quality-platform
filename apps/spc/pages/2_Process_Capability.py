@@ -5,11 +5,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from src.spc_engine.capability import compute_capability, normality_test
-from src.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
-from src.spc_engine.utils import subgroup_rows
-from src.ui.theme import apply_theme
-from src.visualizer import build_capability_histogram, build_cpk_gauge
+from spc_app.spc_engine.capability import compute_capability, normality_test
+from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
+from spc_app.spc_engine.utils import subgroup_rows
+from spc_app.ui.theme import apply_theme
+from spc_app.visualizer import build_capability_histogram, build_cpk_gauge
 
 st.set_page_config(page_title="Process Capability", layout="wide")
 apply_theme()
@@ -33,7 +33,7 @@ CAPABILITY_REFERENCE = pd.DataFrame(
 @st.cache_data
 def load_demo_data() -> pd.DataFrame:
     if not DEMO_PATH.exists():
-        from src.spc_engine.data_generator import generate_demo_dataset
+        from spc_app.spc_engine.data_generator import generate_demo_dataset
         DEMO_PATH.parent.mkdir(parents=True, exist_ok=True)
         generate_demo_dataset().to_csv(DEMO_PATH, index=False)
     return pd.read_csv(DEMO_PATH)

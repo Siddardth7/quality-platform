@@ -1,6 +1,6 @@
 import pytest
 import plotly.graph_objects as go
-from src.visualizer import build_cpk_gauge
+from spc_app.visualizer import build_cpk_gauge
 
 
 def test_build_cpk_gauge_valid_cpk_returns_figure():

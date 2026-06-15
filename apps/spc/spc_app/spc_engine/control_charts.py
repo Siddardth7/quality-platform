@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.spc_engine.constants import IMR_D2, IMR_D4, IMR_E2, XBAR_R_CONSTANTS, XBAR_S_CONSTANTS
+from spc_app.spc_engine.constants import IMR_D2, IMR_D4, IMR_E2, XBAR_R_CONSTANTS, XBAR_S_CONSTANTS
 
 
 def compute_xbar_r(subgroups: list[list[float]]) -> dict[str, float | list[float]]:

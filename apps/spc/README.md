@@ -39,7 +39,7 @@ A multi-page Streamlit application for **Statistical Process Control (SPC)** bui
 | **Process Capability** | Cp, Cpk, Pp, Ppk with distribution histogram and normality feedback | Cpk gauge, capability table, Shapiro-Wilk result |
 | **Live Simulation** | Real-time subgroup generation with injected disturbances | Animated chart, active disturbance status, violation count |
 
-All three pages share the same `src/spc_engine/` math library. No external database is required — everything runs from a single committed CSV file that is auto-regenerated if missing.
+All three pages share the same `spc_app/spc_engine/` math library. No external database is required — everything runs from a single committed CSV file that is auto-regenerated if missing.
 
 ---
 
@@ -92,7 +92,7 @@ manufacturing-spc-dashboard/
 │   ├── 2_Process_Capability.py     Capability indices, histogram, normality test
 │   └── 3_Live_Simulation.py        Real-time loop, disturbance injection buttons
 │
-├── src/
+├── spc_app/
 │   ├── spc_engine/
 │   │   ├── control_charts.py       UCL/LCL/CL math for all five chart types
 │   │   ├── rule_detection.py       Western Electric (1–4) + Nelson (5–8)
@@ -137,7 +137,7 @@ CSV on disk / uploaded file
                                       detect_we_violations / detect_nelson_violations
                                                    │
                                                    ▼
-                                      src/visualizer.py
+                                      spc_app/visualizer.py
                                       build_control_chart / build_capability_histogram
                                                    │
                                                    ▼
@@ -148,7 +148,7 @@ CSV on disk / uploaded file
 
 ## Module Reference
 
-### `src/spc_engine/control_charts.py`
+### `spc_app/spc_engine/control_charts.py`
 
 All functions accept Python lists and return a `dict` of scalars and lists.
 
@@ -162,7 +162,7 @@ All functions accept Python lists and return a `dict` of scalars and lists.
 
 All functions raise `ValueError` for invalid inputs (wrong dimensionality, unsupported subgroup size, mismatched arrays, non-positive sample sizes).
 
-### `src/spc_engine/rule_detection.py`
+### `spc_app/spc_engine/rule_detection.py`
 
 ```python
 violations = detect_we_violations(points, cl=centerline, sigma=sigma_xbar)
@@ -178,7 +178,7 @@ Each returns `list[{"index": int, "rule": str}]`.
 - p chart → `sqrt(pbar * (1 - pbar) / avg_n)`
 - u chart → `sqrt(ubar / avg_n)`
 
-### `src/spc_engine/capability.py`
+### `spc_app/spc_engine/capability.py`
 
 ```python
 result = compute_capability(values, lsl=9.5, usl=10.5, sigma_hat=0.1)
@@ -190,7 +190,7 @@ normality = normality_test(values)
 # Requires at least 3 values.
 ```
 
-### `src/simulation/engine.py`
+### `spc_app/simulation/engine.py`
 
 ```python
 engine = SimulationEngine(process_stream="Composites", subgroup_size=5, rng_seed=42)
@@ -213,7 +213,7 @@ Available process streams: `"Composites"` (ply thickness, σ = 0.001 mm), `"Mach
 
 File: `data/demo_composites_aerospace.csv` (370 rows, deterministic seed = 42)
 
-Auto-regenerated at startup if deleted. Source: `src/spc_engine/data_generator.py`.
+Auto-regenerated at startup if deleted. Source: `spc_app/spc_engine/data_generator.py`.
 
 ### Schema
 
@@ -358,8 +358,8 @@ CMD ["streamlit", "run", "app.py", "--server.port=8501"]
 
 ### Add a new chart type
 
-1. Implement `compute_<name>(...)` in `src/spc_engine/control_charts.py`. Return a dict following the existing convention.
-2. Add the demo stream in `src/spc_engine/data_generator.py` (new `_<stream>()` function, concat into `generate_demo_dataset()`).
+1. Implement `compute_<name>(...)` in `spc_app/spc_engine/control_charts.py`. Return a dict following the existing convention.
+2. Add the demo stream in `spc_app/spc_engine/data_generator.py` (new `_<stream>()` function, concat into `generate_demo_dataset()`).
 3. Add the entry to `CHART_OPTIONS` in `pages/1_Control_Charts.py`.
 4. Add a `summarize_metrics` branch for the new key.
 5. Write tests in `tests/test_control_charts.py`.
@@ -370,7 +370,7 @@ CMD ["streamlit", "run", "app.py", "--server.port=8501"]
 2. Regenerate the CSV:
    ```bash
    python3 -c "
-   from src.spc_engine.data_generator import generate_demo_dataset
+   from spc_app.spc_engine.data_generator import generate_demo_dataset
    generate_demo_dataset().to_csv('data/demo_composites_aerospace.csv', index=False)
    print('Done')
    "
@@ -379,7 +379,7 @@ CMD ["streamlit", "run", "app.py", "--server.port=8501"]
 
 ### Add a new simulation process
 
-1. Add an entry to `PROCESS_CONFIGS` in `src/simulation/engine.py` with `target_mu`, `target_sigma`, `label`, `unit`.
+1. Add an entry to `PROCESS_CONFIGS` in `spc_app/simulation/engine.py` with `target_mu`, `target_sigma`, `label`, `unit`.
 2. The page 3 sidebar `st.selectbox` auto-discovers all entries from the dict — no other page change needed.
 
 ---

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.spc_engine.data_generator import generate_demo_dataset
+from spc_app.spc_engine.data_generator import generate_demo_dataset
 
 
 def test_returns_dataframe():

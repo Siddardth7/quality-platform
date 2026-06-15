@@ -1,5 +1,5 @@
 import pandas as pd
-from src.spc_engine.utils import subgroup_rows
+from spc_app.spc_engine.utils import subgroup_rows
 
 
 def test_returns_list_of_lists():

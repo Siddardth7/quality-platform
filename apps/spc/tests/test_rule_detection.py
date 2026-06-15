@@ -1,4 +1,4 @@
-from src.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
+from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
 
 
 def _has_violation(violations, rule, index):

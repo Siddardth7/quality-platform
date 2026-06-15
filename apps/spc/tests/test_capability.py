@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.spc_engine.capability import compute_capability, normality_test
+from spc_app.spc_engine.capability import compute_capability, normality_test
 
 
 DATA = np.array([9.9, 10.0, 10.1, 10.0, 10.2])

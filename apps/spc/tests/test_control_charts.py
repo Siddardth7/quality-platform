@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from src.spc_engine.control_charts import (
+from spc_app.spc_engine.control_charts import (
     compute_c,
     compute_imr,
     compute_p,
