@@ -16,6 +16,7 @@ def generate_demo_dataset() -> pd.DataFrame:
         _hole_diameter(),
         _reject_proportion(),
         _surface_defects(),
+        _panel_defects(),
     ]
     return pd.concat(frames, ignore_index=True)
 
@@ -114,6 +115,28 @@ def _surface_defects() -> pd.DataFrame:
                 "sample_size": sample_size,
                 "lsl": np.nan,
                 "usl": 3.0,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _panel_defects() -> pd.DataFrame:
+    # c-chart: count of nonconformities on a constant area of opportunity
+    # (one inspected composite panel), so sample_size is a fixed 1.
+    rows = []
+    for subgroup in range(1, 26):
+        defects_mean = 6.0 + 1.5 * np.sin(subgroup / 5)
+        defect_count = int(_RNG.poisson(defects_mean))
+        rows.append(
+            {
+                "stream": "panel_defects",
+                "parameter": "Nonconformities per Composite Panel",
+                "chart_type": "c",
+                "subgroup": subgroup,
+                "value": defect_count,
+                "sample_size": 1,
+                "lsl": np.nan,
+                "usl": np.nan,
             }
         )
     return pd.DataFrame(rows)

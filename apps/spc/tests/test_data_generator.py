@@ -16,6 +16,7 @@ def test_has_required_streams():
     assert "hole_diameter" in streams
     assert "reject_proportion" in streams
     assert "surface_defects" in streams
+    assert "panel_defects" in streams
 
 
 def test_ply_thickness_values_in_range():
@@ -47,3 +48,15 @@ def test_ply_thickness_subgroup_size_5():
     ply = df[df["stream"] == "ply_thickness"]
     counts = ply.groupby("subgroup")["value"].count()
     assert (counts == 5).all()
+
+
+def test_panel_defects_is_c_chart_count_data():
+    df = generate_demo_dataset()
+    panel = df[df["stream"] == "panel_defects"]
+    assert (panel["chart_type"] == "c").all()
+    # c-chart requires a constant area of opportunity (fixed sample size).
+    assert (panel["sample_size"] == 1).all()
+    # Counts are non-negative whole numbers (stored as float after concat).
+    assert (panel["value"] >= 0).all()
+    assert (panel["value"] % 1 == 0).all()
+    assert len(panel) == 25
