@@ -5,9 +5,9 @@ description = "Shared core for the Quality Platform: schema, IO, theme, and doma
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pandas>=3.0",
-    "pydantic>=2.0",
-    "streamlit>=1.50",  # quality_core.theme.style.apply_theme injects CSS via st.markdown
+    "pandas>=3.0.2",
+    "pydantic>=2.13.4",
+    "streamlit>=1.56.0",  # quality_core.theme.style.apply_theme injects CSS via st.markdown
 ]
 
 [build-system]

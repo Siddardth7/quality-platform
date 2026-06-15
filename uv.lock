@@ -463,15 +463,15 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fpdf2", specifier = "==2.8.7" },
-    { name = "matplotlib", specifier = "==3.10.8" },
-    { name = "numpy", specifier = "==2.4.4" },
-    { name = "openpyxl", specifier = "==3.1.5" },
-    { name = "pandas", specifier = "==3.0.2" },
-    { name = "plotly", specifier = "==6.6.0" },
-    { name = "pydantic", specifier = ">=2.0" },
+    { name = "fpdf2", specifier = ">=2.8.7" },
+    { name = "matplotlib", specifier = ">=3.10.8" },
+    { name = "numpy", specifier = ">=2.4.4" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "plotly", specifier = ">=6.6.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
     { name = "quality-core", editable = "packages/quality-core" },
-    { name = "streamlit", specifier = "==1.56.0" },
+    { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
 [[package]]
@@ -1561,9 +1561,9 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pandas", specifier = ">=3.0" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "streamlit", specifier = ">=1.50" },
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
 [[package]]
@@ -1595,12 +1595,12 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.10" },
-    { name = "pandas-stubs", specifier = ">=2.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "ruff", specifier = ">=0.4" },
-    { name = "types-openpyxl", specifier = ">=3.1" },
+    { name = "mypy", specifier = ">=2.1.0" },
+    { name = "pandas-stubs", specifier = ">=3.0.3" },
+    { name = "pytest", specifier = ">=9.1.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.15.17" },
+    { name = "types-openpyxl", specifier = ">=3.1.5" },
 ]
 
 [[package]]
@@ -1898,12 +1898,12 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "numpy", specifier = ">=2.0.0" },
-    { name = "pandas", specifier = ">=3.0.0" },
-    { name = "plotly", specifier = ">=5.20.0" },
+    { name = "numpy", specifier = ">=2.4.4" },
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "plotly", specifier = ">=6.6.0" },
     { name = "quality-core", editable = "packages/quality-core" },
-    { name = "scipy", specifier = ">=1.17.0" },
-    { name = "streamlit", specifier = ">=1.50.0" },
+    { name = "scipy", specifier = ">=1.17.1" },
+    { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
 [[package]]
