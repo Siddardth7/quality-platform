@@ -7,6 +7,7 @@ import streamlit as st
 
 from spc_app.spc_engine.capability import compute_capability, normality_test
 from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
+from spc_app.spc_engine.rule_detection import detect_we_violations
 from spc_app.spc_engine.utils import subgroup_rows
 from spc_app.visualizer import build_capability_histogram, build_cpk_gauge
 
@@ -36,12 +37,41 @@ def load_demo_data() -> pd.DataFrame:
 
 
 
-def compute_sigma_hat(stream_name: str, frame: pd.DataFrame) -> float:
+def assess_control_chart(
+    stream_name: str,
+    frame: pd.DataFrame,
+) -> tuple[float, list[dict[str, int | str]]]:
+    """Compute within-subgroup sigma_hat and detect Western Electric
+    out-of-control signals on the stream's control chart.
+
+    Capability indices are only meaningful on a stable process, so the
+    Capability page uses the signal list to gate (warn on) Cpk reporting.
+    Returns (sigma_hat, signals); an empty list means in statistical control.
+    """
     if stream_name == "ply_thickness":
-        return compute_xbar_r(subgroup_rows(frame))["sigma_hat"]
-    if stream_name == "hole_diameter":
-        return compute_xbar_s(subgroup_rows(frame))["sigma_hat"]
-    return compute_imr(frame.sort_values("subgroup")["value"].tolist())["sigma_hat"]
+        subgroups = subgroup_rows(frame)
+        xr = compute_xbar_r(subgroups)
+        points: list[float] = xr["subgroup_means"]
+        cl: float = xr["xbarbar"]
+        sigma_hat: float = xr["sigma_hat"]
+        # The plotted points are subgroup means, so their spread is sigma/sqrt(n).
+        sigma_points: float = sigma_hat / (len(subgroups[0]) ** 0.5)
+    elif stream_name == "hole_diameter":
+        subgroups = subgroup_rows(frame)
+        xs = compute_xbar_s(subgroups)
+        points = xs["subgroup_means"]
+        cl = xs["xbarbar"]
+        sigma_hat = xs["sigma_hat"]
+        sigma_points = sigma_hat / (len(subgroups[0]) ** 0.5)
+    else:
+        im = compute_imr(frame.sort_values("subgroup")["value"].tolist())
+        points = im["values"]
+        cl = im["xbar"]
+        sigma_hat = im["sigma_hat"]
+        sigma_points = sigma_hat
+
+    signals = detect_we_violations(points, cl=cl, sigma=sigma_points) if sigma_points > 0 else []
+    return sigma_hat, signals
 
 
 def default_limit(series: pd.Series):
@@ -89,7 +119,7 @@ def render_capability() -> None:
         usl = st.number_input("USL", value=default_usl if usl_enabled else 0.0, disabled=not usl_enabled)
 
     values = stream_frame["value"].to_numpy()
-    sigma_hat = compute_sigma_hat(stream_name, stream_frame)
+    sigma_hat, oos_signals = assess_control_chart(stream_name, stream_frame)
     capability = compute_capability(
         values,
         lsl=lsl if lsl_enabled else None,
@@ -97,6 +127,17 @@ def render_capability() -> None:
         sigma_hat=sigma_hat,
     )
     normality = normality_test(values)
+
+    # Stability gate: capability indices are only meaningful on a process in
+    # statistical control. Warn prominently before reporting Cp/Cpk on a process
+    # that shows Western Electric out-of-control signals.
+    if oos_signals:
+        st.error(
+            f"⚠️ Process is **not in statistical control** — "
+            f"{len(oos_signals)} Western Electric signal(s) detected on the control chart. "
+            "Capability indices (Cp / Cpk / Pp / Ppk) are **not valid** until the process is "
+            "stabilized. Treat the values below as indicative only, not a capability claim."
+        )
 
     left, right = st.columns([1, 2])
     with left:
