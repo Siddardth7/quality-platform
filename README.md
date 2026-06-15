@@ -21,7 +21,7 @@ preserved** (the histories are part of the engineering story):
 | App | Path | What it does |
 | --- | ---- | ------------ |
 | FMEA Risk Analyzer | [`apps/fmea/`](apps/fmea/) | Failure Mode & Effects Analysis — RPN / AIAG-VDA Action Priority, exports |
-| Manufacturing SPC Dashboard | [`apps/spc/`](apps/spc/) | Statistical Process Control — control charts + process capability |
+| Manufacturing SPC Dashboard | [`apps/spc/`](apps/spc/) | Statistical Process Control — control charts (incl. c-chart), capability with a stability gate, live simulation |
 
 > Migrated from the standalone repos
 > [`fmea-risk-analyzer`](https://github.com/Siddardth7/fmea-risk-analyzer) and
@@ -71,7 +71,9 @@ uv run pytest --cov     # tests + coverage across packages + apps
 ```
 
 CI (`.github/workflows/ci.yml`) runs exactly this gate on every push and pull request to `main`,
-on Python 3.11 via [`astral-sh/setup-uv`](https://github.com/astral-sh/setup-uv).
+on Python 3.11 via [`astral-sh/setup-uv`](https://github.com/astral-sh/setup-uv). It also enforces
+a dedicated **SPC coverage gate** — the testable SPC surface (engine + simulation + visualizer) must
+stay ≥95% covered.
 
 > **Branch protection:** `main` should require the **CI / gate** status check to pass before
 > merging (GitHub → Settings → Branches → add a rule for `main`, require status checks). This makes

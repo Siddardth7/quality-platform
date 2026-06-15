@@ -4,6 +4,44 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-15
+
+Week 02: SPC parity. The SPC app is brought to the same engineering bar as FMEA — type-safe,
+lint-clean, coverage-gated, with two capability/charting gaps closed and full planning docs.
+
+🔗 Live: <https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>
+
+### Added
+
+- **c-chart** surfaced in the Control Charts UI (`compute_c` was implemented but unwired): new
+  constant-area `panel_defects` demo stream, render branch with WE/Nelson rule overlays, and
+  metric tiles.
+- **Capability stability gate** — the Process Capability page now runs Western Electric rule
+  detection first and warns prominently that Cp/Cpk are not valid on an out-of-control process.
+- **SPC coverage gate** in CI — the testable SPC surface (engine + simulation + visualizer) is
+  enforced at ≥95% (`--cov-fail-under`); brought to 100% (incl. the previously-untested
+  `simulation/engine.py`).
+- **SPC planning docs** — `apps/spc/CLAUDE.md`, `apps/spc/docs/ASSUMPTIONS_LOG.md` (every AIAG
+  constant + threshold cited), and a version single-source-of-truth (`spc_app.__version__`) with
+  a drift-guard test.
+
+### Changed
+
+- **SPC is now mypy-clean and in the type gate** — replaced lossy `dict[str, float | list[float]]`
+  engine returns with precise TypedDicts; `spc_app` added to `mypy.ini`.
+- **SPC is now ruff-clean** under the unified root config (import-ordering enforced).
+- **Dependency pins reconciled** to one coherent set — every dependency declared `>=<locked
+  version>`, identical across `quality-core` and both apps; dev-tool floors aligned to locked.
+
+### Removed
+
+- Stray `apps/spc/docs/superpowers/` plan/spec artifacts from the standalone era.
+
+### Notes
+
+- FMEA: 105 tests. SPC: now 124 tests (engine/simulation/visualizer at 100%). Workspace: 229 tests,
+  ruff + mypy clean, CI gate + SPC coverage gate green.
+
 ## [0.1.0] - 2026-06-15
 
 First public release — Week 01: monorepo + shared core. The platform now publicly exists.
@@ -31,4 +69,5 @@ First public release — Week 01: monorepo + shared core. The platform now publi
 - FMEA: 105 tests, ruff + mypy clean. SPC: 83 tests (ruff/mypy lint cleanup scheduled for W02).
 - uv is the toolchain; the workspace runs on Python 3.11.
 
+[0.2.0]: https://github.com/Siddardth7/quality-platform/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Siddardth7/quality-platform/releases/tag/v0.1.0
