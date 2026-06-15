@@ -101,3 +101,18 @@ def test_compute_capability_no_spec_limits_all_indices_none():
     assert result["ppk"] is None
     assert result["mean"] == pytest.approx(data.mean(), rel=1e-4)
     assert result["sigma_hat"] == pytest.approx(0.1)
+
+
+def test_compute_capability_too_few_points_raises():
+    with pytest.raises(ValueError):
+        compute_capability(np.array([10.0]), lsl=LSL, usl=USL, sigma_hat=SIGMA_HAT)
+
+
+def test_compute_capability_nonpositive_sigma_hat_raises():
+    with pytest.raises(ValueError):
+        compute_capability(DATA, lsl=LSL, usl=USL, sigma_hat=0.0)
+
+
+def test_normality_test_too_few_points_raises():
+    with pytest.raises(ValueError):
+        normality_test(np.array([10.0, 10.1]))

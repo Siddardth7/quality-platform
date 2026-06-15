@@ -230,3 +230,33 @@ def test_compute_u_ucl_exceeds_ubar_for_nonzero_rate():
 def test_compute_u_lcl_still_clamped_to_zero():
     result = compute_u([0, 0, 1], [10.0, 10.0, 10.0])
     assert all(v >= 0.0 for v in result["lcl"])
+
+
+def test_compute_xbar_r_non_2d_input_raises():
+    with pytest.raises(ValueError):
+        compute_xbar_r([1, 2, 3])  # type: ignore[list-item]
+
+
+def test_compute_xbar_s_invalid_subgroup_size_raises():
+    with pytest.raises(ValueError):
+        compute_xbar_s([[1], [2]])  # subgroup size 1 is out of range
+
+
+def test_compute_imr_too_few_values_raises():
+    with pytest.raises(ValueError):
+        compute_imr([5])
+
+
+def test_compute_c_empty_raises():
+    with pytest.raises(ValueError):
+        compute_c([])
+
+
+def test_compute_p_mismatched_lengths_raises():
+    with pytest.raises(ValueError):
+        compute_p([1, 2], [100])
+
+
+def test_compute_p_nonpositive_sample_size_raises():
+    with pytest.raises(ValueError):
+        compute_p([1], [0])

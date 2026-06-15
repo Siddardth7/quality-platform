@@ -1,8 +1,27 @@
+import pytest
+
 from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
 
 
 def _has_violation(violations, rule, index):
     return any(v["rule"] == rule and v["index"] == index for v in violations)
+
+
+def test_we_raises_for_nonpositive_sigma():
+    with pytest.raises(ValueError):
+        detect_we_violations([0.1, 0.2, 0.3], cl=0.0, sigma=0.0)
+
+
+def test_nelson_raises_for_nonpositive_sigma():
+    with pytest.raises(ValueError):
+        detect_nelson_violations([0.1, 0.2, 0.3], cl=0.0, sigma=-1.0)
+
+
+def test_nelson_rule_6_does_not_fire_with_equal_consecutive_points():
+    # A flat segment (delta == 0) breaks alternation regardless of length.
+    points = [1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 3, 1]
+    violations = detect_nelson_violations(points, cl=0.0, sigma=1.0)
+    assert not any(v["rule"] == "Nelson Rule 6" for v in violations)
 
 
 def test_we_rule_1_fires_for_point_above_positive_3sigma():
