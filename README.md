@@ -25,13 +25,42 @@ cd apps/fmea && streamlit run app.py
 cd apps/spc  && streamlit run app.py
 ```
 
+## Unified shell
+
+Both apps are also mounted under one `st.navigation` shell — a single URL with a landing page,
+FMEA, and the three SPC workflows:
+
+```bash
+uv run streamlit run app.py
+```
+
 ## Repository layout
 
 ```
+app.py            # unified platform shell (st.navigation)
+shell/            # landing page + shared chrome
+packages/
+  quality-core/   # shared schema, IO, and theme
 apps/
   fmea/   # FMEA Risk Analyzer (full original history)
   spc/    # Manufacturing SPC Dashboard (full original history)
 ```
 
-A shared `quality_core` package and a unified Streamlit shell are introduced in subsequent
-Week-01 issues (see the project board).
+## Development & CI
+
+The whole workspace shares one quality bar (`ruff.toml`, `mypy.ini`, pytest config in
+`pyproject.toml`). The gate runs locally and in CI:
+
+```bash
+uv sync                 # install workspace + dev tools (locked)
+uv run ruff check .     # lint
+uv run mypy             # type-check
+uv run pytest --cov     # tests + coverage across packages + apps
+```
+
+CI (`.github/workflows/ci.yml`) runs exactly this gate on every push and pull request to `main`,
+on Python 3.11 via [`astral-sh/setup-uv`](https://github.com/astral-sh/setup-uv).
+
+> **Branch protection:** `main` should require the **CI / gate** status check to pass before
+> merging (GitHub → Settings → Branches → add a rule for `main`, require status checks). This makes
+> the gate mandatory — the protection SPC never had as a standalone repo.
