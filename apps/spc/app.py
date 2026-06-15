@@ -1,6 +1,5 @@
 import streamlit as st
-
-from quality_core.theme import apply_theme, AMBER, BG_CARD, TEXT_PRIMARY
+from quality_core.theme import AMBER, BG_CARD, TEXT_PRIMARY, apply_theme
 
 st.set_page_config(
     page_title="SPC Manufacturing Quality Dashboard",

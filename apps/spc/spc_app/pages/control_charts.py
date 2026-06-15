@@ -5,11 +5,16 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from spc_app.spc_engine.control_charts import compute_imr, compute_p, compute_u, compute_xbar_r, compute_xbar_s
+from spc_app.spc_engine.control_charts import (
+    compute_imr,
+    compute_p,
+    compute_u,
+    compute_xbar_r,
+    compute_xbar_s,
+)
 from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
 from spc_app.spc_engine.utils import subgroup_rows
 from spc_app.visualizer import build_control_chart
-
 
 DEMO_PATH = Path(__file__).resolve().parents[2] / "data" / "demo_composites_aerospace.csv"
 RULE_REFERENCE = pd.DataFrame(

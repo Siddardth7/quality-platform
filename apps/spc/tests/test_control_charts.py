@@ -11,7 +11,6 @@ from spc_app.spc_engine.control_charts import (
     compute_xbar_s,
 )
 
-
 XBAR_R_SAMPLE = [
     [10, 11, 12, 13, 14],
     [11, 12, 13, 14, 15],
