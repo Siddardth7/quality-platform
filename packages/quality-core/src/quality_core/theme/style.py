@@ -1,27 +1,21 @@
+"""Streamlit theming — the CSS injector. Imports streamlit, so it is kept
+separate from ``palette`` and loaded lazily from the package root."""
+
 from __future__ import annotations
+
 import streamlit as st
 
-AMBER = "#f59e0b"
-AMBER_DARK = "#d97706"
-VIOLET = "#8b5cf6"
-BG_PRIMARY = "#0e1117"
-BG_SECONDARY = "#161b27"
-BG_CARD = "#1e2535"
-BORDER = "#2d3748"
-TEXT_PRIMARY = "#f1f5f9"
-TEXT_SECONDARY = "#94a3b8"
-SUCCESS = "#10b981"
-DANGER = "#ef4444"
-
-PLOTLY_LAYOUT = dict(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor=BG_SECONDARY,
-    font=dict(color=TEXT_PRIMARY, family="Inter, sans-serif"),
-    xaxis=dict(gridcolor=BORDER, linecolor=BORDER, tickfont=dict(color=TEXT_SECONDARY)),
-    yaxis=dict(gridcolor=BORDER, linecolor=BORDER, tickfont=dict(color=TEXT_SECONDARY)),
-    legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=TEXT_SECONDARY)),
-    title_font=dict(color=TEXT_PRIMARY, size=16),
-    margin=dict(l=40, r=20, t=60, b=40),
+from quality_core.theme.palette import (
+    AMBER,
+    BG_CARD,
+    BG_PRIMARY,
+    BG_SECONDARY,
+    BORDER,
+    DANGER,
+    SUCCESS,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    VIOLET,
 )
 
 _CSS = f"""
@@ -118,4 +112,5 @@ h3 {{ color: {TEXT_SECONDARY} !important; font-weight: 500 !important; }}
 
 
 def apply_theme() -> None:
+    """Inject the shared dark theme CSS into the current Streamlit page."""
     st.markdown(_CSS, unsafe_allow_html=True)

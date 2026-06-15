@@ -17,12 +17,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-
-from fmea_app.theme import FAILURE_MODE_TRUNC, TIER_HEX
-from fmea_app.theme import TIER_RANK as _TIER_RANK_BASE
+from quality_core.theme import FAILURE_MODE_TRUNC, TIER_HEX
+from quality_core.theme import TIER_RANK as _TIER_RANK_BASE
 
 # ---------------------------------------------------------------------------
-# Color palette — imported from fmea_app.theme (single source of truth)
+# Color palette — imported from quality_core.theme (single source of truth)
 # ---------------------------------------------------------------------------
 
 TIER_COLORS = TIER_HEX

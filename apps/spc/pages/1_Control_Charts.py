@@ -8,7 +8,7 @@ import streamlit as st
 from spc_app.spc_engine.control_charts import compute_imr, compute_p, compute_u, compute_xbar_r, compute_xbar_s
 from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
 from spc_app.spc_engine.utils import subgroup_rows
-from spc_app.ui.theme import apply_theme
+from quality_core.theme import apply_theme
 from spc_app.visualizer import build_control_chart
 
 st.set_page_config(page_title="Control Charts", layout="wide")

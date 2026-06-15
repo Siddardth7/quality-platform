@@ -23,8 +23,7 @@ import openpyxl
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
-
-from fmea_app.theme import TIER_FILL_HEX, TIER_RGB
+from quality_core.theme import TIER_FILL_HEX, TIER_RGB
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -82,7 +81,7 @@ def export_csv(df: pd.DataFrame) -> bytes:
     return _sanitize_for_export(df).to_csv(index=False).encode("utf-8")
 
 
-# PDF layout constants — row fill colors imported from fmea_app.theme
+# PDF layout constants — row fill colors imported from quality_core.theme
 _PDF_TIER_RGB = TIER_RGB
 
 _PDF_TABLE_COLS = [

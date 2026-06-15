@@ -28,12 +28,11 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from fmea_app.theme import FAILURE_MODE_TRUNC, TIER_HEX
-from fmea_app.theme import TIER_RANK as _TIER_RANK_MAP
+from quality_core.theme import FAILURE_MODE_TRUNC, TIER_HEX
+from quality_core.theme import TIER_RANK as _TIER_RANK_MAP
 
 # ---------------------------------------------------------------------------
-# Color palette — imported from fmea_app.theme (single source of truth)
+# Color palette — imported from quality_core.theme (single source of truth)
 # ---------------------------------------------------------------------------
 
 TIER_COLORS = TIER_HEX

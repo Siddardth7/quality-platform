@@ -8,7 +8,7 @@ import streamlit as st
 from spc_app.spc_engine.capability import compute_capability, normality_test
 from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
 from spc_app.spc_engine.utils import subgroup_rows
-from spc_app.ui.theme import apply_theme
+from quality_core.theme import apply_theme
 from spc_app.visualizer import build_capability_histogram, build_cpk_gauge
 
 st.set_page_config(page_title="Process Capability", layout="wide")
