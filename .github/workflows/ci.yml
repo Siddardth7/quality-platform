@@ -6,14 +6,17 @@ on:
   pull_request:
     branches: [main]
 
-# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
+# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR), but never
+# on the trunk — every commit on main should get a completed gate run.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # Job id `gate` is the status-check context (`CI / gate`) — the check the README
+  # tells you to require in branch protection. Don't add a `name:` override here
+  # without updating that note.
   gate:
-    name: uv sync → ruff → mypy → pytest
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
