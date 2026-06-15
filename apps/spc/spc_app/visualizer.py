@@ -6,8 +6,7 @@ from typing import Sequence
 
 import numpy as np
 import plotly.graph_objects as go
-
-from quality_core.theme import AMBER, VIOLET, DANGER, TEXT_SECONDARY, PLOTLY_LAYOUT
+from quality_core.theme import AMBER, DANGER, PLOTLY_LAYOUT, TEXT_SECONDARY, VIOLET
 
 
 def build_control_chart(

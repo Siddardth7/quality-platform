@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-
 PROCESS_CONFIGS = {
     "Composites": {
         "label": "Ply Thickness",

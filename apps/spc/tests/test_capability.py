@@ -3,7 +3,6 @@ import pytest
 
 from spc_app.spc_engine.capability import compute_capability, normality_test
 
-
 DATA = np.array([9.9, 10.0, 10.1, 10.0, 10.2])
 SIGMA_HAT = 0.1
 LSL = 9.5

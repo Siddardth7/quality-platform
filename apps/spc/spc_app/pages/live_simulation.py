@@ -10,7 +10,6 @@ from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_w
 from spc_app.visualizer import build_control_chart
 
 
-
 def get_engine(process_stream: str, subgroup_size: int) -> SimulationEngine:
     engine = st.session_state.get("simulation_engine")
     if (

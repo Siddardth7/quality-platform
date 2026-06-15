@@ -14,9 +14,6 @@ ignore = [
 
 [lint.per-file-ignores]
 "**/tests/**" = ["F811"]  # allow redefinition in tests
-# SPC import-ordering cleanup is deferred to W02-1; defer only I001 so SPC stays
-# covered for real-bug rules (E/F/W) now. Drop this entry in W02-1.
-"apps/spc/**" = ["I001"]
 
 # The apps are not installed (package = false) and live under apps/*, so ruff's
 # isort cannot auto-detect their top-level packages as first-party. Declare them

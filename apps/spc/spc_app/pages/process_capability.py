@@ -10,7 +10,6 @@ from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compu
 from spc_app.spc_engine.utils import subgroup_rows
 from spc_app.visualizer import build_capability_histogram, build_cpk_gauge
 
-
 DEMO_PATH = Path(__file__).resolve().parents[2] / "data" / "demo_composites_aerospace.csv"
 STREAM_OPTIONS = {
     "Ply Thickness": "ply_thickness",

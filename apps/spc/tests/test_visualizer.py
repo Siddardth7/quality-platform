@@ -1,5 +1,6 @@
-import pytest
 import plotly.graph_objects as go
+import pytest
+
 from spc_app.visualizer import build_cpk_gauge
 
 
