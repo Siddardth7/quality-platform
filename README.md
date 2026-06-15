@@ -4,7 +4,7 @@
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](.python-version)
 [![Built with uv](https://img.shields.io/badge/built%20with-uv-261230.svg)](https://github.com/astral-sh/uv)
-![Release](https://img.shields.io/badge/release-v0.1.0-blue.svg)
+[![Release](https://img.shields.io/github/v/release/Siddardth7/quality-platform?sort=semver)](https://github.com/Siddardth7/quality-platform/releases/latest)
 
 Integrated manufacturing quality platform — **FMEA**, **SPC**, and **Control Plan** tools over a
 shared core, aligned with the AIAG / IATF-16949 core quality toolset.
