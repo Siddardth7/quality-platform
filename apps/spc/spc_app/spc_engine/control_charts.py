@@ -2,12 +2,75 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 import numpy as np
 
 from spc_app.spc_engine.constants import IMR_D2, IMR_D4, IMR_E2, XBAR_R_CONSTANTS, XBAR_S_CONSTANTS
 
 
-def compute_xbar_r(subgroups: list[list[float]]) -> dict[str, float | list[float]]:
+class XbarRResult(TypedDict):
+    subgroup_means: list[float]
+    ranges: list[float]
+    xbarbar: float
+    rbar: float
+    ucl_x: float
+    lcl_x: float
+    ucl_r: float
+    lcl_r: float
+    sigma_hat: float
+
+
+class XbarSResult(TypedDict):
+    subgroup_means: list[float]
+    std_devs: list[float]
+    xbarbar: float
+    sbar: float
+    ucl_x: float
+    lcl_x: float
+    ucl_s: float
+    lcl_s: float
+    sigma_hat: float
+
+
+class ImrResult(TypedDict):
+    values: list[float]
+    moving_ranges: list[float]
+    xbar: float
+    mrbar: float
+    ucl_x: float
+    lcl_x: float
+    ucl_mr: float
+    lcl_mr: float
+    sigma_hat: float
+
+
+class PResult(TypedDict):
+    counts: list[float]
+    sample_sizes: list[float]
+    proportions: list[float]
+    pbar: float
+    ucl: list[float]
+    lcl: list[float]
+
+
+class CResult(TypedDict):
+    counts: list[float]
+    cbar: float
+    ucl: float
+    lcl: float
+
+
+class UResult(TypedDict):
+    counts: list[float]
+    sample_sizes: list[float]
+    u_values: list[float]
+    ubar: float
+    ucl: list[float]
+    lcl: list[float]
+
+
+def compute_xbar_r(subgroups: list[list[float]]) -> XbarRResult:
     subgroup_array = _validate_subgroups(subgroups)
     subgroup_size = subgroup_array.shape[1]
     if subgroup_size not in XBAR_R_CONSTANTS:
@@ -32,7 +95,7 @@ def compute_xbar_r(subgroups: list[list[float]]) -> dict[str, float | list[float
     }
 
 
-def compute_xbar_s(subgroups: list[list[float]]) -> dict[str, float | list[float]]:
+def compute_xbar_s(subgroups: list[list[float]]) -> XbarSResult:
     subgroup_array = _validate_subgroups(subgroups)
     subgroup_size = subgroup_array.shape[1]
     if subgroup_size not in XBAR_S_CONSTANTS:
@@ -57,7 +120,7 @@ def compute_xbar_s(subgroups: list[list[float]]) -> dict[str, float | list[float
     }
 
 
-def compute_imr(values: list[float]) -> dict[str, float | list[float]]:
+def compute_imr(values: list[float]) -> ImrResult:
     values_array = np.asarray(values, dtype=float)
     if values_array.ndim != 1 or values_array.size < 2:
         raise ValueError("I-MR chart requires at least two values.")
@@ -82,7 +145,7 @@ def compute_imr(values: list[float]) -> dict[str, float | list[float]]:
 def compute_p(
     defective_counts: list[float],
     sample_sizes: list[float],
-) -> dict[str, float | list[float]]:
+) -> PResult:
     counts = np.asarray(defective_counts, dtype=float)
     sizes = np.asarray(sample_sizes, dtype=float)
     _validate_attribute_inputs(counts, sizes)
@@ -101,7 +164,7 @@ def compute_p(
     }
 
 
-def compute_c(defect_counts: list[float]) -> dict[str, float | list[float]]:
+def compute_c(defect_counts: list[float]) -> CResult:
     counts = np.asarray(defect_counts, dtype=float)
     if counts.ndim != 1 or counts.size == 0:
         raise ValueError("c-chart requires at least one count.")
@@ -120,7 +183,7 @@ def compute_c(defect_counts: list[float]) -> dict[str, float | list[float]]:
 def compute_u(
     defect_counts: list[float],
     sample_sizes: list[float],
-) -> dict[str, float | list[float]]:
+) -> UResult:
     counts = np.asarray(defect_counts, dtype=float)
     sizes = np.asarray(sample_sizes, dtype=float)
     _validate_attribute_inputs(counts, sizes)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, Mapping
 
 import pandas as pd
 import streamlit as st
@@ -63,7 +64,7 @@ def detect_rule_violations(points: list[float], cl: float, sigma: float, rule_se
     return detect_we_violations(points, cl=cl, sigma=sigma)
 
 
-def summarize_metrics(chart_key: str, result: dict) -> list[tuple[str, str]]:
+def summarize_metrics(chart_key: str, result: Mapping[str, Any]) -> list[tuple[str, str]]:
     if chart_key == "Xbar-R":
         return [
             ("Xbarbar", f"{result['xbarbar']:.4f}"),
@@ -116,6 +117,10 @@ def render_control_charts() -> None:
         st.error("No rows available for the selected chart type.")
         st.stop()
 
+    # `result` is a runtime dispatch over chart type; each branch assigns a
+    # different precisely-typed compute result, so the shared variable is the
+    # honest read-only union surface. Engine functions keep their exact TypedDicts.
+    result: Mapping[str, Any]
     if config["compute"] == "xbar_r":
         subgroups = subgroup_rows(stream_frame)
         result = compute_xbar_r(subgroups)
