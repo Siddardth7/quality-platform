@@ -8,6 +8,8 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 First public release — Week 01: monorepo + shared core. The platform now publicly exists.
 
+🔗 Live: <https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>
+
 ### Added
 
 - **Monorepo** housing the FMEA Risk Analyzer (`apps/fmea`) and Manufacturing SPC Dashboard

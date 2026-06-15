@@ -1,6 +1,7 @@
 # Quality Platform
 
 [![CI](https://github.com/Siddardth7/quality-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddardth7/quality-platform/actions/workflows/ci.yml)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](.python-version)
 [![Built with uv](https://img.shields.io/badge/built%20with-uv-261230.svg)](https://github.com/astral-sh/uv)
 ![Release](https://img.shields.io/badge/release-v0.1.0-blue.svg)
@@ -12,7 +13,7 @@ shared core, aligned with the AIAG / IATF-16949 core quality toolset.
 one-off apps. This platform brings them under **one URL, one theme, and one quality bar** — risk
 analysis (FMEA) and process control (SPC) side by side, sharing a typed core.
 
-🔗 **Live demo:** _<!-- LIVE_URL -->deploying to Streamlit Cloud — link coming with the release_
+🔗 **Live demo:** **<https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>** — one URL, Home + FMEA + the three SPC workflows.
 
 This is a monorepo. Two previously standalone apps now live here with their **full commit history
 preserved** (the histories are part of the engineering story):
