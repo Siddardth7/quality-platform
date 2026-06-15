@@ -18,8 +18,8 @@ import pytest
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from src.rpn_engine import run_pipeline
-from src.visualizer import pareto_chart, risk_heatmap
+from fmea_app.rpn_engine import run_pipeline
+from fmea_app.visualizer import pareto_chart, risk_heatmap
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -159,8 +159,8 @@ def test_pareto_chart_caps_bars_at_topN_on_large_input(tmp_path):
     """F-038 regression: matplotlib pareto must not produce an unbounded-width
     figure on large datasets. At 1000 rows we expect at most TOP_N+1 bars
     (top-N individual + one 'Others' aggregate) and figsize width <= cap."""
-    from src.rpn_engine import run_pipeline
-    from src.visualizer import PARETO_FIGWIDTH_MAX, PARETO_TOP_N, pareto_chart
+    from fmea_app.rpn_engine import run_pipeline
+    from fmea_app.visualizer import PARETO_FIGWIDTH_MAX, PARETO_TOP_N, pareto_chart
 
     n = 1000
     df = pd.DataFrame({
@@ -194,7 +194,7 @@ def test_visualizer_pareto_chart_handles_empty_df():
     """F-012 regression: pareto_chart must not crash on an empty DataFrame."""
     import matplotlib.pyplot as plt
 
-    from src.visualizer import pareto_chart
+    from fmea_app.visualizer import pareto_chart
 
     df = pd.DataFrame(columns=["Failure_Mode", "RPN", "Risk_Tier"])
     fig = pareto_chart(df)

@@ -7,8 +7,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from src._logging import get_logger
-from src.exporter import export_csv, export_excel, export_pdf
+from fmea_app._logging import get_logger
+from fmea_app.exporter import export_csv, export_excel, export_pdf
 from ui import df_content_hash
 
 logger = get_logger(__name__)

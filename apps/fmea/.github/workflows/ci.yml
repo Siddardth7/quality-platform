@@ -29,7 +29,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: python -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
+        run: python -m pytest tests/ -v --tb=short --cov=fmea_app --cov-report=term-missing
 
   lint:
     runs-on: ubuntu-latest
@@ -45,7 +45,7 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Lint with ruff
-        run: ruff check src/ tests/ app.py fmea_analyzer.py ui/
+        run: ruff check fmea_app/ tests/ app.py fmea_analyzer.py ui/
 
       - name: Type check with mypy
-        run: mypy src/ ui/ --ignore-missing-imports
+        run: mypy fmea_app/ ui/ --ignore-missing-imports

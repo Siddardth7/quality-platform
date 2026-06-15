@@ -9,7 +9,7 @@ import openpyxl
 import pandas as pd
 import pytest
 
-from src.exporter import export_excel, export_pdf
+from fmea_app.exporter import export_excel, export_pdf
 
 
 def _sample_df() -> pd.DataFrame:
@@ -116,7 +116,7 @@ def _pipeline_df_with_formula():
     """DataFrame with formula-injection strings in text fields."""
     import pandas as pd
 
-    from src.rpn_engine import run_pipeline
+    from fmea_app.rpn_engine import run_pipeline
     df = pd.DataFrame([{
         "ID": 1, "Process_Step": "=SUM(1,2)",
         "Component": "+malicious", "Function": "Structural support",
@@ -139,7 +139,7 @@ def test_excel_no_formula_injection():
             )
 
 def test_sanitize_escapes_formula_prefixes():
-    from src.exporter import _sanitize_for_export
+    from fmea_app.exporter import _sanitize_for_export
     df = pd.DataFrame([{"Failure_Mode": "=evil", "Component": "+bad", "Cause": "-exploit", "Effect": "'-also", "Process_Step": "@nope", "ID": 1}])
     result = _sanitize_for_export(df)
     assert result.loc[0, "Failure_Mode"] == "'=evil"
@@ -150,7 +150,7 @@ def test_sanitize_escapes_formula_prefixes():
 
 def test_csv_no_formula_injection():
     """CSV export must escape formula-injection prefixes."""
-    from src.exporter import _sanitize_for_export
+    from fmea_app.exporter import _sanitize_for_export
     df = pd.DataFrame([{
         "ID": 1, "Process_Step": "=SUM(1,2)", "Component": "+bad",
         "Function": "Support", "Failure_Mode": "-exploit",
@@ -182,8 +182,8 @@ def test_pdf_export_cleans_tempfile_on_chart_error(monkeypatch, tmp_path):
 
     import pandas as pd
 
-    from src import exporter
-    from src.rpn_engine import run_pipeline
+    from fmea_app import exporter
+    from fmea_app.rpn_engine import run_pipeline
 
     df = pd.read_csv("data/composite_panel_fmea_demo.csv")
     df = run_pipeline(df)

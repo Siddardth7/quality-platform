@@ -30,7 +30,7 @@ def test_demo_renders_without_exception():
 
 def test_malformed_float_score_shows_error():
     """Uploading a file with float S/O/D scores shows an error, does not crash."""
-    from src.rpn_engine import validate_input
+    from fmea_app.rpn_engine import validate_input
     df = pd.DataFrame([{
         "ID": 1, "Process_Step": "Stamping", "Component": "Panel",
         "Function": "Structural support", "Failure_Mode": "Crack",
@@ -44,7 +44,7 @@ def test_malformed_float_score_shows_error():
 
 def test_null_process_step_rejected_at_boundary():
     """Null Process_Step is caught at validation, not at filter time."""
-    from src.rpn_engine import validate_input
+    from fmea_app.rpn_engine import validate_input
     df = pd.DataFrame([{
         "ID": 1, "Process_Step": None, "Component": "Panel",
         "Function": "Structural support", "Failure_Mode": "Crack",
@@ -60,8 +60,8 @@ def test_formula_prefixed_strings_not_stored_as_formulas():
     """Formula-injection strings are escaped in Excel export."""
     import openpyxl
 
-    from src.exporter import export_excel
-    from src.rpn_engine import run_pipeline
+    from fmea_app.exporter import export_excel
+    from fmea_app.rpn_engine import run_pipeline
     df = pd.DataFrame([{
         "ID": 1, "Process_Step": "Stamping", "Component": "Panel",
         "Function": "Structural support", "Failure_Mode": "=2+2",

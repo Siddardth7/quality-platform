@@ -18,11 +18,11 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from src.theme import FAILURE_MODE_TRUNC, TIER_HEX
-from src.theme import TIER_RANK as _TIER_RANK_BASE
+from fmea_app.theme import FAILURE_MODE_TRUNC, TIER_HEX
+from fmea_app.theme import TIER_RANK as _TIER_RANK_BASE
 
 # ---------------------------------------------------------------------------
-# Color palette — imported from src.theme (single source of truth)
+# Color palette — imported from fmea_app.theme (single source of truth)
 # ---------------------------------------------------------------------------
 
 TIER_COLORS = TIER_HEX
@@ -85,7 +85,7 @@ def pareto_chart_plotly(df: pd.DataFrame, dark: bool = False) -> go.Figure:
     df_sorted = df.sort_values("RPN", ascending=False).reset_index(drop=True)
 
     labels         = [str(fm)[:FAILURE_MODE_TRUNC] for fm in df_sorted["Failure_Mode"]]
-    rpns           = df_sorted["RPN"].values.astype(float)
+    rpns           = np.asarray(df_sorted["RPN"].values, dtype=float)
     tiers          = df_sorted["Risk_Tier"].values
     bar_colors     = [TIER_COLORS.get(t_name, "#95a5a6") for t_name in tiers]
     cumulative_pct = np.cumsum(rpns) / rpns.sum() * 100 if rpns.sum() > 0 else rpns * 0

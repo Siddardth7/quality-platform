@@ -14,13 +14,13 @@ See docs/ASSUMPTIONS_LOG.md for every threshold decision.
 Author: Siddardth | M.S. Aerospace Engineering, UIUC
 """
 
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
 import pydantic as _pydantic
 
-from src.schema import FMEADataset, FMEARow
+from fmea_app.schema import FMEADataset, FMEARow
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -106,7 +106,7 @@ def validate_input(df: pd.DataFrame) -> None:
     Examples
     --------
     >>> import pandas as pd
-    >>> from src.rpn_engine import validate_input
+    >>> from fmea_app.rpn_engine import validate_input
     >>> df = pd.read_csv('data/composite_panel_fmea_demo.csv')
     >>> validate_input(df)   # no error → valid
     """
@@ -130,7 +130,10 @@ def validate_input(df: pd.DataFrame) -> None:
     _RANGE_FIELDS = {"severity", "occurrence", "detection"}
 
     try:
-        rows = [FMEARow(**row) for row in df[REQUIRED_COLUMNS].to_dict(orient="records")]
+        rows = [
+            FMEARow(**cast("dict[str, Any]", row))
+            for row in df[REQUIRED_COLUMNS].to_dict(orient="records")
+        ]
         FMEADataset(rows=rows)
     except _pydantic.ValidationError as exc:
         first = exc.errors()[0]
@@ -178,7 +181,7 @@ def calculate_rpn(df: pd.DataFrame) -> pd.DataFrame:
     Examples
     --------
     >>> import pandas as pd
-    >>> from src.rpn_engine import validate_input, calculate_rpn
+    >>> from fmea_app.rpn_engine import validate_input, calculate_rpn
     >>> df = pd.read_csv('data/composite_panel_fmea_demo.csv')
     >>> validate_input(df)
     >>> df_rpn = calculate_rpn(df)

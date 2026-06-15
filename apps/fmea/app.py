@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from src.rpn_engine import (
+from fmea_app.rpn_engine import (
     run_pipeline,
     validate_input,
 )

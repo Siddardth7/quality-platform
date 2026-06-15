@@ -23,7 +23,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.rpn_engine import run_pipeline, validate_input
+from fmea_app.rpn_engine import run_pipeline, validate_input
 
 # ---------------------------------------------------------------------------
 # Shared fixtures

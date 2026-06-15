@@ -22,8 +22,9 @@ from typing import Any
 import openpyxl
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
-from src.theme import TIER_FILL_HEX, TIER_RGB
+from fmea_app.theme import TIER_FILL_HEX, TIER_RGB
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -81,7 +82,7 @@ def export_csv(df: pd.DataFrame) -> bytes:
     return _sanitize_for_export(df).to_csv(index=False).encode("utf-8")
 
 
-# PDF layout constants — row fill colors imported from src.theme
+# PDF layout constants — row fill colors imported from fmea_app.theme
 _PDF_TIER_RGB = TIER_RGB
 
 _PDF_TABLE_COLS = [
@@ -131,6 +132,7 @@ def export_excel(df: pd.DataFrame) -> bytes:
 
 def _write_fmea_sheet(wb: openpyxl.Workbook, df: pd.DataFrame) -> None:
     ws = wb.active
+    assert ws is not None  # a freshly created workbook always has an active sheet
     ws.title = "FMEA Analysis"
 
     cols = [c for c in _EXPORT_COLUMNS if c in df.columns]
@@ -160,9 +162,7 @@ def _write_fmea_sheet(wb: openpyxl.Workbook, df: pd.DataFrame) -> None:
     # Column widths
     for col_idx, col_name in enumerate(cols, start=1):
         width = _COL_WIDTHS.get(col_name, 14)
-        ws.column_dimensions[
-            openpyxl.utils.get_column_letter(col_idx)
-        ].width = width
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
 
     ws.freeze_panes = "A2"
 
@@ -217,8 +217,8 @@ def export_pdf(df: pd.DataFrame) -> bytes:
     import matplotlib.pyplot as plt
     from fpdf import FPDF
 
-    from src.visualizer import pareto_chart as mpl_pareto
-    from src.visualizer import risk_heatmap as mpl_heatmap
+    from fmea_app.visualizer import pareto_chart as mpl_pareto
+    from fmea_app.visualizer import risk_heatmap as mpl_heatmap
 
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=12)

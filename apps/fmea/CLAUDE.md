@@ -25,9 +25,9 @@ python fmea_analyzer.py --input data/composite_panel_fmea_demo.csv --charts   # 
 
 ### Gate (must be green before merging)
 ```bash
-python -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
-ruff check src/ tests/ app.py fmea_analyzer.py ui/
-mypy src/ ui/ --ignore-missing-imports
+python -m pytest tests/ -v --tb=short --cov=fmea_app --cov-report=term-missing
+ruff check fmea_app/ tests/ app.py fmea_analyzer.py ui/
+mypy fmea_app/ ui/ --ignore-missing-imports
 ```
 
 ### Single test
@@ -45,23 +45,23 @@ Layered Streamlit app with a clean orchestrator → engine → adapter split. Tw
 
 ```
 app.py            Streamlit entry, thin orchestrator
-fmea_analyzer.py  CLI entry  (may be partially redundant with src/ — verify before deleting)
+fmea_analyzer.py  CLI entry  (may be partially redundant with fmea_app/ — verify before deleting)
         │
         ▼
-src/rpn_engine.py     Pure-pandas pipeline: validate_input → calculate_rpn → flag_critical → rank_by_rpn → run_pipeline
-src/schema.py         Pydantic v2 FMEARow / FMEADataset — validate_input delegates here
+fmea_app/rpn_engine.py     Pure-pandas pipeline: validate_input → calculate_rpn → flag_critical → rank_by_rpn → run_pipeline
+fmea_app/schema.py         Pydantic v2 FMEARow / FMEADataset — validate_input delegates here
         │
-        ├──► src/plotly_charts.py    interactive charts for Streamlit
-        ├──► src/visualizer.py       static matplotlib charts for CLI + PDF embedding
-        └──► src/exporter.py         openpyxl (Excel, color-coded) + fpdf2 (3-page A4 PDF)
+        ├──► fmea_app/plotly_charts.py    interactive charts for Streamlit
+        ├──► fmea_app/visualizer.py       static matplotlib charts for CLI + PDF embedding
+        └──► fmea_app/exporter.py         openpyxl (Excel, color-coded) + fpdf2 (3-page A4 PDF)
                                      holds _TOOL_VERSION (currently hardcoded "1.0.0")
 
 ui/filters.py | ui/charts.py | ui/exports.py    Streamlit-only helpers, consumed by app.py
 ```
 
-**Data flow:** CSV/Excel upload → `validate_input` (11 required columns; S/O/D strict ints 1–10) → `calculate_rpn` (vectorized `S*O*D`) → `flag_critical` (three boolean flags) → `rank_by_rpn` (sort desc + Red/Yellow/Green tier) → `ui/filters.py` applies sidebar masks → `ui/charts.py` renders Plotly → `ui/exports.py` calls `src/exporter.py` for bytes.
+**Data flow:** CSV/Excel upload → `validate_input` (11 required columns; S/O/D strict ints 1–10) → `calculate_rpn` (vectorized `S*O*D`) → `flag_critical` (three boolean flags) → `rank_by_rpn` (sort desc + Red/Yellow/Green tier) → `ui/filters.py` applies sidebar masks → `ui/charts.py` renders Plotly → `ui/exports.py` calls `fmea_app/exporter.py` for bytes.
 
-**Domain constants live in `src/rpn_engine.py`:** `RPN_HIGH_THRESHOLD=100`, `SEVERITY_HIGH_THRESHOLD=9`, `RPN_ACTION_PRIORITY_H_THRESHOLD=200`, `RPN_RED_THRESHOLD=100`, `RPN_YELLOW_MIN=50`. Every threshold has a citation in `docs/ASSUMPTIONS_LOG.md` — do not change a threshold without updating that doc.
+**Domain constants live in `fmea_app/rpn_engine.py`:** `RPN_HIGH_THRESHOLD=100`, `SEVERITY_HIGH_THRESHOLD=9`, `RPN_ACTION_PRIORITY_H_THRESHOLD=200`, `RPN_RED_THRESHOLD=100`, `RPN_YELLOW_MIN=50`. Every threshold has a citation in `docs/ASSUMPTIONS_LOG.md` — do not change a threshold without updating that doc.
 
 ## Conventions that matter here
 
@@ -69,7 +69,7 @@ ui/filters.py | ui/charts.py | ui/exports.py    Streamlit-only helpers, consumed
 - **Strict-int validation for S/O/D** — floats and bools are rejected at the ingest boundary (`_is_strict_int` helper). Tests enforce this; don't loosen.
 - **CSV/formula-injection mitigation in exporters** — `=`, `+`, `-`, `@` prefixes are escaped on all string columns before Excel/CSV write. There is a regression test; don't regress.
 - **Export cache key** is a hash of the *filtered* DataFrame with index reset. Don't change the hashing without updating tests for index-sensitivity.
-- **Version is currently hardcoded** as `_TOOL_VERSION` in `src/exporter.py`. There is no single source of truth yet — Phase 10.2 will introduce one.
+- **Version is currently hardcoded** as `_TOOL_VERSION` in `fmea_app/exporter.py`. There is no single source of truth yet — Phase 10.2 will introduce one.
 - **`ruff.toml`:** target `py311`, line length 100, selects `E F W I`, ignores `E501` (formatter handles) and `F401` (re-exports). Per-file: `F811` allowed in `tests/`.
 
 ## Engineering references

@@ -172,7 +172,7 @@ In the composite panel demo dataset, the **top 6 failure modes (out of 30) accou
 │              ┌──────────────────────────▼──────────────────────┐  │
 │              │              PROCESSING LAYER                    │  │
 │              │                                                  │  │
-│              │  src/rpn_engine.py                               │  │
+│              │  fmea_app/rpn_engine.py                               │  │
 │              │   ├── validate_input(df)   — schema + range      │  │
 │              │   ├── calculate_rpn(df)    — S × O × D          │  │
 │              │   ├── flag_critical(df)    — AIAG rules          │  │
@@ -185,7 +185,7 @@ In the composite panel demo dataset, the **top 6 failure modes (out of 30) accou
 │  ┌──────────────┐  ┌──────────────────┐  ┌──────────────────┐    │
 │  │VISUALIZATION │  │   CLI LAYER      │  │  EXPORT LAYER    │    │
 │  │              │  │                  │  │                  │    │
-│  │plotly_charts │  │fmea_analyzer.py  │  │src/exporter.py   │    │
+│  │plotly_charts │  │fmea_analyzer.py  │  │fmea_app/exporter.py   │    │
 │  │  pareto      │  │  --input FILE    │  │  export_excel()  │    │
 │  │  heatmap     │  │  --charts        │  │  export_pdf()    │    │
 │  └──────────────┘  └──────────────────┘  └──────────────────┘    │
@@ -197,7 +197,7 @@ In the composite panel demo dataset, the **top 6 failure modes (out of 30) accou
 **Step 1 — Input**
 The user uploads a CSV or Excel file (or clicks "Use Demo Dataset"). The file is read into a pandas DataFrame.
 
-**Step 2 — Validation** (`src/rpn_engine.py → validate_input`)
+**Step 2 — Validation** (`fmea_app/rpn_engine.py → validate_input`)
 The engine checks: (a) all 11 required columns are present, (b) Severity/Occurrence/Detection are numeric with no nulls, (c) all S/O/D values are integers in [1, 10]. Any violation raises a `ValueError` with a descriptive message surfaced as `st.error()` in the UI.
 
 **Step 3 — RPN Calculation** (`calculate_rpn`)
@@ -215,10 +215,10 @@ The DataFrame is sorted descending by RPN and a `Risk_Tier` column is assigned r
 **Step 6 — Filtering** (sidebar controls)
 `st.session_state` preserves filter state across rerenders. The RPN threshold slider (0–300) and Severity ≥ 9 toggle apply boolean masks to the ranked DataFrame, updating the table, charts, badges, and export output simultaneously.
 
-**Step 7 — Visualization** (`src/plotly_charts.py`)
+**Step 7 — Visualization** (`fmea_app/plotly_charts.py`)
 Plotly figures are generated once per filter-state change and cached in `st.session_state` to avoid regeneration on every button click. The Pareto chart uses dual y-axes (RPN bars left, cumulative % line right). The heatmap uses a custom colorscale mapped to tier ranks with cell-count annotations.
 
-**Step 8 — Export** (`src/exporter.py`)
+**Step 8 — Export** (`fmea_app/exporter.py`)
 - **Excel**: `openpyxl` writes a 2-sheet workbook — Sheet 1 is the ranked table with `PatternFill` color-coding per Risk_Tier, Sheet 2 is a metadata summary. Returned as `io.BytesIO` bytes.
 - **PDF**: `fpdf2` generates an A4 landscape report. Page 1 is the summary metrics + full ranked table with tier-colored rows. Pages 2–3 embed the Pareto and heatmap charts as PNG images rendered by `matplotlib`.
 
@@ -298,7 +298,7 @@ fmea-risk-analyzer/
 ├── fmea_analyzer.py                    # CLI entry point
 ├── requirements.txt                    # Pinned dependencies
 │
-├── src/
+├── fmea_app/
 │   ├── rpn_engine.py                   # Core FMEA engine: validate → RPN → flag → rank
 │   ├── visualizer.py                   # Matplotlib charts for CLI output
 │   ├── plotly_charts.py                # Interactive Plotly charts for Streamlit
@@ -400,7 +400,7 @@ pytest -q
 Run with coverage:
 
 ```bash
-pytest --cov=src --cov-report=term-missing
+pytest --cov=fmea_app --cov-report=term-missing
 ```
 
 ```
@@ -428,7 +428,7 @@ Every threshold decision (RPN > 100, Severity ≥ 9, Action Priority H threshold
 
 4. **Quality-One International** — *FMEA Reference Guide.* quality-one.com
 
-5. `docs/ASSUMPTIONS_LOG.md` — Project-specific engineering decision log with source citations for every threshold value used in `src/rpn_engine.py`.
+5. `docs/ASSUMPTIONS_LOG.md` — Project-specific engineering decision log with source citations for every threshold value used in `fmea_app/rpn_engine.py`.
 
 6. `docs/FMEA_methodology_notes.md` — Detailed methodology notes written alongside this project: RPN formula derivation, AIAG Action Priority logic, Pareto 80/20 application to FMEA.
 

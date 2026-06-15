@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from src._logging import get_logger
-from src.rpn_engine import run_pipeline
-from src.visualizer import pareto_chart, risk_heatmap
+from fmea_app._logging import get_logger
+from fmea_app.rpn_engine import run_pipeline
+from fmea_app.visualizer import pareto_chart, risk_heatmap
 
 logger = get_logger(__name__)
 

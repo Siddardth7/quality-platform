@@ -28,14 +28,14 @@ import pandas as pd
 import pydantic
 import pytest
 
-from src.rpn_engine import (
+from fmea_app.rpn_engine import (
     calculate_rpn,
     flag_critical,
     rank_by_rpn,
     run_pipeline,
     validate_input,
 )
-from src.schema import FMEADataset, FMEARow
+from fmea_app.schema import FMEADataset, FMEARow
 
 # ---------------------------------------------------------------------------
 # Helpers
