@@ -30,6 +30,9 @@ from fmea_app.rpn_engine import run_pipeline, validate_input
 # ---------------------------------------------------------------------------
 
 DEMO_CSV = Path(__file__).parent.parent / "data" / "composite_panel_fmea_demo.csv"
+# Absolute path so AppTest resolves FMEA's app.py regardless of pytest CWD —
+# a relative "app.py" would load the repo-root platform shell instead.
+APP_PY = str(Path(__file__).parent.parent / "app.py")
 
 REQUIRED_COLUMNS = [
     "ID", "Process_Step", "Component", "Function",
@@ -202,7 +205,7 @@ def test_rpn_slider_clamps_on_smaller_dataset_swap():
     clamped to the new dataset's max_value before the slider is rendered."""
     from streamlit.testing.v1 import AppTest
 
-    at = AppTest.from_file("app.py", default_timeout=10)
+    at = AppTest.from_file(APP_PY, default_timeout=10)
     at.session_state["use_demo"] = True
     at.run()
     assert not at.exception
