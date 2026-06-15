@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from spc_app.spc_engine.control_charts import (
+    compute_c,
     compute_imr,
     compute_p,
     compute_u,
@@ -37,6 +38,7 @@ CHART_OPTIONS = {
     "I-MR": {"stream": "autoclave_temp", "compute": "imr"},
     "p": {"stream": "reject_proportion", "compute": "p"},
     "u": {"stream": "surface_defects", "compute": "u"},
+    "c": {"stream": "panel_defects", "compute": "c"},
 }
 
 
@@ -88,6 +90,12 @@ def summarize_metrics(chart_key: str, result: Mapping[str, Any]) -> list[tuple[s
             ("pbar", f"{result['pbar']:.4f}"),
             ("Avg N", f"{sum(result['sample_sizes']) / len(result['sample_sizes']):.1f}"),
             ("Points", str(len(result['proportions']))),
+        ]
+    if chart_key == "c":
+        return [
+            ("cbar", f"{result['cbar']:.4f}"),
+            ("UCL", f"{result['ucl']:.4f}"),
+            ("Points", str(len(result['counts']))),
         ]
     return [
         ("ubar", f"{result['ubar']:.4f}"),
@@ -178,6 +186,23 @@ def render_control_charts() -> None:
             violations=detect_rule_violations(points, result["pbar"], sigma, rule_set),
             title="p Chart",
             y_axis_title="Proportion Defective",
+        )
+    elif config["compute"] == "c":
+        ordered = stream_frame.sort_values("subgroup")
+        counts = ordered["value"].tolist()
+        result = compute_c(counts)
+        cbar = result["cbar"]
+        # Poisson count data: sigma = sqrt(c-bar), matching compute_c's limits.
+        sigma = cbar ** 0.5 if cbar > 0 else 0.0
+        points = result["counts"]
+        figure = build_control_chart(
+            points=points,
+            cl=cbar,
+            ucl=result["ucl"],
+            lcl=result["lcl"],
+            violations=detect_rule_violations(points, cbar, sigma, rule_set),
+            title="c Chart",
+            y_axis_title="Nonconformity Count",
         )
     else:
         ordered = stream_frame.sort_values("subgroup")
