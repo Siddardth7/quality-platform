@@ -117,7 +117,13 @@ Real-world composite manufacturing example: Autoclave overpressure (S=10) and va
 
 ### Flag 3 — `Flag_Action_Priority_H` (RPN ≥ 200 OR Severity ≥ 9)
 
-A simplified implementation of the AIAG FMEA 5th Edition (2019) Action Priority "High" tier. The full 5th Ed. system uses a 3-dimensional S×O×D lookup matrix (~1,000 cells); this tool uses a conservative threshold-based approximation that captures its intent: high-consequence or high-probability failure modes get immediate attention, everything else is prioritized by RPN.
+A fast **RPN-side heuristic** that approximates the Action Priority "High" tier — high-consequence or high-probability modes get immediate attention. It is *not* the Action Priority engine; for the standard's actual High/Medium/Low determination, the tool now ships the full AP table (below).
+
+### Action Priority (AIAG-VDA 2019) — the full engine
+
+The AIAG/VDA FMEA Handbook (2019) replaced RPN-based prioritization with **Action Priority (AP)**: a published lookup table that maps every S×O×D combination directly to **High / Medium / Low**, with **Severity dominant (emphasis order S → O → D)**. This closes RPN's core weakness — the `S=10, O=1, D=1` case above is **AP = High** even though its RPN is only 10.
+
+This tool implements the **complete published table** (no approximation) in `fmea_app/ap_engine.py`. A sidebar toggle switches the prioritization basis **RPN ↔ AP**; both columns stay visible, and the choice flows into ranking, tiering, the critical-items view, and the Excel/PDF/CSV exports. The transcription is verified against an independent copy of the published table across all 1,000 S/O/D combinations plus a monotonicity invariant — see [`docs/FMEA_methodology_notes.md`](docs/FMEA_methodology_notes.md) §4.2 and [`docs/ASSUMPTIONS_LOG.md`](docs/ASSUMPTIONS_LOG.md) Rule 7.
 
 ### Risk Tier Color Assignment
 

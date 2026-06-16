@@ -105,6 +105,20 @@ This log is the defense against any interview question about methodology choices
 
 ---
 
+## RULE 7 — AIAG-VDA Action Priority (AP) Engine (W03-1 / W03-3)
+
+**Decision:** Implement the **full published AIAG/VDA 2019 Action Priority table** as a first-class prioritization basis alongside RPN. `action_priority(S, O, D)` returns **High / Medium / Low** by lookup — not a threshold approximation. Emphasis order is **Severity → Occurrence → Detection** (Severity dominant): a Severity 9–10 failure is High across nearly all O/D, and Severity 1 is Low everywhere. The user toggles RPN ↔ AP in the app; the choice drives ranking, tiering, and exports.
+
+**Relationship to Rule 2 / the RPN flags:** This supersedes the old characterization of `Flag_Action_Priority_H` as "the AP system." That flag (RPN ≥ 200 OR Severity ≥ 9) is retained as a **simplified RPN-side heuristic** and is explicitly *not* the AP determination. The real H/M/L comes from the AP table in this rule.
+
+**Source:** AIAG/VDA FMEA Handbook (1st Edition, 2019) — Action Priority (AP) table for DFMEA and PFMEA (identical). The band layout (S {9-10, 7-8, 4-6, 2-3, 1}; O {8-10, 6-7, 4-5, 2-3, 1}; D {7-10, 5-6, 2-4, 1}) and full H/M/L grid are reproduced in `docs/FMEA_methodology_notes.md` §4.2.
+
+**Correctness guard:** Because public reproductions of this table vary and at least one is corrupted, the transcription is verified two ways in `tests/test_ap_engine.py`: (1) an **independent** hand-transcription of the published table checked against the engine for all 1000 S/O/D combinations, and (2) a **monotonicity invariant** — AP never decreases when any one of S, O, or D increases — which is the defining structural property of the genuine table.
+
+**Applied In:** `fmea_app/ap_engine.py` → `action_priority()`, `calculate_ap()`, `rank_by_ap()` · surfaced via the RPN↔AP toggle in `app.py` and carried into `fmea_app/exporter.py`.
+
+---
+
 *Sources referenced in this log:*
 - *AIAG FMEA-4 (4th Edition) — Potential Failure Mode and Effects Analysis*
 - *AIAG/VDA FMEA Handbook (5th Edition, 2019)*

@@ -43,18 +43,96 @@ This tool assigns each failure mode to one of three risk tiers:
 
 ---
 
-## 4. AIAG FMEA-4 Action Priority
+## 4. Action Priority — RPN-era flags and the AIAG-VDA AP engine
 
-Three flag columns are computed for every failure mode:
+The tool offers **two prioritization bases**, switchable in the app (and carried
+into exports): the classic **RPN** score and the AIAG/VDA 2019 **Action Priority
+(AP)**. Both are always computed; the toggle selects which one ranks and tiers
+the view.
 
-**`Flag_High_RPN`** — True if RPN > 100.  
+### 4.1 RPN-era criticality flags
+
+Three boolean flags accompany the RPN score, grounded in AIAG FMEA-4:
+
+**`Flag_High_RPN`** — True if RPN > 100.
 Standard AIAG FMEA-4 corrective action trigger. Represents 10% of the maximum possible RPN (1,000).
 
-**`Flag_High_Severity`** — True if Severity >= 9.  
-AIAG FMEA-4 and FMEA 5th Ed. both state that Severity 9–10 failure modes require corrective action *regardless of Occurrence and Detection scores*. A failure that rarely happens but causes a safety incident when it does cannot be optimized away by good detection.
+**`Flag_High_Severity`** — True if Severity >= 9.
+AIAG FMEA-4 and the AIAG/VDA Handbook both state that Severity 9–10 failure modes require corrective action *regardless of Occurrence and Detection scores*. A failure that rarely happens but causes a safety incident when it does cannot be optimized away by good detection.
 
-**`Flag_Action_Priority_H`** — True if RPN >= 200 OR Severity >= 9.  
-A simplified implementation of the AIAG FMEA 5th Edition (2019) Action Priority "High" tier. The full 5th Ed. AP system uses a 3-dimensional S×O×D lookup table; this tool uses a conservative threshold-based approximation that is defensible for most PFMEA applications.
+**`Flag_Action_Priority_H`** — True if RPN >= 200 OR Severity >= 9.
+A **threshold heuristic on the RPN side** that approximates the AP "High" tier. It is intentionally kept as a quick flag alongside RPN; it is *not* the AP engine. For the standard's actual High/Medium/Low determination, use the AP engine below (§4.2).
+
+### 4.2 AIAG-VDA 2019 Action Priority (AP) engine
+
+The AIAG/VDA FMEA Handbook (2019) replaced RPN-based prioritization with **Action
+Priority**: a published lookup table that maps each S×O×D combination directly to
+**High / Medium / Low**. AP fixes RPN's core flaw (§2) by making **Severity the
+dominant factor — emphasis order S → O → D** — rather than treating the three
+terms as interchangeable multiplicands.
+
+`fmea_app/ap_engine.py` implements the full published table (no approximation):
+
+- `action_priority(s, o, d)` → `"High" | "Medium" | "Low"` (pure scalar lookup).
+- `calculate_ap(df)` adds the `AP` column; `rank_by_ap(df)` orders High → Medium
+  → Low with RPN/Severity/ID as stable tiebreaks.
+
+The table is grouped into bands — **S {9-10, 7-8, 4-6, 2-3, 1}**,
+**O {8-10, 6-7, 4-5, 2-3, 1}**, **D {7-10, 5-6, 2-4, 1}** — and reads as
+"Severity dominates": S 9-10 is almost entirely High, S 1 is Low everywhere. Each
+severity block below is an Occurrence × Detection grid (Detection columns ordered
+worst → best: D 7-10, 5-6, 2-4, 1):
+
+**Severity 9-10**
+
+| O \ D | 7-10 | 5-6 | 2-4 | 1 |
+|---|:---:|:---:|:---:|:---:|
+| 8-10 | H | H | H | H |
+| 6-7  | H | H | H | H |
+| 4-5  | H | H | H | H |
+| 2-3  | H | H | H | M |
+| 1    | H | M | L | L |
+
+**Severity 7-8**
+
+| O \ D | 7-10 | 5-6 | 2-4 | 1 |
+|---|:---:|:---:|:---:|:---:|
+| 8-10 | H | H | H | H |
+| 6-7  | H | H | H | M |
+| 4-5  | H | M | M | M |
+| 2-3  | M | M | L | L |
+| 1    | L | L | L | L |
+
+**Severity 4-6**
+
+| O \ D | 7-10 | 5-6 | 2-4 | 1 |
+|---|:---:|:---:|:---:|:---:|
+| 8-10 | H | H | M | M |
+| 6-7  | M | M | M | L |
+| 4-5  | M | L | L | L |
+| 2-3  | L | L | L | L |
+| 1    | L | L | L | L |
+
+**Severity 2-3**
+
+| O \ D | 7-10 | 5-6 | 2-4 | 1 |
+|---|:---:|:---:|:---:|:---:|
+| 8-10 | M | M | L | L |
+| 6-7  | L | L | L | L |
+| 4-5  | L | L | L | L |
+| 2-3  | L | L | L | L |
+| 1    | L | L | L | L |
+
+**Severity 1** — Low for every Occurrence and Detection combination.
+
+**Worked example:** `S=10, O=2, D=2` → RPN = 40 (which a pure RPN ranking would
+bury), but AP = **High** because a safety-severity failure is High regardless of
+how rare or detectable it is — the handbook's own RPN-vs-AP illustration.
+
+The transcription is guarded by tests against an independent copy of the published
+table (all 1000 S/O/D combinations) plus a monotonicity invariant: AP never
+decreases when any one of S, O, or D increases. See `tests/test_ap_engine.py` and
+`docs/ASSUMPTIONS_LOG.md` Rule 7.
 
 ---
 
