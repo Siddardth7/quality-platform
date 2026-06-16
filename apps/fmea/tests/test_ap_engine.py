@@ -10,7 +10,8 @@ standard's published layout and classified into bands by its own code, so a
 match confirms the engine — it is not the engine checked against itself.
 
 Test coverage:
-    AP-01  Severity dominance: S=10, O=2, D=2 → High (the handbook's own example)
+    AP-01  Severity dominance: higher S never lowers AP at fixed O,D (and high S
+           alone does NOT force High — a rare, well-detected S=10 is Low)
     AP-02  Severity 1 → Low for every O/D combination
     AP-03  Representative High / Medium / Low lookups
     AP-04  Band boundaries resolve to the correct cell
@@ -47,13 +48,20 @@ ALL_SCORES = range(1, 11)
 # AP-01 — Severity dominance (handbook example)
 # ---------------------------------------------------------------------------
 
-def test_ap01_severity_dominates_rare_detectable_safety_failure():
-    """S=10 stays High even when rare (O=2) and detectable (D=2).
+def test_ap01_severity_dominates_but_does_not_auto_escalate():
+    """Severity is emphasized first, but high severity alone is not 'always High'.
 
-    This is the canonical AIAG-VDA example of why AP replaces RPN: RPN would
-    score this 10*2*2=40 and bury it, but a safety failure must be High.
+    AIAG-VDA gives severity the most weight: at a fixed Occurrence and Detection,
+    raising Severity never lowers the AP. But the handbook does NOT make every
+    high-severity failure High — a Severity-10 failure that is rare (O=2) and
+    adequately detected (D=2) is Low (RPN would be 40), because there is little
+    occurrence/detection left to act on.
     """
-    assert action_priority(10, 2, 2) == HIGH
+    # Severity dominance at fixed (O, D): S=10 ≥ S=5.
+    assert AP_ORDER[action_priority(10, 4, 7)] >= AP_ORDER[action_priority(5, 4, 7)]
+    assert action_priority(10, 4, 7) == HIGH and action_priority(5, 4, 7) == MEDIUM
+    # But high severity does not auto-escalate when rare + detectable.
+    assert action_priority(10, 2, 2) == LOW
 
 
 # ---------------------------------------------------------------------------
@@ -75,8 +83,9 @@ def test_ap02_action_priority_severity_one_always_low(occurrence, detection):
     ("severity", "occurrence", "detection", "expected"),
     [
         (10, 10, 10, HIGH),   # worst case
-        (9, 5, 1, HIGH),      # S 9-10 / O 4-5 / D 1
+        (9, 5, 1, MEDIUM),    # S 9-10 / O 4-5 / D 1 — handbook drops this to M
         (9, 1, 1, LOW),       # S 9-10 / O 1 / D 1 — rare + reliably detected
+        (10, 1, 10, LOW),     # S 9-10 / O 1 / D 7-10 — rare: Low even if undetectable
         (8, 7, 1, MEDIUM),    # S 7-8 / O 6-7 / D 1
         (5, 10, 1, MEDIUM),   # S 4-6 / O 8-10 / D 1
         (5, 5, 6, LOW),       # S 4-6 / O 4-5 / D 5-6
@@ -97,8 +106,9 @@ def test_ap04_band_boundaries_share_a_cell():
     # Severity band 7-8 with O band 4-5 and D band 2-4 → Medium throughout.
     for s, o, d in product((7, 8), (4, 5), (2, 3, 4)):
         assert action_priority(s, o, d) == MEDIUM
-    # Detection band edges 7 and 10 agree for an S 9-10 / O 1 cell (→ High).
-    assert action_priority(9, 1, 7) == action_priority(9, 1, 10) == HIGH
+    # Detection band edges 7 and 10 agree for an S 9-10 / O 1 cell (→ Low; the
+    # whole S9-10/O1 row is Low in the handbook regardless of detection).
+    assert action_priority(9, 1, 7) == action_priority(9, 1, 10) == LOW
 
 
 # ---------------------------------------------------------------------------
@@ -108,8 +118,11 @@ def test_ap04_band_boundaries_share_a_cell():
 def test_ap05_monotonic_non_decreasing_in_each_factor():
     """Raising any one of S, O, D (others fixed) never lowers the AP.
 
-    This is the structural invariant of the genuine AIAG-VDA table and the
-    strongest guard against a transcription error in _AP_GRID.
+    Monotonicity is a *necessary* structural property of the genuine AIAG-VDA
+    table, but it is NOT sufficient to prove correctness: a row shifted by one
+    occurrence band can still be monotonic (an earlier transcription error in the
+    S9-10 block was exactly that, and this check did not catch it). Cell values
+    are pinned by the handbook transcription in AP-09/AP-11 instead.
     """
     for s, o, d in product(ALL_SCORES, ALL_SCORES, ALL_SCORES):
         base = AP_ORDER[action_priority(s, o, d)]
@@ -129,8 +142,8 @@ def test_ap06_calculate_ap_appends_column_without_mutating_input():
     df = pd.DataFrame(
         {
             "Severity": [10, 1, 7],
-            "Occurrence": [2, 10, 4],
-            "Detection": [2, 10, 5],
+            "Occurrence": [10, 10, 4],
+            "Detection": [10, 10, 5],
         }
     )
     result = calculate_ap(df)
@@ -167,25 +180,28 @@ def test_ap08_calculate_ap_missing_column_raises_keyerror():
 # PART 2 — Exhaustive match against the published AIAG-VDA AP table (W03-2)
 # ===========================================================================
 #
-# Independent transcription of the AIAG/VDA FMEA Handbook (2019) Action Priority
-# table for DFMEA & PFMEA. Each severity band holds a 5×4 grid:
+# Independent transcription of the AIAG & VDA FMEA Handbook (1st Edition, 2019),
+# "Action Priority (AP) for DFMEA and PFMEA" table (verified against both copies
+# in the handbook — DFMEA p.70-71 and PFMEA p.116-117). Each severity band holds
+# a 5×4 grid:
 #   rows    = Occurrence band, listed high→low:  8-10, 6-7, 4-5, 2-3, 1
 #   columns = Detection band,  listed worst→best: D 7-10, D 5-6, D 2-4, D 1
 # Letters: H = High, M = Medium, L = Low.
 #
-# This is deliberately NOT imported from ap_engine — it is a second, hand-written
-# copy of the standard. A reviewer can diff it directly against the handbook page,
-# and the band classifier below (_published_ap) re-derives bands with its own
-# threshold logic rather than reusing the engine's lookup.
+# This is deliberately NOT imported from ap_engine — it is a second, hand-typed
+# copy of the handbook table, and the band classifier below (_published_ap)
+# re-derives bands with its own threshold logic rather than reusing the engine's
+# lookup. So AP-09 catches an engine/grid error even if both stay monotonic
+# (which is how the original S9-10 row-shift slipped past monotonicity alone).
 
 _PUBLISHED_AP_TABLE: dict[str, list[list[str]]] = {
     #          D7-10  D5-6  D2-4  D1
     "9-10": [
         ["H", "H", "H", "H"],   # O 8-10
         ["H", "H", "H", "H"],   # O 6-7
-        ["H", "H", "H", "H"],   # O 4-5
-        ["H", "H", "H", "M"],   # O 2-3
-        ["H", "M", "L", "L"],   # O 1
+        ["H", "H", "H", "M"],   # O 4-5
+        ["H", "M", "L", "L"],   # O 2-3
+        ["L", "L", "L", "L"],   # O 1
     ],
     "7-8": [
         ["H", "H", "H", "H"],   # O 8-10
@@ -261,11 +277,14 @@ def test_ap09_action_priority_matches_published_table_for_every_combination():
 @pytest.mark.parametrize(
     ("severity", "occurrence", "detection", "expected", "why"),
     [
-        # Severity-dominant: a safety failure stays High even when rare + detectable.
+        # Severity is dominant but does NOT auto-escalate: a max-severity failure
+        # that is rare (O 1) is Low for every detection, and S9-10/O2-3 is Low once
+        # detection is adequate — only poor detection lifts it.
         (10, 1, 1, LOW, "S 9-10 / O 1 / D 1 — rare and reliably detected → Low"),
-        (10, 2, 1, MEDIUM, "S 9-10 / O 2-3 / D 1 — relaxes to Medium at the corner"),
-        (10, 2, 2, HIGH, "S 9-10 / O 2-3 / D 2-4 — handbook's RPN-vs-AP example"),
-        (9, 6, 1, HIGH, "S 9-10 / O 6-7 / D 1 — severity keeps it High"),
+        (10, 1, 10, LOW, "S 9-10 / O 1 / D 7-10 — rare ⇒ Low even at max severity, no detection"),
+        (10, 2, 2, LOW, "S 9-10 / O 2-3 / D 2-4 — rare + adequately detected ⇒ Low"),
+        (10, 2, 10, HIGH, "S 9-10 / O 2-3 / D 7-10 — poor detection lifts the same cell to High"),
+        (9, 6, 1, HIGH, "S 9-10 / O 6-7 / D 1 — High once occurrence is moderate"),
         # Detection-dominant within a fixed S/O cell: AP climbs as detection worsens.
         (7, 5, 1, MEDIUM, "S 7-8 / O 4-5 / D 1"),
         (7, 5, 7, HIGH, "S 7-8 / O 4-5 / D 7-10 — poor detection lifts to High"),
@@ -311,3 +330,28 @@ def test_ap11_rank_by_ap_orders_high_to_low_then_rpn():
 def test_ap11b_rank_by_ap_missing_column_raises_keyerror():
     with pytest.raises(KeyError, match="AP"):
         rank_by_ap(pd.DataFrame({"RPN": [1]}))
+
+
+# ---------------------------------------------------------------------------
+# AP-12 — Cross-check against an external peer-reviewed source
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("severity", "occurrence", "detection", "expected"),
+    [
+        # Worked (S, O, D) -> AP rows from the PFMEA case study in
+        # Pop et al., "An Intelligent Framework for Implementing AIAG-VDA FMEA and
+        # Action Priority (AP) Assessment", MDPI Applied Sciences 16(5):2591 (2026),
+        # Tables 2 and 3. An external corroboration independent of the handbook.
+        (6, 6, 4, MEDIUM),
+        (6, 4, 4, LOW),
+        (6, 6, 2, MEDIUM),
+        (6, 4, 2, LOW),
+        (6, 4, 6, LOW),
+        (7, 6, 6, HIGH),
+        (7, 3, 6, MEDIUM),
+        (7, 3, 4, LOW),
+    ],
+)
+def test_ap12_matches_published_case_study(severity, occurrence, detection, expected):
+    assert action_priority(severity, occurrence, detection) == expected

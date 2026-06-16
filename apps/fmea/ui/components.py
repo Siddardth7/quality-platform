@@ -491,10 +491,10 @@ def render_critical_panel(df: pd.DataFrame, basis: str = BASIS_RPN) -> None:
 
     if use_ap:
         critical = df[df["AP"] == HIGH]
-        reason = "are Action Priority High (AIAG/VDA 2019)"
+        reason = "are Action Priority High per the AIAG/VDA 2019 FMEA Handbook"
     else:
         critical = df[df["Flag_Action_Priority_H"].astype(bool)]
-        reason = "have RPN ≥ 200 or Severity ≥ 9"
+        reason = "have RPN ≥ 200 or Severity ≥ 9 per AIAG FMEA-4"
 
     if critical.empty:
         st.success("✅  No critical failure modes under current filters.")
@@ -502,7 +502,7 @@ def render_critical_panel(df: pd.DataFrame, basis: str = BASIS_RPN) -> None:
 
     st.warning(
         f"**{len(critical)} failure mode(s)** {reason} and require "
-        "immediate corrective action per AIAG FMEA-4."
+        "immediate corrective action."
     )
 
     display_cols = [

@@ -98,10 +98,37 @@ def load_default_scales() -> RatingScaleSet:
         return _build(json.load(fh), default_name="AIAG FMEA-4 (default)")
 
 
+def _reject_colliding_keys(obj: dict[str, Any]) -> None:
+    """Reject rating keys that collide once coerced to int (e.g. "1" and "1.0").
+
+    Pydantic coerces both to int 1 and silently keeps the last, which would let a
+    malformed scale pass the 1–10 completeness check with a rating shadowed. Catch
+    it on the raw mapping before coercion so the upload fails loudly instead.
+    """
+    for factor in FACTORS:
+        scale = obj.get(factor)
+        if not isinstance(scale, dict):
+            continue
+        seen: dict[int, object] = {}
+        for raw_key in scale:
+            try:
+                as_int = int(float(raw_key))
+            except (TypeError, ValueError):
+                continue  # non-numeric keys are pydantic's job to reject
+            if as_int in seen:
+                raise ValueError(
+                    f"'{factor}' scale has duplicate ratings that collide on rating "
+                    f"{as_int} (keys {seen[as_int]!r} and {raw_key!r}); each rating 1–10 "
+                    f"must appear once."
+                )
+            seen[as_int] = raw_key
+
+
 def load_scales_from_mapping(obj: dict[str, Any]) -> RatingScaleSet:
     """Validate an already-parsed mapping into a RatingScaleSet (custom scale)."""
     if not isinstance(obj, dict):
         raise ValueError("Custom rating scale must be a JSON object with severity/occurrence/detection keys.")
+    _reject_colliding_keys(obj)
     return _build(obj, default_name="Custom")
 
 

@@ -116,3 +116,11 @@ def test_rs08_malformed_json_rejected():
 def test_rs09_non_object_payload_rejected():
     with pytest.raises(ValueError, match="must be a JSON object"):
         load_scales_from_mapping(["not", "a", "dict"])  # type: ignore[arg-type]
+
+
+def test_rs10_int_coercion_key_collision_rejected():
+    """Keys '1' and '1.0' both coerce to int 1 — must fail loudly, not shadow."""
+    bad = _valid_mapping()
+    bad["severity"]["1.0"] = "duplicate of rating 1"
+    with pytest.raises(ValueError, match="collide on rating"):
+        load_scales_from_json(json.dumps(bad))

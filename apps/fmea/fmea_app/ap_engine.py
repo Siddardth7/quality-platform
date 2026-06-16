@@ -89,17 +89,21 @@ _DETECTION_BANDS: tuple[tuple[int, int, str], ...] = (
 # Keyed by (Severity band, Occurrence band). Each value is the row of Detection
 # columns in _DETECTION_BANDS order: (D 7-10, D 5-6, D 2-4, D 1).
 #
-# Read the grid as "Severity dominates": S 9-10 is almost entirely High and only
-# relaxes at the lowest Occurrence/Detection; S 1 is Low everywhere. The table is
-# monotonic non-decreasing in S, O, and D — enforced by a test in W03-2.
+# Transcribed directly from the AIAG & VDA FMEA Handbook (1st Edition, 2019),
+# "Action Priority (AP) for DFMEA and PFMEA" table (identical for DFMEA/PFMEA).
+# Severity is emphasized first, but it does NOT auto-escalate: a Severity 9-10
+# failure that is rare (O 1) is Low for every Detection, and S 9-10 / O 2-3 drops
+# to Low once detection is adequate (D 2-4 or better). S 1 is Low everywhere.
+# tests/test_ap_engine.py checks every cell against an independent transcription
+# of the same handbook table plus published worked examples.
 
 _AP_GRID: dict[tuple[str, str], tuple[str, str, str, str]] = {
     # --- Severity 9-10 (very high / safety-or-regulatory) ---
     ("9-10", "8-10"): (HIGH, HIGH, HIGH, HIGH),
     ("9-10", "6-7"): (HIGH, HIGH, HIGH, HIGH),
-    ("9-10", "4-5"): (HIGH, HIGH, HIGH, HIGH),
-    ("9-10", "2-3"): (HIGH, HIGH, HIGH, MEDIUM),
-    ("9-10", "1"): (HIGH, MEDIUM, LOW, LOW),
+    ("9-10", "4-5"): (HIGH, HIGH, HIGH, MEDIUM),
+    ("9-10", "2-3"): (HIGH, MEDIUM, LOW, LOW),
+    ("9-10", "1"): (LOW, LOW, LOW, LOW),
     # --- Severity 7-8 (high) ---
     ("7-8", "8-10"): (HIGH, HIGH, HIGH, HIGH),
     ("7-8", "6-7"): (HIGH, HIGH, HIGH, MEDIUM),

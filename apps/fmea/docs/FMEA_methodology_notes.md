@@ -78,10 +78,12 @@ terms as interchangeable multiplicands.
   → Low with RPN/Severity/ID as stable tiebreaks.
 
 The table is grouped into bands — **S {9-10, 7-8, 4-6, 2-3, 1}**,
-**O {8-10, 6-7, 4-5, 2-3, 1}**, **D {7-10, 5-6, 2-4, 1}** — and reads as
-"Severity dominates": S 9-10 is almost entirely High, S 1 is Low everywhere. Each
-severity block below is an Occurrence × Detection grid (Detection columns ordered
-worst → best: D 7-10, 5-6, 2-4, 1):
+**O {8-10, 6-7, 4-5, 2-3, 1}**, **D {7-10, 5-6, 2-4, 1}** — and gives Severity the
+most weight, but high severity does **not** auto-escalate: a Severity 9-10 failure
+that is rare (O 1) is Low for every Detection, and S 9-10 / O 2-3 is Low once
+detection is adequate (D 2-4 or better). S 1 is Low everywhere. Each severity block
+below is an Occurrence × Detection grid (Detection columns ordered worst → best:
+D 7-10, 5-6, 2-4, 1), transcribed from the AIAG & VDA FMEA Handbook (2019):
 
 **Severity 9-10**
 
@@ -89,9 +91,9 @@ worst → best: D 7-10, 5-6, 2-4, 1):
 |---|:---:|:---:|:---:|:---:|
 | 8-10 | H | H | H | H |
 | 6-7  | H | H | H | H |
-| 4-5  | H | H | H | H |
-| 2-3  | H | H | H | M |
-| 1    | H | M | L | L |
+| 4-5  | H | H | H | M |
+| 2-3  | H | M | L | L |
+| 1    | L | L | L | L |
 
 **Severity 7-8**
 
@@ -125,14 +127,21 @@ worst → best: D 7-10, 5-6, 2-4, 1):
 
 **Severity 1** — Low for every Occurrence and Detection combination.
 
-**Worked example:** `S=10, O=2, D=2` → RPN = 40 (which a pure RPN ranking would
-bury), but AP = **High** because a safety-severity failure is High regardless of
-how rare or detectable it is — the handbook's own RPN-vs-AP illustration.
+**Worked example (severity does not auto-escalate):** `S=10, O=2, D=2` → AP =
+**Low**. A catastrophic-severity failure that is rare (O 2-3) and adequately
+detected (D 2-4) leaves little occurrence or detection to act on. Worsen detection
+to `S=10, O=2, D=10` and the *same* cell becomes **High** — AP responds to D, but
+de-emphasizes it relative to O and S. Severity dominance shows up as: at a fixed
+O and D, raising S never lowers the AP (e.g. `S=10,O=4,D=7` = High vs
+`S=5,O=4,D=7` = Medium).
 
-The transcription is guarded by tests against an independent copy of the published
-table (all 1000 S/O/D combinations) plus a monotonicity invariant: AP never
-decreases when any one of S, O, or D increases. See `tests/test_ap_engine.py` and
-`docs/ASSUMPTIONS_LOG.md` Rule 7.
+The transcription is verified against the AIAG & VDA FMEA Handbook (2019) table —
+the engine matches it for all 1000 S/O/D combinations — and cross-checked against
+the worked PFMEA rows in the MDPI case study (ref 5). Monotonicity is also checked,
+but only as a necessary structural property: it does not pin cell values (an
+earlier S9-10 row-shift stayed monotonic yet was wrong, and was caught only by the
+handbook transcription). See `tests/test_ap_engine.py` and `docs/ASSUMPTIONS_LOG.md`
+Rule 7.
 
 ---
 
@@ -152,4 +161,5 @@ The 80/20 rule in FMEA is directional, not a hard threshold. The goal is to use 
 2. **AIAG/VDA FMEA Handbook** (1st Edition, 2019). *Failure Mode and Effects Analysis — Design FMEA, Process FMEA, FMEA-MSR.* AIAG + VDA joint publication.
 3. ASQ. *Failure Mode Effects Analysis (FMEA).* quality.asq.org
 4. Quality-One International. *FMEA — Failure Mode and Effects Analysis.* quality-one.com
-5. See `docs/ASSUMPTIONS_LOG.md` for every threshold decision with source citations.
+5. Pop et al. (2026). *An Intelligent Framework for Implementing AIAG-VDA FMEA and Action Priority (AP) Assessment.* MDPI *Applied Sciences* 16(5):2591. (Used as an external cross-check of the AP table — Tables 2 & 3.)
+6. See `docs/ASSUMPTIONS_LOG.md` for every threshold decision with source citations.
