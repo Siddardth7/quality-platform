@@ -14,6 +14,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from fmea_app import __version__
 from fmea_app.ap_engine import BASIS_AP, calculate_ap, rank_by_ap
 from fmea_app.rpn_engine import (
     rank_by_rpn,
@@ -94,7 +95,7 @@ def render_sidebar():  # type: ignore[no-untyped-def]
         "letter-spacing:-0.3px;'>🛡️ FMEA Risk Analyzer</div>",
         unsafe_allow_html=True,
     )
-    st.sidebar.caption("Process FMEA · AIAG FMEA-4 · AIAG/VDA 2019")
+    st.sidebar.caption(f"Process FMEA · AIAG FMEA-4 · AIAG/VDA 2019 · v{__version__}")
     st.sidebar.divider()
 
     dark = st.sidebar.toggle(

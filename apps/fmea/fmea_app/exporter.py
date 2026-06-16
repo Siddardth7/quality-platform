@@ -25,6 +25,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from quality_core.theme import TIER_FILL_HEX, TIER_RGB
 
+from fmea_app import __version__
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -53,7 +55,8 @@ _COL_WIDTHS = {
     "Flag_High_RPN": 14, "Flag_High_Severity": 16, "Flag_Action_Priority_H": 20,
 }
 
-_TOOL_VERSION = "1.0.0"
+# Read from the package single source of truth (fmea_app/__init__.py) — never hardcode.
+_TOOL_VERSION = __version__
 
 # The escape character (apostrophe) must NOT be added here — it would cause double-escaping on repeated calls.
 _FORMULA_PREFIXES = ("=", "+", "-", "@")
