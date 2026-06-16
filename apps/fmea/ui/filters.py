@@ -7,6 +7,28 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from fmea_app.ap_engine import BASIS_AP, BASIS_RPN
+
+
+def render_basis_toggle() -> str:
+    """Render the prioritization-basis selector. Returns "RPN" or "AP".
+
+    RPN (Severity × Occurrence × Detection) is the classic AIAG FMEA-4 score;
+    AP (Action Priority) is the AIAG/VDA 2019 High/Medium/Low replacement. The
+    choice drives ranking, tiering, and the emphasized column app-wide.
+    """
+    return st.sidebar.radio(
+        "Prioritization basis",
+        options=[BASIS_RPN, BASIS_AP],
+        horizontal=True,
+        key="priority_basis",
+        help=(
+            "RPN = Severity × Occurrence × Detection (AIAG FMEA-4). "
+            "AP = AIAG/VDA 2019 Action Priority (High/Medium/Low). "
+            "Both columns stay visible; this sets which one ranks and tiers the view."
+        ),
+    )
+
 
 def render_rpn_slider() -> int:
     _rpn_max = int(st.session_state.get("_dataset_rpn_max", 1000))

@@ -37,10 +37,15 @@ HIGH = "High"
 MEDIUM = "Medium"
 LOW = "Low"
 
-#: Ordinal rank for sorting/comparison (higher == more urgent). Used by the
-#: app/exports layer (W03-3) to sort by AP; colocated here so the engine owns
-#: the canonical ordering.
+#: Ordinal rank for sorting/comparison (higher == more urgent). Used by
+#: rank_by_ap and the app/exports layer to order by AP; colocated here so the
+#: engine owns the canonical ordering.
 AP_ORDER: dict[str, int] = {LOW: 0, MEDIUM: 1, HIGH: 2}
+
+#: Prioritization basis the user can toggle between (RPN ↔ AP). The engine owns
+#: these labels so the app, UI, and exports share one vocabulary.
+BASIS_RPN = "RPN"
+BASIS_AP = "AP"
 
 SCORE_MIN = 1
 SCORE_MAX = 10
@@ -251,4 +256,55 @@ def calculate_ap(df: pd.DataFrame) -> pd.DataFrame:
             df["Severity"], df["Occurrence"], df["Detection"], strict=True
         )
     ]
+    return df
+
+
+# ---------------------------------------------------------------------------
+# rank_by_ap — AP-basis ordering (counterpart to rpn_engine.rank_by_rpn)
+# ---------------------------------------------------------------------------
+
+def rank_by_ap(df: pd.DataFrame) -> pd.DataFrame:
+    """Sort failure modes by Action Priority (High → Medium → Low), descending.
+
+    The AP counterpart to ``rpn_engine.rank_by_rpn``. AP is a 3-level ordinal,
+    so ties within a level are broken by the same secondary keys the RPN ranker
+    uses — RPN, then Severity, then ID — to keep ordering stable and intuitive
+    (the most severe, highest-RPN item leads its AP band).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with an ``AP`` column (output of ``calculate_ap``).
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy sorted by AP descending with the index reset. The temporary rank
+        key is not retained.
+
+    Raises
+    ------
+    KeyError
+        If the ``AP`` column is missing — run ``calculate_ap`` first.
+    """
+    if "AP" not in df.columns:
+        raise KeyError(
+            "'AP' column not found. Run calculate_ap(df) before rank_by_ap(df)."
+        )
+
+    df = df.copy()
+    df["_ap_rank"] = df["AP"].map(AP_ORDER)
+
+    sort_cols = ["_ap_rank"]
+    ascending = [False]
+    for col, asc in (("RPN", False), ("Severity", False), ("ID", True)):
+        if col in df.columns:
+            sort_cols.append(col)
+            ascending.append(asc)
+
+    df = (
+        df.sort_values(sort_cols, ascending=ascending)
+        .drop(columns="_ap_rank")
+        .reset_index(drop=True)
+    )
     return df

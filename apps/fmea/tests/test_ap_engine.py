@@ -37,6 +37,7 @@ from fmea_app.ap_engine import (
     MEDIUM,
     action_priority,
     calculate_ap,
+    rank_by_ap,
 )
 
 ALL_SCORES = range(1, 11)
@@ -279,3 +280,34 @@ def test_ap10_action_priority_published_reference_cases(
     severity, occurrence, detection, expected, why
 ):
     assert action_priority(severity, occurrence, detection) == expected, why
+
+
+# ---------------------------------------------------------------------------
+# AP-11 — rank_by_ap ordering
+# ---------------------------------------------------------------------------
+
+def test_ap11_rank_by_ap_orders_high_to_low_then_rpn():
+    """High → Medium → Low, with RPN breaking ties inside a level (desc)."""
+    df = pd.DataFrame(
+        {
+            "ID": [1, 2, 3, 4],
+            "Severity": [2, 9, 5, 9],
+            "Occurrence": [2, 8, 2, 2],
+            "Detection": [2, 8, 2, 2],
+            "RPN": [8, 576, 20, 36],
+            "AP": [LOW, HIGH, LOW, HIGH],
+        }
+    )
+    ranked = rank_by_ap(df)
+
+    assert list(ranked["AP"]) == [HIGH, HIGH, LOW, LOW]
+    # Within the High band, the higher-RPN row (ID 2, RPN 576) leads ID 4 (RPN 36).
+    assert list(ranked[ranked["AP"] == HIGH]["ID"]) == [2, 4]
+    assert list(ranked.index) == [0, 1, 2, 3]   # index reset
+    assert "_ap_rank" not in ranked.columns      # temp key not leaked
+    assert "_ap_rank" not in df.columns          # input not mutated
+
+
+def test_ap11b_rank_by_ap_missing_column_raises_keyerror():
+    with pytest.raises(KeyError, match="AP"):
+        rank_by_ap(pd.DataFrame({"RPN": [1]}))

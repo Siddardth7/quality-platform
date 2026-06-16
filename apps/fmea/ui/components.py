@@ -24,6 +24,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from fmea_app.ap_engine import BASIS_AP, BASIS_RPN, HIGH, LOW, MEDIUM
+
 # ---------------------------------------------------------------------------
 # Risk tier CSS row colors — light and dark variants
 # ---------------------------------------------------------------------------
@@ -40,16 +42,28 @@ DARK_TIER_ROW_COLORS = {
     "Green":  "background-color: #0d2e1a; color: #69f0ae;",
 }
 
+# AP High/Medium/Low share the Red/Yellow/Green visual buckets so the table
+# reads the same whichever basis is active.
+_AP_TO_TIER = {HIGH: "Red", MEDIUM: "Yellow", LOW: "Green"}
 
-def _style_table(df: pd.DataFrame, dark: bool) -> pd.io.formats.style.Styler:
+
+def _style_table(
+    df: pd.DataFrame, dark: bool, basis: str = BASIS_RPN
+) -> pd.io.formats.style.Styler:
     colors = DARK_TIER_ROW_COLORS if dark else TIER_ROW_COLORS
+    use_ap = basis == BASIS_AP and "AP" in df.columns
 
     def row_style(row):
-        return [colors.get(row.get("Risk_Tier", "Green"), "")] * len(row)
+        if use_ap:
+            tier = _AP_TO_TIER.get(str(row.get("AP", "")), "Green")
+        else:
+            tier = str(row.get("Risk_Tier", "Green"))
+        return [colors.get(tier, "")] * len(row)
 
+    # RPN and AP sit side by side so both bases stay visible regardless of toggle.
     display_cols = [
         "Failure_Mode", "Process_Step", "Component",
-        "Severity", "Occurrence", "Detection", "RPN",
+        "Severity", "Occurrence", "Detection", "RPN", "AP",
         "Risk_Tier", "Flag_High_RPN", "Flag_High_Severity", "Flag_Action_Priority_H",
     ]
     available = [c for c in display_cols if c in df.columns]
@@ -97,24 +111,36 @@ def render_header() -> None:
 # render_metric_badges
 # ---------------------------------------------------------------------------
 
-def render_metric_badges(df: pd.DataFrame) -> None:
+def render_metric_badges(df: pd.DataFrame, basis: str = BASIS_RPN) -> None:
     total    = len(df)
-    red      = int((df["Risk_Tier"] == "Red").sum())
-    yellow   = int((df["Risk_Tier"] == "Yellow").sum())
-    green    = int((df["Risk_Tier"] == "Green").sum())
-    high_rpn = int(df["Flag_High_RPN"].sum())
-    high_sev = int(df["Flag_High_Severity"].sum())
-    action_h = int(df["Flag_Action_Priority_H"].sum())
+    high_sev = int(df["Flag_High_Severity"].sum()) if "Flag_High_Severity" in df.columns else 0
 
-    cards = [
-        ("Total Modes",       total,    "#1B4F8A", "#EBF2FB", "All failure modes in current view"),
-        ("🔴 Red",            red,      "#c0392b", "#FDEDEC", "RPN > 100 OR Severity ≥ 9 — immediate action"),
-        ("🟡 Yellow",         yellow,   "#d68910", "#FEF9E7", "RPN 50–100 — corrective action recommended"),
-        ("🟢 Green",          green,    "#1e8449", "#EAFAF1", "RPN < 50 — monitor"),
-        ("High RPN (>100)",   high_rpn, "#7d3c98", "#F5EEF8", "Flag_High_RPN = True"),
-        ("Severity ≥ 9",      high_sev, "#c0392b", "#FDEDEC", "Safety-critical per AIAG FMEA-4"),
-        ("Action Priority H", action_h, "#922b21", "#FDEDEC", "RPN ≥ 200 OR Severity ≥ 9"),
-    ]
+    if basis == BASIS_AP and "AP" in df.columns:
+        ap_high = int((df["AP"] == HIGH).sum())
+        ap_med  = int((df["AP"] == MEDIUM).sum())
+        ap_low  = int((df["AP"] == LOW).sum())
+        cards = [
+            ("Total Modes",  total,   "#1B4F8A", "#EBF2FB", "All failure modes in current view"),
+            ("🔴 AP High",   ap_high, "#c0392b", "#FDEDEC", "AIAG/VDA Action Priority = High — act first"),
+            ("🟡 AP Medium", ap_med,  "#d68910", "#FEF9E7", "Action Priority = Medium — should act"),
+            ("🟢 AP Low",    ap_low,  "#1e8449", "#EAFAF1", "Action Priority = Low — monitor"),
+            ("Severity ≥ 9", high_sev, "#c0392b", "#FDEDEC", "Safety-critical per AIAG/VDA"),
+        ]
+    else:
+        red      = int((df["Risk_Tier"] == "Red").sum())
+        yellow   = int((df["Risk_Tier"] == "Yellow").sum())
+        green    = int((df["Risk_Tier"] == "Green").sum())
+        high_rpn = int(df["Flag_High_RPN"].sum())
+        action_h = int(df["Flag_Action_Priority_H"].sum())
+        cards = [
+            ("Total Modes",       total,    "#1B4F8A", "#EBF2FB", "All failure modes in current view"),
+            ("🔴 Red",            red,      "#c0392b", "#FDEDEC", "RPN > 100 OR Severity ≥ 9 — immediate action"),
+            ("🟡 Yellow",         yellow,   "#d68910", "#FEF9E7", "RPN 50–100 — corrective action recommended"),
+            ("🟢 Green",          green,    "#1e8449", "#EAFAF1", "RPN < 50 — monitor"),
+            ("High RPN (>100)",   high_rpn, "#7d3c98", "#F5EEF8", "Flag_High_RPN = True"),
+            ("Severity ≥ 9",      high_sev, "#c0392b", "#FDEDEC", "Safety-critical per AIAG FMEA-4"),
+            ("Action Priority H", action_h, "#922b21", "#FDEDEC", "RPN ≥ 200 OR Severity ≥ 9"),
+        ]
 
     html_parts = ["<div style='display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:0.75rem 0 1rem;'>"]
     for label, value, accent, bg, tip in cards:
@@ -328,41 +354,55 @@ def render_landing(template_csv_path: Path) -> None:
 # render_table
 # ---------------------------------------------------------------------------
 
-def render_table(df: pd.DataFrame, dark: bool) -> None:
+def render_table(df: pd.DataFrame, dark: bool, basis: str = BASIS_RPN) -> None:
     st.subheader("📋  Ranked Failure Mode Table")
     if df.empty:
         st.info("No failure modes match the current filter settings.")
         return
 
+    use_ap = basis == BASIS_AP and "AP" in df.columns
     col_left, col_right = st.columns([3, 1])
 
     with col_left:
         st.dataframe(
-            _style_table(df, dark),
+            _style_table(df, dark, basis),
             use_container_width=True,
             height=520,
         )
+        ranked_by = "Action Priority (AP)" if use_ap else "RPN"
         st.caption(
-            f"{len(df)} failure mode(s) shown  |  "
-            "🔴 Red = immediate action  |  🟡 Yellow = recommended  |  🟢 Green = monitor"
+            f"{len(df)} failure mode(s) shown · ranked by {ranked_by}  |  "
+            "🔴 immediate action  |  🟡 recommended  |  🟢 monitor"
         )
 
     with col_right:
-        st.markdown("**Risk Distribution**")
-        red    = int((df["Risk_Tier"] == "Red").sum())
-        yellow = int((df["Risk_Tier"] == "Yellow").sum())
-        green  = int((df["Risk_Tier"] == "Green").sum())
-        total  = len(df)
+        total = len(df)
 
         def _pct(n: int) -> str:
             return f"{n/total*100:.0f}%" if total else "0%"
 
-        st.markdown(f"🔴 **Red:** {red} ({_pct(red)})")
-        st.progress(red / total if total else 0, text="")
-        st.markdown(f"🟡 **Yellow:** {yellow} ({_pct(yellow)})")
-        st.progress(yellow / total if total else 0, text="")
-        st.markdown(f"🟢 **Green:** {green} ({_pct(green)})")
-        st.progress(green / total if total else 0, text="")
+        if use_ap:
+            st.markdown("**Action Priority**")
+            high = int((df["AP"] == HIGH).sum())
+            med  = int((df["AP"] == MEDIUM).sum())
+            low  = int((df["AP"] == LOW).sum())
+            st.markdown(f"🔴 **High:** {high} ({_pct(high)})")
+            st.progress(high / total if total else 0, text="")
+            st.markdown(f"🟡 **Medium:** {med} ({_pct(med)})")
+            st.progress(med / total if total else 0, text="")
+            st.markdown(f"🟢 **Low:** {low} ({_pct(low)})")
+            st.progress(low / total if total else 0, text="")
+        else:
+            st.markdown("**Risk Distribution**")
+            red    = int((df["Risk_Tier"] == "Red").sum())
+            yellow = int((df["Risk_Tier"] == "Yellow").sum())
+            green  = int((df["Risk_Tier"] == "Green").sum())
+            st.markdown(f"🔴 **Red:** {red} ({_pct(red)})")
+            st.progress(red / total if total else 0, text="")
+            st.markdown(f"🟡 **Yellow:** {yellow} ({_pct(yellow)})")
+            st.progress(yellow / total if total else 0, text="")
+            st.markdown(f"🟢 **Green:** {green} ({_pct(green)})")
+            st.progress(green / total if total else 0, text="")
 
         st.divider()
         if total:
@@ -412,22 +452,29 @@ def render_heatmap(heatmap_fig) -> None:  # type: ignore[no-untyped-def]
 # render_critical_panel
 # ---------------------------------------------------------------------------
 
-def render_critical_panel(df: pd.DataFrame) -> None:
-    critical = df[df["Flag_Action_Priority_H"].astype(bool)]
+def render_critical_panel(df: pd.DataFrame, basis: str = BASIS_RPN) -> None:
+    use_ap = basis == BASIS_AP and "AP" in df.columns
+
+    if use_ap:
+        critical = df[df["AP"] == HIGH]
+        reason = "are Action Priority High (AIAG/VDA 2019)"
+    else:
+        critical = df[df["Flag_Action_Priority_H"].astype(bool)]
+        reason = "have RPN ≥ 200 or Severity ≥ 9"
 
     if critical.empty:
         st.success("✅  No critical failure modes under current filters.")
         return
 
     st.warning(
-        f"**{len(critical)} failure mode(s)** have RPN ≥ 200 or Severity ≥ 9 and require "
+        f"**{len(critical)} failure mode(s)** {reason} and require "
         "immediate corrective action per AIAG FMEA-4."
     )
 
     display_cols = [
         c for c in
         ["Failure_Mode", "Process_Step", "Component", "Cause",
-         "Severity", "Occurrence", "Detection", "RPN", "Risk_Tier",
+         "Severity", "Occurrence", "Detection", "RPN", "AP", "Risk_Tier",
          "Current_Control"]
         if c in critical.columns
     ]

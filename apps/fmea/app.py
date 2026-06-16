@@ -14,7 +14,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from fmea_app.ap_engine import BASIS_AP, calculate_ap, rank_by_ap
 from fmea_app.rpn_engine import (
+    rank_by_rpn,
     run_pipeline,
     validate_input,
 )
@@ -34,6 +36,7 @@ from ui.components import (
 from ui.exports import render_export_buttons
 from ui.filters import (
     apply_filters,
+    render_basis_toggle,
     render_process_filter,
     render_rpn_slider,
     render_severity_toggle,
@@ -80,7 +83,7 @@ def _load_uploaded(file) -> pd.DataFrame:  # type: ignore[no-untyped-def]
 # ---------------------------------------------------------------------------
 
 def render_sidebar():  # type: ignore[no-untyped-def]
-    """Render sidebar controls. Returns (raw_df, rpn_min, sev9_only, dark)."""
+    """Render sidebar controls. Returns (raw_df, rpn_min, sev9_only, dark, basis)."""
     st.sidebar.markdown(
         "<div style='padding:0.4rem 0 0.2rem; font-size:1.25rem; font-weight:700; "
         "letter-spacing:-0.3px;'>🛡️ FMEA Risk Analyzer</div>",
@@ -149,12 +152,16 @@ def render_sidebar():  # type: ignore[no-untyped-def]
         )
 
     st.sidebar.divider()
+    st.sidebar.subheader("🎯  Prioritization")
+    basis = render_basis_toggle()
+
+    st.sidebar.divider()
     st.sidebar.subheader("🔧  Filters")
 
     rpn_min   = render_rpn_slider()
     sev9_only = render_severity_toggle()
 
-    return raw_df, rpn_min, sev9_only, dark
+    return raw_df, rpn_min, sev9_only, dark, basis
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +176,7 @@ def render_fmea() -> None:
     that once. The thin standalone wrapper ``main()`` below supplies page config
     for ``streamlit run app.py``.
     """
-    raw_df, rpn_min, sev9_only, dark = render_sidebar()
+    raw_df, rpn_min, sev9_only, dark, basis = render_sidebar()
 
     apply_css(dark)
     render_header()
@@ -194,7 +201,7 @@ def render_fmea() -> None:
     raw_hash = df_content_hash(raw_df)
     if st.session_state.get("_pipeline_cache_key") != raw_hash:
         try:
-            df_analyzed = run_pipeline(raw_df)
+            df_analyzed = calculate_ap(run_pipeline(raw_df))
             st.session_state["_pipeline_cache_key"] = raw_hash
             st.session_state["_pipeline_result"] = df_analyzed
             st.session_state["_dataset_rpn_max"] = int(df_analyzed["RPN"].max())
@@ -219,13 +226,22 @@ def render_fmea() -> None:
     # ── Apply filters ─────────────────────────────────────────────────────
     df_filtered = apply_filters(df_analyzed, rpn_min, sev9_only, process_steps)
 
+    # ── Rank by the selected basis ────────────────────────────────────────
+    # run_pipeline leaves the data RPN-ranked; re-rank by AP when the user
+    # selects that basis so the table, critical panel, and exports all reflect
+    # the chosen prioritization.
+    if basis == BASIS_AP and "AP" in df_filtered.columns:
+        df_filtered = rank_by_ap(df_filtered)
+    else:
+        df_filtered = rank_by_rpn(df_filtered)
+
     # ── Build / cache charts ──────────────────────────────────────────────
     pareto_fig, heatmap_fig = get_or_build_charts(
         df_filtered, rpn_min, sev9_only, process_steps, dark
     )
 
     # ── Dashboard ─────────────────────────────────────────────────────────
-    render_metric_badges(df_filtered)
+    render_metric_badges(df_filtered, basis)
     render_insights(df_filtered)
     st.divider()
 
@@ -237,7 +253,7 @@ def render_fmea() -> None:
     ])
 
     with tab_table:
-        render_table(df_filtered, dark)
+        render_table(df_filtered, dark, basis)
 
     with tab_pareto:
         render_pareto(pareto_fig)
@@ -246,7 +262,7 @@ def render_fmea() -> None:
         render_heatmap(heatmap_fig)
 
     with tab_critical:
-        render_critical_panel(df_filtered)
+        render_critical_panel(df_filtered, basis)
 
     st.divider()
     render_export_buttons(df_filtered, rpn_min, sev9_only, process_steps)

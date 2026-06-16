@@ -28,6 +28,17 @@ def test_demo_renders_without_exception():
     assert not at.exception
 
 
+def test_ap_basis_renders_without_exception():
+    """W03-3: switching the prioritization basis to AP renders cleanly and
+    leaves the AP-ranked result in the pipeline cache."""
+    at = AppTest.from_file(APP_PY).run()
+    at.session_state["use_demo"] = True
+    at.session_state["priority_basis"] = "AP"
+    at = at.run(timeout=30)
+    assert not at.exception
+    assert "AP" in at.session_state["_pipeline_result"].columns
+
+
 def test_malformed_float_score_shows_error():
     """Uploading a file with float S/O/D scores shows an error, does not crash."""
     from fmea_app.rpn_engine import validate_input

@@ -42,14 +42,14 @@ _NORMAL_FONT = Font(size=10)
 _EXPORT_COLUMNS = [
     "ID", "Process_Step", "Component", "Failure_Mode",
     "Effect", "Severity", "Occurrence", "Detection",
-    "RPN", "Risk_Tier",
+    "RPN", "AP", "Risk_Tier",
     "Flag_High_RPN", "Flag_High_Severity", "Flag_Action_Priority_H",
 ]
 
 _COL_WIDTHS = {
     "ID": 6, "Process_Step": 20, "Component": 16, "Failure_Mode": 28,
     "Effect": 24, "Severity": 10, "Occurrence": 12, "Detection": 11,
-    "RPN": 8, "Risk_Tier": 12,
+    "RPN": 8, "AP": 10, "Risk_Tier": 12,
     "Flag_High_RPN": 14, "Flag_High_Severity": 16, "Flag_Action_Priority_H": 20,
 }
 
@@ -92,8 +92,9 @@ _PDF_TABLE_COLS = [
     ("O",             8),
     ("D",             8),
     ("RPN",          12),
+    ("AP",           14),
     ("Tier",         16),
-    ("Flags",        65),
+    ("Flags",        51),
 ]
 
 
@@ -181,6 +182,10 @@ def _write_metadata_sheet(wb: openpyxl.Workbook, df: pd.DataFrame) -> None:
         ("High RPN (>100)",   int(df["Flag_High_RPN"].sum())           if "Flag_High_RPN"           in df.columns else "N/A"),
         ("Severity >= 9",     int(df["Flag_High_Severity"].sum())      if "Flag_High_Severity"      in df.columns else "N/A"),
         ("Action Priority H", int(df["Flag_Action_Priority_H"].sum())  if "Flag_Action_Priority_H"  in df.columns else "N/A"),
+        ("",                  ""),
+        ("AP High",           int((df["AP"] == "High").sum())          if "AP"                      in df.columns else "N/A"),
+        ("AP Medium",         int((df["AP"] == "Medium").sum())        if "AP"                      in df.columns else "N/A"),
+        ("AP Low",            int((df["AP"] == "Low").sum())           if "AP"                      in df.columns else "N/A"),
     ]
 
     for r_idx, (label, value) in enumerate(rows, start=1):
@@ -371,6 +376,7 @@ def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
             str(int(row["Occurrence"]))      if "Occurrence" in row.index else "",
             str(int(row["Detection"]))       if "Detection"  in row.index else "",
             str(int(row["RPN"]))             if "RPN"        in row.index else "",
+            _safe_text(str(row.get("AP", "-"))) if "AP"      in row.index else "-",
             _safe_text(tier),
             _safe_text(str(row.get("_flags", "-"))[:38]),
         ]

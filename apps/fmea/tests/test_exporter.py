@@ -9,7 +9,8 @@ import openpyxl
 import pandas as pd
 import pytest
 
-from fmea_app.exporter import export_excel, export_pdf
+from fmea_app.ap_engine import calculate_ap
+from fmea_app.exporter import export_csv, export_excel, export_pdf
 
 
 def _sample_df() -> pd.DataFrame:
@@ -172,6 +173,47 @@ def test_csv_no_formula_injection():
     # Escaped versions should be present
     assert "'=SUM(1,2)" in csv_text
     assert "'+bad" in csv_text
+
+
+def test_excel_includes_ap_column_when_present():
+    """W03-3: the AP column is carried into the Excel FMEA sheet header."""
+    df = calculate_ap(_sample_df())
+    wb = openpyxl.load_workbook(io.BytesIO(export_excel(df)))
+    ws = wb["FMEA Analysis"]
+    headers = [ws.cell(1, c).value for c in range(1, ws.max_column + 1)]
+    assert "AP" in headers
+
+
+def test_excel_metadata_includes_ap_counts():
+    """W03-3: AP High/Medium/Low tallies appear on the Metadata sheet."""
+    df = calculate_ap(_sample_df())
+    wb = openpyxl.load_workbook(io.BytesIO(export_excel(df)))
+    labels = [wb["Metadata"].cell(r, 1).value for r in range(1, wb["Metadata"].max_row + 1)]
+    assert {"AP High", "AP Medium", "AP Low"} <= set(labels)
+
+
+def test_csv_includes_ap_column_when_present():
+    """W03-3: the AP column survives into the CSV export header."""
+    df = calculate_ap(_sample_df())
+    header = export_csv(df).decode("utf-8").splitlines()[0].split(",")
+    assert "AP" in header
+
+
+def test_pdf_with_ap_column_renders_to_bytes():
+    """W03-3: PDF export still produces a valid document with the AP column."""
+    df = calculate_ap(_sample_df())
+    out = export_pdf(df)
+    assert isinstance(out, bytes) and len(out) > 0
+
+
+def test_exports_omit_ap_when_absent():
+    """Back-compat: a pre-AP analyzed frame still exports cleanly (no AP column)."""
+    df = _sample_df()  # no AP column
+    header = export_csv(df).decode("utf-8").splitlines()[0].split(",")
+    assert "AP" not in header
+    wb = openpyxl.load_workbook(io.BytesIO(export_excel(df)))
+    headers = [wb["FMEA Analysis"].cell(1, c).value for c in range(1, wb["FMEA Analysis"].max_column + 1)]
+    assert "AP" not in headers
 
 
 def test_pdf_export_cleans_tempfile_on_chart_error(monkeypatch, tmp_path):
