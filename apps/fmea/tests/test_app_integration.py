@@ -28,6 +28,12 @@ def test_demo_renders_without_exception():
     assert not at.exception
 
 
+def test_landing_renders_rating_scale_without_exception():
+    """W03-4: the landing page (no data) renders the rating-scale reference."""
+    at = AppTest.from_file(APP_PY).run()
+    assert not at.exception
+
+
 def test_ap_basis_renders_without_exception():
     """W03-3: switching the prioritization basis to AP renders cleanly and
     leaves the AP-ranked result in the pipeline cache."""

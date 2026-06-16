@@ -25,6 +25,7 @@ import pandas as pd
 import streamlit as st
 
 from fmea_app.ap_engine import BASIS_AP, BASIS_RPN, HIGH, LOW, MEDIUM
+from fmea_app.rating_scales import RatingScaleSet
 
 # ---------------------------------------------------------------------------
 # Risk tier CSS row colors — light and dark variants
@@ -446,6 +447,39 @@ def render_heatmap(heatmap_fig) -> None:  # type: ignore[no-untyped-def]
         st.info("No data to display under current filters.")
         return
     st.plotly_chart(heatmap_fig, use_container_width=True)
+
+
+# ---------------------------------------------------------------------------
+# render_rating_scales
+# ---------------------------------------------------------------------------
+
+def render_rating_scales(scale_set: RatingScaleSet) -> None:
+    """Show the active S/O/D rating-scale reference tables."""
+    st.subheader("📐  Rating Scale Reference")
+    st.caption(
+        f"Active scale: **{scale_set.name}**"
+        + (f"  ·  {scale_set.source}" if scale_set.source else "")
+    )
+    st.markdown(
+        "These 1–10 anchors define what each Severity, Occurrence, and Detection "
+        "score *means* when you author an FMEA. They are reference only — the RPN "
+        "and AP calculations use the numeric scores you provide."
+    )
+
+    c_sev, c_occ, c_det = st.columns(3)
+    for col, factor, title in (
+        (c_sev, "severity", "Severity (S)"),
+        (c_occ, "occurrence", "Occurrence (O)"),
+        (c_det, "detection", "Detection (D)"),
+    ):
+        with col:
+            st.markdown(f"**{title}**")
+            st.dataframe(
+                scale_set.to_frame(factor),
+                use_container_width=True,
+                hide_index=True,
+                height=390,
+            )
 
 
 # ---------------------------------------------------------------------------

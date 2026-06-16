@@ -1,0 +1,40 @@
+{
+  "name": "AIAG FMEA-4 (default)",
+  "source": "AIAG FMEA-4 (4th Ed.) — see docs/FMEA_input_schema.md and docs/ASSUMPTIONS_LOG.md",
+  "severity": {
+    "10": "Safety hazard — no warning",
+    "9": "Safety hazard — with warning",
+    "8": "Loss of primary function",
+    "7": "Reduced primary function",
+    "6": "Loss of secondary function",
+    "5": "Reduced secondary function",
+    "4": "Cosmetic defect — noticed by most customers",
+    "3": "Cosmetic defect — noticed by some customers",
+    "2": "Minor defect — noticed by discriminating customers",
+    "1": "No effect"
+  },
+  "occurrence": {
+    "10": "Almost certain — ≥ 1 in 2",
+    "9": "Very high — 1 in 8",
+    "8": "High — 1 in 20",
+    "7": "Moderately high — 1 in 80",
+    "6": "Moderate — 1 in 400",
+    "5": "Low — 1 in 2,000",
+    "4": "Slight — 1 in 15,000",
+    "3": "Very slight — 1 in 150,000",
+    "2": "Remote — 1 in 1,500,000",
+    "1": "Almost impossible — < 1 in 1,500,000"
+  },
+  "detection": {
+    "10": "No detection control exists",
+    "9": "Very remote chance of detection",
+    "8": "Remote chance of detection",
+    "7": "Very low chance of detection",
+    "6": "Low chance of detection",
+    "5": "Moderate chance of detection",
+    "4": "Moderately high chance of detection",
+    "3": "High chance of detection",
+    "2": "Very high chance of detection",
+    "1": "Almost certain detection"
+  }
+}

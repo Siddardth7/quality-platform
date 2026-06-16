@@ -30,6 +30,7 @@ from ui.components import (
     render_landing,
     render_metric_badges,
     render_pareto,
+    render_rating_scales,
     render_table,
     render_validation_summary,
 )
@@ -38,6 +39,7 @@ from ui.filters import (
     apply_filters,
     render_basis_toggle,
     render_process_filter,
+    render_rating_scale_selector,
     render_rpn_slider,
     render_severity_toggle,
 )
@@ -83,7 +85,10 @@ def _load_uploaded(file) -> pd.DataFrame:  # type: ignore[no-untyped-def]
 # ---------------------------------------------------------------------------
 
 def render_sidebar():  # type: ignore[no-untyped-def]
-    """Render sidebar controls. Returns (raw_df, rpn_min, sev9_only, dark, basis)."""
+    """Render sidebar controls.
+
+    Returns (raw_df, rpn_min, sev9_only, dark, basis, scale_set).
+    """
     st.sidebar.markdown(
         "<div style='padding:0.4rem 0 0.2rem; font-size:1.25rem; font-weight:700; "
         "letter-spacing:-0.3px;'>🛡️ FMEA Risk Analyzer</div>",
@@ -156,12 +161,16 @@ def render_sidebar():  # type: ignore[no-untyped-def]
     basis = render_basis_toggle()
 
     st.sidebar.divider()
+    st.sidebar.subheader("📐  Rating Scale")
+    scale_set = render_rating_scale_selector()
+
+    st.sidebar.divider()
     st.sidebar.subheader("🔧  Filters")
 
     rpn_min   = render_rpn_slider()
     sev9_only = render_severity_toggle()
 
-    return raw_df, rpn_min, sev9_only, dark, basis
+    return raw_df, rpn_min, sev9_only, dark, basis, scale_set
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +185,7 @@ def render_fmea() -> None:
     that once. The thin standalone wrapper ``main()`` below supplies page config
     for ``streamlit run app.py``.
     """
-    raw_df, rpn_min, sev9_only, dark, basis = render_sidebar()
+    raw_df, rpn_min, sev9_only, dark, basis, scale_set = render_sidebar()
 
     apply_css(dark)
     render_header()
@@ -188,6 +197,8 @@ def render_fmea() -> None:
             "AIAG/VDA FMEA Handbook (5th Ed., 2019)"
         )
         render_landing(TEMPLATE_CSV)
+        st.divider()
+        render_rating_scales(scale_set)
         return
 
     # ── Validate ─────────────────────────────────────────────────────────
@@ -245,11 +256,12 @@ def render_fmea() -> None:
     render_insights(df_filtered)
     st.divider()
 
-    tab_table, tab_pareto, tab_heatmap, tab_critical = st.tabs([
+    tab_table, tab_pareto, tab_heatmap, tab_critical, tab_scale = st.tabs([
         "📋  Risk Table",
         "📊  Pareto Chart",
         "🗺️  Risk Heatmap",
         "⚠️  Critical Items",
+        "📐  Rating Scale",
     ])
 
     with tab_table:
@@ -263,6 +275,9 @@ def render_fmea() -> None:
 
     with tab_critical:
         render_critical_panel(df_filtered, basis)
+
+    with tab_scale:
+        render_rating_scales(scale_set)
 
     st.divider()
     render_export_buttons(df_filtered, rpn_min, sev9_only, process_steps)

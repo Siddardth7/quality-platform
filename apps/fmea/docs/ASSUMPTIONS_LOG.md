@@ -93,6 +93,18 @@ This log is the defense against any interview question about methodology choices
 
 ---
 
+## RULE 6 — Data-Driven S/O/D Rating Scales (W03-4)
+
+**Decision:** The 1–10 anchor descriptions for Severity, Occurrence, and Detection are **data, not constants**. The AIAG FMEA-4 default scale ships as `data/rating_scales.json` and is loaded/validated by `fmea_app/rating_scales.py`; a user may supply a custom 1–10 scale (a company-specific PFMEA rubric) that passes through the same validation (every factor must define ratings 1–10 exactly, with non-empty descriptions).
+
+**Scope — these are reference tables, not math.** The rating scales describe what each score *means* to the analyst. They do **not** change RPN (`S × O × D`) or the AIAG-VDA Action Priority lookup; the engines still consume the integer scores 1–10. None of the thresholds or citations in Rules 1–5 (or the AP table) are affected by the scale chosen.
+
+**Source of the default text:** AIAG FMEA-4 (4th Ed.), transcribed from `docs/FMEA_input_schema.md` § "Scoring Scales (AIAG FMEA-4)" so the documented scale and the in-app scale stay in sync.
+
+**Applied In:** `fmea_app/rating_scales.py` (loader + validation) · `data/rating_scales.json` (default) · `ui/filters.py` → `render_rating_scale_selector()` · `ui/components.py` → `render_rating_scales()`
+
+---
+
 *Sources referenced in this log:*
 - *AIAG FMEA-4 (4th Edition) — Potential Failure Mode and Effects Analysis*
 - *AIAG/VDA FMEA Handbook (5th Edition, 2019)*

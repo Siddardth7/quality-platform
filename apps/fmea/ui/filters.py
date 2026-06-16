@@ -8,6 +8,47 @@ import pandas as pd
 import streamlit as st
 
 from fmea_app.ap_engine import BASIS_AP, BASIS_RPN
+from fmea_app.rating_scales import (
+    RatingScaleSet,
+    load_default_scales,
+    load_scales_from_json,
+)
+
+_SCALE_AIAG = "AIAG FMEA-4 (default)"
+_SCALE_CUSTOM = "Custom (upload JSON)"
+
+
+def render_rating_scale_selector() -> RatingScaleSet:
+    """Render the S/O/D rating-scale source picker. Returns the active scale set.
+
+    Defaults to the bundled AIAG FMEA-4 scale. If the user picks Custom and
+    uploads a valid JSON scale it is used; an invalid upload surfaces an error
+    and the default is used so the rest of the app keeps working.
+    """
+    choice = st.sidebar.selectbox(
+        "Rating scale",
+        options=[_SCALE_AIAG, _SCALE_CUSTOM],
+        key="rating_scale_choice",
+        help="Reference 1–10 anchors for Severity / Occurrence / Detection. "
+        "Custom lets you load a company-specific 1–10 rubric.",
+    )
+
+    if choice == _SCALE_CUSTOM:
+        upload = st.sidebar.file_uploader(
+            "Upload custom scale (JSON)",
+            type=["json"],
+            key="rating_scale_upload",
+            help="JSON with severity/occurrence/detection objects, each mapping ratings 1–10 to text.",
+        )
+        if upload is not None:
+            try:
+                return load_scales_from_json(upload.getvalue())
+            except ValueError as exc:
+                st.sidebar.error(f"Custom scale rejected: {exc}")
+        else:
+            st.sidebar.caption("Upload a JSON scale, or the AIAG default is used.")
+
+    return load_default_scales()
 
 
 def render_basis_toggle() -> str:
