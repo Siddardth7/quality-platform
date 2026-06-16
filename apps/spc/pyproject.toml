@@ -1,6 +1,6 @@
 [project]
 name = "spc-app"
-version = "0.2.0"
+version = "0.3.0"
 description = "Manufacturing SPC Dashboard — Streamlit app (control charts + process capability)."
 readme = "README.md"
 requires-python = ">=3.11"

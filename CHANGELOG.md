@@ -4,6 +4,48 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-16
+
+Week 03: AP-native FMEA. FMEA moves from RPN-only to the AIAG/VDA 2019 Action Priority standard —
+the full published S×O×D → High/Medium/Low table, a user-selectable prioritization basis, and
+data-driven rating scales — with the AP table verified cell-by-cell against the AIAG & VDA FMEA
+Handbook (2019) primary source.
+
+🔗 Live: <https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>
+
+### Added
+
+- **AIAG-VDA Action Priority (AP) engine** (`fmea_app/ap_engine.py`) — the complete published
+  S×O×D → High/Medium/Low table (no approximation), with `action_priority()`, `calculate_ap()`,
+  and `rank_by_ap()`. Severity-weighted (S → O → D), but high severity does not auto-escalate.
+- **RPN ↔ AP toggle** in the FMEA app — both columns shown side by side; the selected basis drives
+  ranking, tiering, the critical-items view, and the Excel / PDF / CSV exports.
+- **Data-driven S/O/D rating scales** — AIAG default in `data/rating_scales.json` plus a validated
+  custom-scale upload, with an in-app Rating Scale reference (`fmea_app/rating_scales.py`).
+- **Primary-source verification of the AP table** — the engine matches the AIAG & VDA FMEA Handbook
+  (2019) table for all 1000 S/O/D combinations, cross-checked against an external peer-reviewed
+  case study (MDPI, Pop et al. 2026), guarded by an independent test oracle.
+
+### Changed
+
+- **FMEA version single-source-of-truth** — `fmea_app.__version__`, read by the exporter and the
+  app sidebar, with a drift-guard test; the hardcoded `"1.0.0"` is removed.
+- **FMEA docs** — methodology §4.2, `ASSUMPTIONS_LOG.md` Rule 7, and the README now document the AP
+  engine and cite the verified handbook primary source.
+
+### Fixed
+
+- **Corrected the AP table's Severity 9-10 block** — a transcription from a third-party reproduction
+  had shifted the occurrence rows (e.g. `S9-10/O1` was `H,M,L,L`; the handbook is all `Low`). Caught
+  in code review, resolved against the primary source. Monotonicity alone did not catch it (the
+  shifted block stayed monotonic), so the test oracle is now transcribed from the handbook.
+- **Critical-items panel** cites the correct standard under the AP basis; **rating-scale upload**
+  rejects custom keys that collide on integer coercion (`"1"` vs `"1.0"`).
+
+### Notes
+
+- FMEA: 266 tests; platform: 390 tests, ruff + mypy clean.
+
 ## [0.2.0] - 2026-06-15
 
 Week 02: SPC parity. The SPC app is brought to the same engineering bar as FMEA — type-safe,
@@ -69,5 +111,6 @@ First public release — Week 01: monorepo + shared core. The platform now publi
 - FMEA: 105 tests, ruff + mypy clean. SPC: 83 tests (ruff/mypy lint cleanup scheduled for W02).
 - uv is the toolchain; the workspace runs on Python 3.11.
 
+[0.3.0]: https://github.com/Siddardth7/quality-platform/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Siddardth7/quality-platform/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Siddardth7/quality-platform/releases/tag/v0.1.0
