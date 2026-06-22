@@ -29,24 +29,36 @@ from openpyxl.utils import get_column_letter
 # Formula-injection escaping (CSV / Excel)
 # ===========================================================================
 
-#: Cell values starting with one of these are prefixed with an apostrophe before
-#: writing, so spreadsheet apps treat them as text, not formulas (CSV injection).
-#: The escape character (apostrophe) must NOT be added here — that would
-#: double-escape on a repeated call.
-FORMULA_PREFIXES = ("=", "+", "-", "@")
+#: OWASP CSV-injection trigger characters. A cell whose leading character is one
+#: of these can be evaluated by a spreadsheet as a formula/command — including the
+#: Tab (0x09) and CR (0x0D) controls, which several spreadsheet apps treat as
+#: formula leads. The escape character (apostrophe) must NOT be added here — that
+#: would double-escape on a repeated call.
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _is_injection_risk(value: str) -> bool:
+    """True if ``value`` could be evaluated as a formula by a spreadsheet."""
+    if value.startswith(FORMULA_PREFIXES):
+        return True
+    # Excel/Sheets strip leading whitespace before formula detection, so a formula
+    # character hidden behind leading spaces/tabs/newlines is still dangerous.
+    stripped = value.lstrip()
+    return stripped != value and stripped.startswith(("=", "+", "-", "@"))
 
 
 def sanitize_for_export(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy with formula-injection prefixes escaped in every string cell.
+    """Return a copy with formula-injection-risky string cells escaped.
 
-    A leading ``=``, ``+``, ``-`` or ``@`` in a string is prefixed with ``'`` so
-    Excel/Sheets/LibreOffice render it literally instead of evaluating it as a
-    formula. Non-string cells are untouched.
+    A string whose first non-whitespace character is a formula trigger (``= + - @``,
+    or a leading Tab/CR) is prefixed with ``'`` so Excel/Sheets/LibreOffice render it
+    literally instead of evaluating it. Non-string cells are untouched, and the escape
+    is idempotent (an already-escaped value is not re-escaped).
     """
     df = df.copy()
     for col in df.columns:
         df[col] = df[col].apply(
-            lambda v: f"'{v}" if isinstance(v, str) and v.startswith(FORMULA_PREFIXES) else v
+            lambda v: f"'{v}" if isinstance(v, str) and _is_injection_risk(v) else v
         )
     return df
 

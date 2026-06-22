@@ -19,7 +19,7 @@ from quality_core.io.export import (
 
 
 def test_formula_prefixes():
-    assert FORMULA_PREFIXES == ("=", "+", "-", "@")
+    assert FORMULA_PREFIXES == ("=", "+", "-", "@", "\t", "\r")
 
 
 def test_sanitize_escapes_formula_prefixes():
@@ -34,12 +34,37 @@ def test_sanitize_escapes_formula_prefixes():
     assert out.loc[0, "e"] == "safe"  # untouched
 
 
+def test_sanitize_escapes_whitespace_and_control_prefixed_formulas():
+    """Leading Tab/CR/whitespace before a formula char must not bypass escaping.
+
+    Spreadsheets strip leading whitespace before formula detection, so these are
+    still evaluated if left unescaped (OWASP CSV-injection trigger set).
+    """
+    df = pd.DataFrame(
+        [{
+            "tab": "\t=cmd|'/C calc'!A1",
+            "cr": "\r=evil",
+            "space": " =1+1",
+            "newline": "\n=x",
+            "plainspace": "  hello",   # leading space, no formula → safe
+        }]
+    )
+    out = sanitize_for_export(df)
+    assert out.loc[0, "tab"] == "'\t=cmd|'/C calc'!A1"
+    assert out.loc[0, "cr"] == "'\r=evil"
+    assert out.loc[0, "space"] == "' =1+1"
+    assert out.loc[0, "newline"] == "'\n=x"
+    assert out.loc[0, "plainspace"] == "  hello"  # untouched
+
+
 def test_sanitize_is_idempotent():
     """Re-sanitizing must not double-escape an already-escaped value."""
-    df = pd.DataFrame([{"a": "=evil"}])
+    df = pd.DataFrame([{"a": "=evil", "b": "\t=tabbed", "c": " =spaced"}])
     once = sanitize_for_export(df)
     twice = sanitize_for_export(once)
-    assert twice.loc[0, "a"] == "'=evil"  # apostrophe-prefixed value no longer matches
+    assert twice.loc[0, "a"] == "'=evil"      # apostrophe-prefixed → no longer matches
+    assert twice.loc[0, "b"] == "'\t=tabbed"  # not re-escaped
+    assert twice.loc[0, "c"] == "' =spaced"
 
 
 def test_sanitize_leaves_non_strings_and_copies():
