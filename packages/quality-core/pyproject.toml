@@ -8,6 +8,7 @@ dependencies = [
     "pandas>=3.0.2",
     "pydantic>=2.13.4",
     "streamlit>=1.56.0",  # quality_core.theme.style.apply_theme injects CSS via st.markdown
+    "openpyxl>=3.1.5",    # quality_core.io.export/validate read & write .xlsx via pandas
 ]
 
 [build-system]

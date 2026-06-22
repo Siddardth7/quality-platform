@@ -1554,6 +1554,7 @@ name = "quality-core"
 version = "0.3.0"
 source = { editable = "packages/quality-core" }
 dependencies = [
+    { name = "openpyxl" },
     { name = "pandas" },
     { name = "pydantic" },
     { name = "streamlit" },
@@ -1561,6 +1562,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.2" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "streamlit", specifier = ">=1.56.0" },
