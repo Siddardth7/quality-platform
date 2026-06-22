@@ -2,11 +2,17 @@
 exporter.py
 FMEA Risk Prioritization Tool — Export Layer
 
+FMEA-specific export *config* (which columns, tier colors, metadata, PDF layout)
+composed over the shared, app-agnostic primitives in ``quality_core.io.export``
+(CSV/formula-injection escaping, openpyxl styling, fpdf2 table rendering). The
+shared machinery is written once in core and reused by SPC and the Control Plan.
+
 Functions:
-    export_excel(df) → bytes  (openpyxl .xlsx)
+    export_csv(df)   → bytes  (UTF-8 CSV, formula-injection escaped)
+    export_excel(df) → bytes  (openpyxl .xlsx — ranked sheet + metadata sheet)
     export_pdf(df)   → bytes  (fpdf2 .pdf, charts rendered via matplotlib)
 
-Both return raw bytes suitable for st.download_button().
+All return raw bytes suitable for st.download_button().
 
 Author: Siddardth | M.S. Aerospace Engineering, UIUC
 """
@@ -21,25 +27,26 @@ from typing import Any
 
 import openpyxl
 import pandas as pd
-from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
+from quality_core.io.export import (
+    add_image_page,
+    export_csv,
+    render_table,
+    safe_text,
+    sanitize_for_export,
+    write_keyvalue_sheet,
+    write_table_sheet,
+)
 from quality_core.theme import TIER_FILL_HEX, TIER_RGB
 
 from fmea_app import __version__
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
+# Re-export the shared CSV exporter and sanitizer under the names this module's
+# consumers/tests already use (behavior is identical — the logic now lives in core).
+_sanitize_for_export = sanitize_for_export
 
-_TIER_FILL = {
-    tier: PatternFill(start_color=hex_val, end_color=hex_val, fill_type="solid")
-    for tier, hex_val in TIER_FILL_HEX.items()
-}
-
-_HEADER_FILL = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
-_HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
-_BOLD_FONT   = Font(bold=True, size=10)
-_NORMAL_FONT = Font(size=10)
+# ---------------------------------------------------------------------------
+# FMEA export configuration
+# ---------------------------------------------------------------------------
 
 _EXPORT_COLUMNS = [
     "ID", "Process_Step", "Component", "Failure_Mode",
@@ -58,35 +65,6 @@ _COL_WIDTHS = {
 # Read from the package single source of truth (fmea_app/__init__.py) — never hardcode.
 _TOOL_VERSION = __version__
 
-# The escape character (apostrophe) must NOT be added here — it would cause double-escaping on repeated calls.
-_FORMULA_PREFIXES = ("=", "+", "-", "@")
-
-
-def _sanitize_for_export(df: pd.DataFrame) -> pd.DataFrame:
-    """Escape formula-injection prefixes in all columns to prevent spreadsheet attacks."""
-    df = df.copy()
-    for col in df.columns:
-        df[col] = df[col].apply(
-            lambda v: f"'{v}" if isinstance(v, str) and v.startswith(_FORMULA_PREFIXES) else v
-        )
-    return df
-
-
-def export_csv(df: pd.DataFrame) -> bytes:
-    """
-    Export the analyzed FMEA DataFrame to UTF-8 CSV with formula-injection escaping.
-
-    Returns
-    -------
-    bytes
-        Raw UTF-8 encoded CSV bytes suitable for st.download_button().
-    """
-    return _sanitize_for_export(df).to_csv(index=False).encode("utf-8")
-
-
-# PDF layout constants — row fill colors imported from quality_core.theme
-_PDF_TIER_RGB = TIER_RGB
-
 _PDF_TABLE_COLS = [
     ("ID",           10),
     ("Process Step", 38),
@@ -99,6 +77,15 @@ _PDF_TABLE_COLS = [
     ("Tier",         16),
     ("Flags",        51),
 ]
+
+
+def _row_tier(row: pd.Series) -> str:
+    return str(row.get("Risk_Tier", "Green"))
+
+
+def _excel_row_fill(row: pd.Series) -> str:
+    """Tier → solid fill hex for the Excel ranked sheet (defaults to Green)."""
+    return TIER_FILL_HEX.get(_row_tier(row), TIER_FILL_HEX["Green"])
 
 
 # ---------------------------------------------------------------------------
@@ -122,58 +109,27 @@ def export_excel(df: pd.DataFrame) -> bytes:
     bytes
         Raw .xlsx bytes suitable for st.download_button().
     """
-    df = _sanitize_for_export(df)
+    df = sanitize_for_export(df)
     wb = openpyxl.Workbook()
 
-    _write_fmea_sheet(wb, df)
-    _write_metadata_sheet(wb, df)
+    ws = wb.active
+    assert ws is not None  # a freshly created workbook always has an active sheet
+    write_table_sheet(
+        ws, df,
+        title="FMEA Analysis",
+        columns=_EXPORT_COLUMNS,
+        col_widths=_COL_WIDTHS,
+        row_fill_hex=_excel_row_fill,
+    )
+    write_keyvalue_sheet(wb.create_sheet("Metadata"), _metadata_rows(df))
 
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-def _write_fmea_sheet(wb: openpyxl.Workbook, df: pd.DataFrame) -> None:
-    ws = wb.active
-    assert ws is not None  # a freshly created workbook always has an active sheet
-    ws.title = "FMEA Analysis"
-
-    cols = [c for c in _EXPORT_COLUMNS if c in df.columns]
-
-    # Header row
-    for col_idx, col_name in enumerate(cols, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=col_name)
-        cell.fill = _HEADER_FILL
-        cell.font = _HEADER_FONT
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.row_dimensions[1].height = 22
-
-    # Data rows
-    for row_idx, (_, row) in enumerate(df.iterrows(), start=2):
-        tier = str(row.get("Risk_Tier", "Green"))
-        fill = _TIER_FILL.get(tier, _TIER_FILL["Green"])
-        for col_idx, col_name in enumerate(cols, start=1):
-            val = row[col_name]
-            # Convert numpy booleans / numpy ints for Excel compatibility
-            if hasattr(val, "item"):
-                val = val.item()
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
-            cell.fill = fill
-            cell.font = _NORMAL_FONT
-            cell.alignment = Alignment(vertical="center", wrap_text=False)
-
-    # Column widths
-    for col_idx, col_name in enumerate(cols, start=1):
-        width = _COL_WIDTHS.get(col_name, 14)
-        ws.column_dimensions[get_column_letter(col_idx)].width = width
-
-    ws.freeze_panes = "A2"
-
-
-def _write_metadata_sheet(wb: openpyxl.Workbook, df: pd.DataFrame) -> None:
-    ws = wb.create_sheet("Metadata")
-
-    rows = [
+def _metadata_rows(df: pd.DataFrame) -> list[tuple[str, object]]:
+    return [
         ("Generated",         datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         ("Tool Version",      _TOOL_VERSION),
         ("Engineering Ref",   "AIAG FMEA-4 (4th Ed.) + AIAG/VDA FMEA Handbook (5th Ed., 2019)"),
@@ -190,13 +146,6 @@ def _write_metadata_sheet(wb: openpyxl.Workbook, df: pd.DataFrame) -> None:
         ("AP Medium",         int((df["AP"] == "Medium").sum())        if "AP"                      in df.columns else "N/A"),
         ("AP Low",            int((df["AP"] == "Low").sum())           if "AP"                      in df.columns else "N/A"),
     ]
-
-    for r_idx, (label, value) in enumerate(rows, start=1):
-        ws.cell(r_idx, 1, label).font = _BOLD_FONT
-        ws.cell(r_idx, 2, value).font = _NORMAL_FONT
-
-    ws.column_dimensions["A"].width = 22
-    ws.column_dimensions["B"].width = 48
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +194,7 @@ def export_pdf(df: pd.DataFrame) -> bytes:
                 fig.savefig(tmp_path, dpi=150, bbox_inches="tight")
             finally:
                 plt.close(fig)
+            # Call via the module global so tests can monkeypatch this seam.
             _pdf_chart_page_from_file(pdf, tmp_path, title)
     # TemporaryDirectory removes tmp_dir and its contents on exit, even on exception.
 
@@ -252,37 +202,8 @@ def export_pdf(df: pd.DataFrame) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# PDF helpers
+# PDF helpers — FMEA layout over the shared renderer
 # ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Unicode sanitizer — fpdf2 core fonts only support Latin-1
-# ---------------------------------------------------------------------------
-
-_UNICODE_MAP = [
-    ("\u2014", "-"),    # em dash  —
-    ("\u2013", "-"),    # en dash  –
-    ("\u00d7", "x"),    # multiplication sign  ×
-    ("\u2265", ">="),   # ≥
-    ("\u2264", "<="),   # ≤
-    ("\u00b1", "+/-"),  # ±
-    ("\u00b0", " deg"), # °
-    ("\u2018", "'"),    # left single quote
-    ("\u2019", "'"),    # right single quote
-    ("\u201c", '"'),    # left double quote
-    ("\u201d", '"'),    # right double quote
-    ("\u2022", "*"),    # bullet
-    ("\u00e9", "e"),    # é
-    ("\u00e0", "a"),    # à
-]
-
-def _safe_text(s: object) -> str:
-    """Sanitize string to Latin-1 safe for fpdf2 core fonts."""
-    text = str(s)
-    for char, rep in _UNICODE_MAP:
-        text = text.replace(char, rep)
-    return text.encode("latin-1", errors="replace").decode("latin-1")
-
 
 def _flag_str(row: pd.Series) -> str:
     parts = []
@@ -295,14 +216,23 @@ def _flag_str(row: pd.Series) -> str:
     return ", ".join(parts) if parts else "-"
 
 
-def _pdf_table_header(pdf: Any) -> None:
-    """Render the FMEA table header row — called once per page."""
-    pdf.set_font("Helvetica", "B", 8)
-    pdf.set_fill_color(44, 62, 80)
-    pdf.set_text_color(255, 255, 255)
-    for col_label, col_w in _PDF_TABLE_COLS:
-        pdf.cell(col_w, 7, col_label, border=1, align="C", fill=True)
-    pdf.ln()
+def _pdf_row_values(row: pd.Series) -> list[str]:
+    return [
+        str(int(row["ID"]))              if "ID"         in row.index else "",
+        safe_text(str(row.get("Process_Step", ""))[:22]),
+        safe_text(str(row.get("Failure_Mode", ""))[:32]),
+        str(int(row["Severity"]))        if "Severity"   in row.index else "",
+        str(int(row["Occurrence"]))      if "Occurrence" in row.index else "",
+        str(int(row["Detection"]))       if "Detection"  in row.index else "",
+        str(int(row["RPN"]))             if "RPN"        in row.index else "",
+        safe_text(str(row.get("AP", "-"))) if "AP"       in row.index else "-",
+        safe_text(_row_tier(row)),
+        safe_text(str(row.get("_flags", "-"))[:38]),
+    ]
+
+
+def _pdf_row_rgb(row: pd.Series) -> tuple[int, int, int]:
+    return TIER_RGB.get(_row_tier(row), (255, 255, 255))
 
 
 def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
@@ -351,52 +281,17 @@ def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
         pdf.cell(cell_w, 8, str(value), border=1, align="C", fill=False)
     pdf.ln(5)
 
-    _pdf_table_header(pdf)
-
-    # Data rows
+    # Ranked table (shared renderer handles the repeating header + page breaks).
     df2 = df.copy()
     df2["_flags"] = df2.apply(_flag_str, axis=1)
-    pdf.set_font("Helvetica", "", 7)
-
-    _ROW_H = 6
-    for _, row in df2.iterrows():
-        # Page-break guard: repeat header when less than 2 rows of space remain
-        if pdf.get_y() + _ROW_H * 2 > pdf.h - pdf.b_margin:
-            pdf.add_page()
-            _pdf_table_header(pdf)
-            pdf.set_font("Helvetica", "", 7)
-
-        tier = str(row.get("Risk_Tier", "Green"))
-        r, g, b = _PDF_TIER_RGB.get(tier, (255, 255, 255))
-        pdf.set_fill_color(r, g, b)
-        pdf.set_text_color(40, 40, 40)
-
-        values = [
-            str(int(row["ID"]))              if "ID"         in row.index else "",
-            _safe_text(str(row.get("Process_Step", ""))[:22]),
-            _safe_text(str(row.get("Failure_Mode", ""))[:32]),
-            str(int(row["Severity"]))        if "Severity"   in row.index else "",
-            str(int(row["Occurrence"]))      if "Occurrence" in row.index else "",
-            str(int(row["Detection"]))       if "Detection"  in row.index else "",
-            str(int(row["RPN"]))             if "RPN"        in row.index else "",
-            _safe_text(str(row.get("AP", "-"))) if "AP"      in row.index else "-",
-            _safe_text(tier),
-            _safe_text(str(row.get("_flags", "-"))[:38]),
-        ]
-        for (_, col_w), val in zip(_PDF_TABLE_COLS, values):
-            pdf.cell(col_w, _ROW_H, val, border=1,
-                     align="C" if col_w <= 16 else "L", fill=True)
-        pdf.ln()
+    render_table(
+        pdf, df2,
+        columns=_PDF_TABLE_COLS,
+        row_values=_pdf_row_values,
+        row_rgb=_pdf_row_rgb,
+    )
 
 
 def _pdf_chart_page_from_file(pdf: Any, png_path: str, title: str) -> None:
-    """Embed a pre-rendered PNG file as a new PDF page."""
-    pdf.add_page()
-
-    pdf.set_font("Helvetica", "B", 13)
-    pdf.set_fill_color(44, 62, 80)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 9, _safe_text(title), new_x="LMARGIN", new_y="NEXT", align="C", fill=True)
-    pdf.ln(4)
-
-    pdf.image(png_path, x=10, w=277)
+    """Embed a pre-rendered PNG file as a new PDF page (kept as a patchable seam)."""
+    add_image_page(pdf, png_path, title)
