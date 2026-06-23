@@ -42,6 +42,16 @@ jobs:
       - name: Pytest (with coverage)
         run: uv run pytest --cov
 
+      # Core io coverage gate: quality_core.io (shared export + validated ingest)
+      # is used by every tool, so it must be fully covered by its OWN tests — not
+      # only incidentally via the app suites. Held at 100% from packages/quality-core.
+      - name: Core io coverage gate
+        run: >
+          uv run pytest packages/quality-core
+          --cov=quality_core.io
+          --cov-report=term-missing
+          --cov-fail-under=100
+
       # SPC coverage gate: the testable SPC surface (engine, simulation logic,
       # figure builders, report exporter) must stay highly covered so it can't
       # regress silently. The Streamlit `pages/` are excluded — they need a
