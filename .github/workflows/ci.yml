@@ -54,5 +54,6 @@ jobs:
           --cov=spc_app.simulation
           --cov=spc_app.visualizer
           --cov=spc_app.exporter
+          --cov=spc_app.schema
           --cov-report=term-missing
           --cov-fail-under=95

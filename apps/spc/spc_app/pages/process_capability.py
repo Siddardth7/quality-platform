@@ -10,6 +10,7 @@ from spc_app.exporter import (
     build_capability_report_excel,
     build_capability_report_pdf,
 )
+from spc_app.schema import IngestError, load_spc_csv
 from spc_app.spc_engine.capability import compute_capability, normality_test
 from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
 from spc_app.spc_engine.rule_detection import detect_we_violations
@@ -101,7 +102,13 @@ def render_capability() -> None:
         frame = load_demo_data()
         stream_options = STREAM_OPTIONS
     else:
-        frame = pd.read_csv(upload)
+        # Uploads run through the shared validated-ingest boundary; a malformed
+        # CSV surfaces a friendly message instead of a downstream crash.
+        try:
+            frame = load_spc_csv(upload)
+        except IngestError as exc:
+            st.error(str(exc))
+            st.stop()
         stream_options = {s: s for s in sorted(frame["stream"].unique().tolist())}
 
     with st.sidebar:
@@ -124,14 +131,24 @@ def render_capability() -> None:
         usl = st.number_input("USL", value=default_usl if usl_enabled else 0.0, disabled=not usl_enabled)
 
     values = stream_frame["value"].to_numpy()
-    sigma_hat, oos_signals = assess_control_chart(stream_name, stream_frame)
-    capability = compute_capability(
-        values,
-        lsl=lsl if lsl_enabled else None,
-        usl=usl if usl_enabled else None,
-        sigma_hat=sigma_hat,
-    )
-    normality = normality_test(values)
+    # Capability/normality need a minimum number of points and a positive sigma; a
+    # thin or degenerate stream raises ValueError. Surface it as a friendly message
+    # rather than a Streamlit stack trace.
+    try:
+        sigma_hat, oos_signals = assess_control_chart(stream_name, stream_frame)
+        capability = compute_capability(
+            values,
+            lsl=lsl if lsl_enabled else None,
+            usl=usl if usl_enabled else None,
+            sigma_hat=sigma_hat,
+        )
+        normality = normality_test(values)
+    except (ValueError, KeyError) as exc:
+        st.error(
+            "Could not compute capability from this data. The selected stream needs "
+            f"enough in-control measurements to estimate spread. ({exc})"
+        )
+        st.stop()
 
     # Stability gate: capability indices are only meaningful on a process in
     # statistical control. Warn prominently before reporting Cp/Cpk on a process

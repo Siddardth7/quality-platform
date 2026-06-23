@@ -11,6 +11,7 @@ from spc_app.exporter import (
     build_control_chart_report_excel,
     build_control_chart_report_pdf,
 )
+from spc_app.schema import IngestError, load_spc_csv
 from spc_app.spc_engine.control_charts import (
     compute_c,
     compute_imr,
@@ -59,7 +60,9 @@ def load_demo_data() -> pd.DataFrame:
 def load_source_data(uploaded_file) -> pd.DataFrame:
     if uploaded_file is None:
         return load_demo_data()
-    return pd.read_csv(uploaded_file)
+    # Uploads go through the shared validated-ingest boundary; a malformed CSV
+    # raises IngestError, surfaced as a friendly message by render_control_charts.
+    return load_spc_csv(uploaded_file)
 
 
 
@@ -122,7 +125,11 @@ def render_control_charts() -> None:
         if source_mode == "Upload CSV":
             upload = st.file_uploader("Upload CSV", type=["csv"])
 
-    frame = load_source_data(upload if source_mode == "Upload CSV" else None)
+    try:
+        frame = load_source_data(upload if source_mode == "Upload CSV" else None)
+    except IngestError as exc:
+        st.error(str(exc))
+        st.stop()
     config = CHART_OPTIONS[chart_key]
     stream_frame = frame[frame["stream"] == config["stream"]].copy()
 
@@ -143,67 +150,78 @@ def render_control_charts() -> None:
     violations: list[dict[str, int | str]]
     chart_title: str
     y_axis: str
-    if config["compute"] == "xbar_r":
-        subgroups = subgroup_rows(stream_frame)
-        result = compute_xbar_r(subgroups)
-        points = result["subgroup_means"]
-        sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
-        cl, ucl, lcl = result["xbarbar"], result["ucl_x"], result["lcl_x"]
-        violations = detect_rule_violations(points, cl, sigma, rule_set)
-        chart_title, y_axis = "Xbar-R Chart", "Subgroup Mean"
-    elif config["compute"] == "xbar_s":
-        subgroups = subgroup_rows(stream_frame)
-        result = compute_xbar_s(subgroups)
-        points = result["subgroup_means"]
-        sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
-        cl, ucl, lcl = result["xbarbar"], result["ucl_x"], result["lcl_x"]
-        violations = detect_rule_violations(points, cl, sigma, rule_set)
-        chart_title, y_axis = "Xbar-S Chart", "Subgroup Mean"
-    elif config["compute"] == "imr":
-        values = stream_frame.sort_values("subgroup")["value"].tolist()
-        result = compute_imr(values)
-        points = result["values"]
-        cl, ucl, lcl = result["xbar"], result["ucl_x"], result["lcl_x"]
-        violations = detect_rule_violations(points, cl, result["sigma_hat"], rule_set)
-        chart_title, y_axis = "Individuals Chart", "Measurement"
-    elif config["compute"] == "p":
-        ordered = stream_frame.sort_values("subgroup")
-        counts = ordered["value"].tolist()
-        sample_sizes = ordered["sample_size"].tolist()
-        result = compute_p(counts, sample_sizes)
-        avg_n = sum(sample_sizes) / len(sample_sizes)
-        sigma = (result["pbar"] * (1.0 - result["pbar"]) / avg_n) ** 0.5 if result["pbar"] < 1.0 else 0.0
-        points = result["proportions"]
-        cl, ucl, lcl = result["pbar"], result["ucl"], result["lcl"]
-        violations = detect_rule_violations(points, cl, sigma, rule_set)
-        chart_title, y_axis = "p Chart", "Proportion Defective"
-    elif config["compute"] == "c":
-        ordered = stream_frame.sort_values("subgroup")
-        counts = ordered["value"].tolist()
-        result = compute_c(counts)
-        cbar = result["cbar"]
-        # Poisson count data: sigma = sqrt(c-bar), matching compute_c's limits.
-        sigma = cbar ** 0.5 if cbar > 0 else 0.0
-        points = result["counts"]
-        cl, ucl, lcl = cbar, result["ucl"], result["lcl"]
-        violations = detect_rule_violations(points, cl, sigma, rule_set)
-        chart_title, y_axis = "c Chart", "Nonconformity Count"
-    else:
-        ordered = stream_frame.sort_values("subgroup")
-        counts = ordered["value"].tolist()
-        sample_sizes = ordered["sample_size"].tolist()
-        result = compute_u(counts, sample_sizes)
-        avg_n = sum(sample_sizes) / len(sample_sizes)
-        sigma = (result["ubar"] / avg_n) ** 0.5 if result["ubar"] > 0 else 0.0
-        points = result["u_values"]
-        cl, ucl, lcl = result["ubar"], result["ucl"], result["lcl"]
-        violations = detect_rule_violations(points, cl, sigma, rule_set)
-        chart_title, y_axis = "u Chart", "Defects per Unit"
+    # The schema validates column/type shape; it can't guarantee a stream has enough
+    # subgroups, or the sample_size column a p/u chart needs. Guard the compute so
+    # those surface as a friendly message rather than a Streamlit stack trace.
+    try:
+        if config["compute"] == "xbar_r":
+            subgroups = subgroup_rows(stream_frame)
+            result = compute_xbar_r(subgroups)
+            points = result["subgroup_means"]
+            sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
+            cl, ucl, lcl = result["xbarbar"], result["ucl_x"], result["lcl_x"]
+            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            chart_title, y_axis = "Xbar-R Chart", "Subgroup Mean"
+        elif config["compute"] == "xbar_s":
+            subgroups = subgroup_rows(stream_frame)
+            result = compute_xbar_s(subgroups)
+            points = result["subgroup_means"]
+            sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
+            cl, ucl, lcl = result["xbarbar"], result["ucl_x"], result["lcl_x"]
+            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            chart_title, y_axis = "Xbar-S Chart", "Subgroup Mean"
+        elif config["compute"] == "imr":
+            values = stream_frame.sort_values("subgroup")["value"].tolist()
+            result = compute_imr(values)
+            points = result["values"]
+            cl, ucl, lcl = result["xbar"], result["ucl_x"], result["lcl_x"]
+            violations = detect_rule_violations(points, cl, result["sigma_hat"], rule_set)
+            chart_title, y_axis = "Individuals Chart", "Measurement"
+        elif config["compute"] == "p":
+            ordered = stream_frame.sort_values("subgroup")
+            counts = ordered["value"].tolist()
+            sample_sizes = ordered["sample_size"].tolist()
+            result = compute_p(counts, sample_sizes)
+            avg_n = sum(sample_sizes) / len(sample_sizes)
+            sigma = (result["pbar"] * (1.0 - result["pbar"]) / avg_n) ** 0.5 if result["pbar"] < 1.0 else 0.0
+            points = result["proportions"]
+            cl, ucl, lcl = result["pbar"], result["ucl"], result["lcl"]
+            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            chart_title, y_axis = "p Chart", "Proportion Defective"
+        elif config["compute"] == "c":
+            ordered = stream_frame.sort_values("subgroup")
+            counts = ordered["value"].tolist()
+            result = compute_c(counts)
+            cbar = result["cbar"]
+            # Poisson count data: sigma = sqrt(c-bar), matching compute_c's limits.
+            sigma = cbar ** 0.5 if cbar > 0 else 0.0
+            points = result["counts"]
+            cl, ucl, lcl = cbar, result["ucl"], result["lcl"]
+            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            chart_title, y_axis = "c Chart", "Nonconformity Count"
+        else:
+            ordered = stream_frame.sort_values("subgroup")
+            counts = ordered["value"].tolist()
+            sample_sizes = ordered["sample_size"].tolist()
+            result = compute_u(counts, sample_sizes)
+            avg_n = sum(sample_sizes) / len(sample_sizes)
+            sigma = (result["ubar"] / avg_n) ** 0.5 if result["ubar"] > 0 else 0.0
+            points = result["u_values"]
+            cl, ucl, lcl = result["ubar"], result["ucl"], result["lcl"]
+            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            chart_title, y_axis = "u Chart", "Defects per Unit"
 
-    figure = build_control_chart(
-        points=points, cl=cl, ucl=ucl, lcl=lcl,
-        violations=violations, title=chart_title, y_axis_title=y_axis,
-    )
+        figure = build_control_chart(
+            points=points, cl=cl, ucl=ucl, lcl=lcl,
+            violations=violations, title=chart_title, y_axis_title=y_axis,
+        )
+    except (ValueError, KeyError) as exc:
+        st.error(
+            "Could not build this chart from the data. Check that the selected chart "
+            "type has enough subgroups and the columns it needs "
+            f"(p/u charts require a positive 'sample_size'). ({exc})"
+        )
+        st.stop()
 
     metrics = summarize_metrics(chart_key, result)
     metric_columns = st.columns(3)
