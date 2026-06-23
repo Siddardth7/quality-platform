@@ -11,6 +11,8 @@ dependencies = [
     "pandas>=3.0.2",
     "numpy>=2.4.4",
     "scipy>=1.17.1",
+    "openpyxl>=3.1.5",  # spc_app.exporter writes .xlsx via openpyxl
+    "fpdf2>=2.8.7",     # spc_app.exporter renders .pdf via fpdf2
 ]
 
 [tool.uv.sources]

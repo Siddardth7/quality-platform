@@ -6,6 +6,11 @@ from typing import Any, Mapping
 import pandas as pd
 import streamlit as st
 
+from spc_app.exporter import (
+    ControlChartReport,
+    build_control_chart_report_excel,
+    build_control_chart_report_pdf,
+)
 from spc_app.spc_engine.control_charts import (
     compute_c,
     compute_imr,
@@ -128,48 +133,39 @@ def render_control_charts() -> None:
     # `result` is a runtime dispatch over chart type; each branch assigns a
     # different precisely-typed compute result, so the shared variable is the
     # honest read-only union surface. Engine functions keep their exact TypedDicts.
+    # Each branch also lifts the plotted points + limits + violations into shared
+    # locals so the figure is built once and the same values flow into the report.
     result: Mapping[str, Any]
+    points: list[float]
+    cl: float
+    ucl: float | list[float]  # p/u charts have per-point (vector) limits
+    lcl: float | list[float]
+    violations: list[dict[str, int | str]]
+    chart_title: str
+    y_axis: str
     if config["compute"] == "xbar_r":
         subgroups = subgroup_rows(stream_frame)
         result = compute_xbar_r(subgroups)
         points = result["subgroup_means"]
         sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
-        figure = build_control_chart(
-            points=points,
-            cl=result["xbarbar"],
-            ucl=result["ucl_x"],
-            lcl=result["lcl_x"],
-            violations=detect_rule_violations(points, result["xbarbar"], sigma, rule_set),
-            title="Xbar-R Chart",
-            y_axis_title="Subgroup Mean",
-        )
+        cl, ucl, lcl = result["xbarbar"], result["ucl_x"], result["lcl_x"]
+        violations = detect_rule_violations(points, cl, sigma, rule_set)
+        chart_title, y_axis = "Xbar-R Chart", "Subgroup Mean"
     elif config["compute"] == "xbar_s":
         subgroups = subgroup_rows(stream_frame)
         result = compute_xbar_s(subgroups)
         points = result["subgroup_means"]
         sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
-        figure = build_control_chart(
-            points=points,
-            cl=result["xbarbar"],
-            ucl=result["ucl_x"],
-            lcl=result["lcl_x"],
-            violations=detect_rule_violations(points, result["xbarbar"], sigma, rule_set),
-            title="Xbar-S Chart",
-            y_axis_title="Subgroup Mean",
-        )
+        cl, ucl, lcl = result["xbarbar"], result["ucl_x"], result["lcl_x"]
+        violations = detect_rule_violations(points, cl, sigma, rule_set)
+        chart_title, y_axis = "Xbar-S Chart", "Subgroup Mean"
     elif config["compute"] == "imr":
         values = stream_frame.sort_values("subgroup")["value"].tolist()
         result = compute_imr(values)
         points = result["values"]
-        figure = build_control_chart(
-            points=points,
-            cl=result["xbar"],
-            ucl=result["ucl_x"],
-            lcl=result["lcl_x"],
-            violations=detect_rule_violations(points, result["xbar"], result["sigma_hat"], rule_set),
-            title="Individuals Chart",
-            y_axis_title="Measurement",
-        )
+        cl, ucl, lcl = result["xbar"], result["ucl_x"], result["lcl_x"]
+        violations = detect_rule_violations(points, cl, result["sigma_hat"], rule_set)
+        chart_title, y_axis = "Individuals Chart", "Measurement"
     elif config["compute"] == "p":
         ordered = stream_frame.sort_values("subgroup")
         counts = ordered["value"].tolist()
@@ -178,15 +174,9 @@ def render_control_charts() -> None:
         avg_n = sum(sample_sizes) / len(sample_sizes)
         sigma = (result["pbar"] * (1.0 - result["pbar"]) / avg_n) ** 0.5 if result["pbar"] < 1.0 else 0.0
         points = result["proportions"]
-        figure = build_control_chart(
-            points=points,
-            cl=result["pbar"],
-            ucl=result["ucl"],
-            lcl=result["lcl"],
-            violations=detect_rule_violations(points, result["pbar"], sigma, rule_set),
-            title="p Chart",
-            y_axis_title="Proportion Defective",
-        )
+        cl, ucl, lcl = result["pbar"], result["ucl"], result["lcl"]
+        violations = detect_rule_violations(points, cl, sigma, rule_set)
+        chart_title, y_axis = "p Chart", "Proportion Defective"
     elif config["compute"] == "c":
         ordered = stream_frame.sort_values("subgroup")
         counts = ordered["value"].tolist()
@@ -195,15 +185,9 @@ def render_control_charts() -> None:
         # Poisson count data: sigma = sqrt(c-bar), matching compute_c's limits.
         sigma = cbar ** 0.5 if cbar > 0 else 0.0
         points = result["counts"]
-        figure = build_control_chart(
-            points=points,
-            cl=cbar,
-            ucl=result["ucl"],
-            lcl=result["lcl"],
-            violations=detect_rule_violations(points, cbar, sigma, rule_set),
-            title="c Chart",
-            y_axis_title="Nonconformity Count",
-        )
+        cl, ucl, lcl = cbar, result["ucl"], result["lcl"]
+        violations = detect_rule_violations(points, cl, sigma, rule_set)
+        chart_title, y_axis = "c Chart", "Nonconformity Count"
     else:
         ordered = stream_frame.sort_values("subgroup")
         counts = ordered["value"].tolist()
@@ -212,20 +196,50 @@ def render_control_charts() -> None:
         avg_n = sum(sample_sizes) / len(sample_sizes)
         sigma = (result["ubar"] / avg_n) ** 0.5 if result["ubar"] > 0 else 0.0
         points = result["u_values"]
-        figure = build_control_chart(
-            points=points,
-            cl=result["ubar"],
-            ucl=result["ucl"],
-            lcl=result["lcl"],
-            violations=detect_rule_violations(points, result["ubar"], sigma, rule_set),
-            title="u Chart",
-            y_axis_title="Defects per Unit",
-        )
+        cl, ucl, lcl = result["ubar"], result["ucl"], result["lcl"]
+        violations = detect_rule_violations(points, cl, sigma, rule_set)
+        chart_title, y_axis = "u Chart", "Defects per Unit"
 
+    figure = build_control_chart(
+        points=points, cl=cl, ucl=ucl, lcl=lcl,
+        violations=violations, title=chart_title, y_axis_title=y_axis,
+    )
+
+    metrics = summarize_metrics(chart_key, result)
     metric_columns = st.columns(3)
-    for column, (label, value) in zip(metric_columns, summarize_metrics(chart_key, result)):
+    for column, (label, value) in zip(metric_columns, metrics):
         column.metric(label, value)
 
     st.plotly_chart(figure, use_container_width=True)
+
+    report = ControlChartReport(
+        chart_label=chart_title,
+        stream=config["stream"],
+        rule_set=rule_set,
+        points=points,
+        cl=cl,
+        ucl=ucl,
+        lcl=lcl,
+        violations=violations,
+        metrics=metrics,
+    )
+    # SPC reports are pure tables/text (no embedded chart images), so they build in
+    # ~milliseconds; generating eagerly per rerun is fine here, unlike FMEA's
+    # matplotlib-heavy PDF which is cached in session state.
+    st.subheader("Download Report")
+    excel_col, pdf_col = st.columns(2)
+    excel_col.download_button(
+        "Excel (.xlsx)",
+        data=build_control_chart_report_excel(report),
+        file_name=f"spc_control_chart_{config['compute']}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    pdf_col.download_button(
+        "PDF (.pdf)",
+        data=build_control_chart_report_pdf(report),
+        file_name=f"spc_control_chart_{config['compute']}.pdf",
+        mime="application/pdf",
+    )
+
     st.subheader("Rule Reference")
     st.dataframe(RULE_REFERENCE, use_container_width=True, hide_index=True)

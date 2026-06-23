@@ -15,8 +15,12 @@ from quality_core.io.export import (
     FORMULA_PREFIXES,
     add_image_page,
     export_csv,
+    pdf_subheader,
+    pdf_summary_cells,
+    pdf_title,
     render_table,
     safe_text,
+    sanitize_cell,
     sanitize_for_export,
     write_keyvalue_sheet,
     write_table_sheet,
@@ -33,6 +37,7 @@ from quality_core.io.validate import (
 __all__ = [
     # export
     "FORMULA_PREFIXES",
+    "sanitize_cell",
     "sanitize_for_export",
     "export_csv",
     "safe_text",
@@ -40,6 +45,9 @@ __all__ = [
     "write_keyvalue_sheet",
     "render_table",
     "add_image_page",
+    "pdf_title",
+    "pdf_subheader",
+    "pdf_summary_cells",
     # validate
     "IngestError",
     "TableSchema",

@@ -5,6 +5,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from spc_app.exporter import (
+    CapabilityReport,
+    build_capability_report_excel,
+    build_capability_report_pdf,
+)
 from spc_app.spc_engine.capability import compute_capability, normality_test
 from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
 from spc_app.spc_engine.rule_detection import detect_we_violations
@@ -171,6 +176,32 @@ def render_capability() -> None:
         st.success(f"Shapiro-Wilk p-value = {normality['p_value']:.4f}. Distribution appears approximately normal.")
     else:
         st.warning(f"Shapiro-Wilk p-value = {normality['p_value']:.4f}. Capability results may need non-normal review.")
+
+    report = CapabilityReport(
+        stream_label=stream_label,
+        values=values.tolist(),
+        capability=capability,
+        lsl=lsl if lsl_enabled else None,
+        usl=usl if usl_enabled else None,
+        normality=normality,
+        oos_signal_count=len(oos_signals),
+    )
+    # Pure table/text reports (no chart images) build in ~milliseconds, so eager
+    # per-rerun generation is fine here (cf. FMEA's cached matplotlib PDF path).
+    st.subheader("Download Report")
+    excel_col, pdf_col = st.columns(2)
+    excel_col.download_button(
+        "Excel (.xlsx)",
+        data=build_capability_report_excel(report),
+        file_name=f"spc_capability_{stream_name}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    pdf_col.download_button(
+        "PDF (.pdf)",
+        data=build_capability_report_pdf(report),
+        file_name=f"spc_capability_{stream_name}.pdf",
+        mime="application/pdf",
+    )
 
     st.subheader("Capability Interpretation")
     st.dataframe(CAPABILITY_REFERENCE, use_container_width=True, hide_index=True)

@@ -43,14 +43,16 @@ jobs:
         run: uv run pytest --cov
 
       # SPC coverage gate: the testable SPC surface (engine, simulation logic,
-      # figure builders) must stay highly covered so it can't regress silently.
-      # The Streamlit `pages/` are excluded — they need a runtime to exercise —
-      # mirroring how the FMEA bar covers fmea_app/ but not its entry scripts.
+      # figure builders, report exporter) must stay highly covered so it can't
+      # regress silently. The Streamlit `pages/` are excluded — they need a
+      # runtime to exercise — mirroring how the FMEA bar covers fmea_app/ but not
+      # its entry scripts.
       - name: SPC coverage gate
         run: >
           uv run pytest apps/spc
           --cov=spc_app.spc_engine
           --cov=spc_app.simulation
           --cov=spc_app.visualizer
+          --cov=spc_app.exporter
           --cov-report=term-missing
           --cov-fail-under=95

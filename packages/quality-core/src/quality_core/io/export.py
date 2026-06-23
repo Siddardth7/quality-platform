@@ -47,6 +47,19 @@ def _is_injection_risk(value: str) -> bool:
     return stripped != value and stripped.startswith(("=", "+", "-", "@"))
 
 
+def sanitize_cell(value: Any) -> Any:
+    """Escape a single value if it is a formula-injection risk; pass others through.
+
+    A string whose first non-whitespace character is a formula trigger (``= + - @``,
+    or a leading Tab/CR) is prefixed with ``'`` so Excel/Sheets/LibreOffice render it
+    literally instead of evaluating it. Non-strings and safe strings are returned
+    unchanged, and the escape is idempotent. Use this for individual cells (e.g. a
+    user-derived metadata value bound for a key/value sheet) where the whole-DataFrame
+    :func:`sanitize_for_export` does not apply.
+    """
+    return f"'{value}" if isinstance(value, str) and _is_injection_risk(value) else value
+
+
 def sanitize_for_export(df: pd.DataFrame) -> pd.DataFrame:
     """Return a copy with formula-injection-risky string cells escaped.
 
@@ -57,9 +70,7 @@ def sanitize_for_export(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
     for col in df.columns:
-        df[col] = df[col].apply(
-            lambda v: f"'{v}" if isinstance(v, str) and _is_injection_risk(v) else v
-        )
+        df[col] = df[col].apply(sanitize_cell)
     return df
 
 
@@ -139,10 +150,17 @@ def write_keyvalue_sheet(
     ws: Any,
     rows: Sequence[tuple[str, object]],
     *,
+    title: str | None = None,
     key_width: float = 22,
     value_width: float = 48,
 ) -> None:
-    """Write a two-column (bold key, plain value) metadata sheet into ``ws``."""
+    """Write a two-column (bold key, plain value) metadata sheet into ``ws``.
+
+    ``title`` renames the worksheet (matching ``write_table_sheet``'s ``title``),
+    so callers set the sheet name the same way for both sheet kinds.
+    """
+    if title is not None:
+        ws.title = title
     for r_idx, (label, value) in enumerate(rows, start=1):
         ws.cell(r_idx, 1, label).font = _BOLD_FONT
         ws.cell(r_idx, 2, value).font = _NORMAL_FONT
@@ -243,3 +261,61 @@ def add_image_page(
     pdf.cell(0, 9, safe_text(title), new_x="LMARGIN", new_y="NEXT", align="C", fill=True)
     pdf.ln(4)
     pdf.image(png_path, x=10, w=image_width)
+
+
+# ===========================================================================
+# PDF report chrome (fpdf2) — title bar, sub-header, labelled metric strip
+# ===========================================================================
+
+# These take a duck-typed ``pdf`` (no fpdf2 import in core, matching render_table /
+# add_image_page) so every app's report header looks the same. Apps compose the
+# text (e.g. the "Generated: …" line); core owns the layout and Latin-1 sanitizing.
+
+
+def pdf_title(
+    pdf: Any,
+    title: str,
+    *,
+    fill_rgb: tuple[int, int, int] = (44, 62, 80),
+    font_size: float = 16,
+    height: float = 10,
+) -> None:
+    """Render a full-width coloured title bar with centred white text."""
+    pdf.set_font("Helvetica", "B", font_size)
+    pdf.set_fill_color(*fill_rgb)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, height, safe_text(title), new_x="LMARGIN", new_y="NEXT", align="C", fill=True)
+    pdf.ln(2)
+
+
+def pdf_subheader(pdf: Any, text: str, *, font_size: float = 9) -> None:
+    """Render a centred grey caption line (e.g. a 'Generated: … | reference' note)."""
+    pdf.set_font("Helvetica", "", font_size)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(0, 5, safe_text(text), new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.ln(3)
+
+
+def pdf_summary_cells(
+    pdf: Any,
+    cells: Sequence[tuple[str, str]],
+    *,
+    fill_rgb: tuple[int, int, int] = (240, 243, 246),
+    label_rgb: tuple[int, int, int] = (44, 62, 80),
+) -> None:
+    """Render one row of labelled metric cells (bold labels over values) spanning
+    the usable page width."""
+    usable_width = pdf.w - pdf.l_margin - pdf.r_margin
+    cell_w = usable_width / len(cells)
+
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(*label_rgb)
+    for label, _ in cells:
+        pdf.set_fill_color(*fill_rgb)
+        pdf.cell(cell_w, 8, safe_text(label), border=1, align="C", fill=True)
+    pdf.ln()
+
+    pdf.set_font("Helvetica", "B", 11)
+    for _, value in cells:
+        pdf.cell(cell_w, 8, safe_text(value), border=1, align="C", fill=False)
+    pdf.ln(5)
