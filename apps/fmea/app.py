@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from quality_core.io import read_table
 
 from fmea_app import __version__
 from fmea_app.ap_engine import BASIS_AP, calculate_ap, rank_by_ap
@@ -66,19 +67,9 @@ def _escape_source_label(name: str) -> str:
 
 
 def _load_uploaded(file) -> pd.DataFrame:  # type: ignore[no-untyped-def]
-    if getattr(file, "size", 0) > MAX_UPLOAD_BYTES:
-        raise ValueError(
-            f"Uploaded file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit. "
-            "FMEA spreadsheets larger than this are unusual; if your dataset is legitimately "
-            "this size, split it or use the CLI."
-        )
-    name = file.name.lower()
-    if name.endswith(".csv"):
-        return pd.read_csv(file)
-    elif name.endswith(".xlsx"):
-        return pd.read_excel(file)
-    else:
-        raise ValueError(f"Unsupported file type: {file.name}. Please upload .csv or .xlsx.")
+    # Reuse the shared read boundary: CSV/Excel dispatch, the 20 MB size guard, and
+    # friendly IngestError (a ValueError) messages now live once in quality_core.io.
+    return read_table(file, max_bytes=MAX_UPLOAD_BYTES)
 
 
 # ---------------------------------------------------------------------------

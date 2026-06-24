@@ -140,9 +140,9 @@ def test_excel_no_formula_injection():
             )
 
 def test_sanitize_escapes_formula_prefixes():
-    from fmea_app.exporter import _sanitize_for_export
+    from fmea_app.exporter import sanitize_for_export
     df = pd.DataFrame([{"Failure_Mode": "=evil", "Component": "+bad", "Cause": "-exploit", "Effect": "'-also", "Process_Step": "@nope", "ID": 1}])
-    result = _sanitize_for_export(df)
+    result = sanitize_for_export(df)
     assert result.loc[0, "Failure_Mode"] == "'=evil"
     assert result.loc[0, "Component"] == "'+bad"
     assert result.loc[0, "Cause"] == "'-exploit"
@@ -151,7 +151,7 @@ def test_sanitize_escapes_formula_prefixes():
 
 def test_csv_no_formula_injection():
     """CSV export must escape formula-injection prefixes."""
-    from fmea_app.exporter import _sanitize_for_export
+    from fmea_app.exporter import sanitize_for_export
     df = pd.DataFrame([{
         "ID": 1, "Process_Step": "=SUM(1,2)", "Component": "+bad",
         "Function": "Support", "Failure_Mode": "-exploit",
@@ -159,7 +159,7 @@ def test_csv_no_formula_injection():
         "Cause": "-50C ambient", "Occurrence": 3,
         "Current_Control": "Inspection", "Detection": 4,
     }])
-    sanitized = _sanitize_for_export(df)
+    sanitized = sanitize_for_export(df)
     csv_text = sanitized.to_csv(index=False)
     # Raw (unescaped) formula-starting values must not appear as cell values.
     # A cell value starting with a formula prefix would appear after a comma or newline.

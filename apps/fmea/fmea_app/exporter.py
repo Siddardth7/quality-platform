@@ -30,6 +30,9 @@ import pandas as pd
 from quality_core.io.export import (
     add_image_page,
     export_csv,
+    pdf_subheader,
+    pdf_summary_cells,
+    pdf_title,
     render_table,
     safe_text,
     sanitize_for_export,
@@ -39,10 +42,6 @@ from quality_core.io.export import (
 from quality_core.theme import TIER_FILL_HEX, TIER_RGB
 
 from fmea_app import __version__
-
-# Re-export the shared CSV exporter and sanitizer under the names this module's
-# consumers/tests already use (behavior is identical — the logic now lives in core).
-_sanitize_for_export = sanitize_for_export
 
 # ---------------------------------------------------------------------------
 # FMEA export configuration
@@ -238,26 +237,16 @@ def _pdf_row_rgb(row: pd.Series) -> tuple[int, int, int]:
 def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
     pdf.add_page()
 
-    # Title bar
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.set_fill_color(44, 62, 80)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 10, "FMEA Risk Analysis Report",  # ASCII-safe title
-             new_x="LMARGIN", new_y="NEXT", align="C", fill=True)
-    pdf.ln(2)
-
-    # Sub-header
-    pdf.set_font("Helvetica", "", 9)
-    pdf.set_text_color(80, 80, 80)
-    pdf.cell(
-        0, 5,
+    # Title bar + sub-header + summary strip — the shared PDF chrome (same layout
+    # the SPC reports use). The landscape-A4 usable width (pdf.w - margins = 277mm)
+    # matches the figure this previously hardcoded, so the output is unchanged.
+    pdf_title(pdf, "FMEA Risk Analysis Report")
+    pdf_subheader(
+        pdf,
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}   |   "
         "AIAG FMEA-4 (4th Ed.) + AIAG/VDA FMEA Handbook (5th Ed., 2019)",
-        new_x="LMARGIN", new_y="NEXT", align="C",
     )
-    pdf.ln(3)
 
-    # Summary metrics
     metrics = [
         ("Total Modes",       len(df)),
         ("Red",               int((df["Risk_Tier"] == "Red").sum())    if "Risk_Tier"               in df.columns else 0),
@@ -267,19 +256,7 @@ def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
         ("Severity >= 9",     int(df["Flag_High_Severity"].sum())      if "Flag_High_Severity"      in df.columns else 0),
         ("Action Priority H", int(df["Flag_Action_Priority_H"].sum())  if "Flag_Action_Priority_H"  in df.columns else 0),
     ]
-    cell_w = 277 / len(metrics)
-
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.set_text_color(44, 62, 80)
-    for label, _ in metrics:
-        pdf.set_fill_color(240, 243, 246)
-        pdf.cell(cell_w, 8, label, border=1, align="C", fill=True)
-    pdf.ln()
-
-    pdf.set_font("Helvetica", "B", 11)
-    for _, value in metrics:
-        pdf.cell(cell_w, 8, str(value), border=1, align="C", fill=False)
-    pdf.ln(5)
+    pdf_summary_cells(pdf, [(label, str(value)) for label, value in metrics])
 
     # Ranked table (shared renderer handles the repeating header + page breaks).
     df2 = df.copy()

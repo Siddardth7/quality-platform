@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+from quality_core.io import read_table
 
 from fmea_app._logging import get_logger
 from fmea_app.rpn_engine import run_pipeline
@@ -62,23 +63,9 @@ def _bold(text: str) -> str:
 
 
 def _load_file(path: Path) -> pd.DataFrame:
-    """Load CSV or Excel FMEA file into a DataFrame."""
-    MAX_BYTES = 20 * 1024 * 1024  # 20 MB — mirror app.py MAX_UPLOAD_BYTES
-    if path.exists() and path.stat().st_size > MAX_BYTES:
-        raise ValueError(
-            f"File exceeds the {MAX_BYTES // (1024 * 1024)} MB limit: {path}. "
-            "Split your FMEA or process in chunks."
-        )
-    suffix = path.suffix.lower()
-    if suffix == ".csv":
-        return pd.read_csv(path)
-    elif suffix == ".xlsx":
-        return pd.read_excel(path)
-    else:
-        raise ValueError(
-            f"Unsupported file format '{suffix}'. "
-            "Provide a .csv or .xlsx file."
-        )
+    """Load a CSV/Excel FMEA file via the shared read boundary (size guard,
+    extension dispatch, and friendly errors live once in quality_core.io)."""
+    return read_table(path)
 
 
 def _build_flags_str(row: pd.Series) -> str:
