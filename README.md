@@ -13,6 +13,10 @@ shared core, aligned with the AIAG / IATF-16949 core quality toolset.
 one-off apps. This platform brings them under **one URL, one theme, and one quality bar** — risk
 analysis (FMEA) and process control (SPC) side by side, sharing a typed core.
 
+**Shared by both tools:** a single `quality_core/io` library (covered at 100%, CI-gated) owns
+CSV/Excel/PDF export and validated CSV/Excel ingest — written once and reused across FMEA and SPC,
+so formula-injection escaping and friendly upload validation are guaranteed identical in both.
+
 🔗 **Live demo:** **<https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>** — one URL, Home + FMEA + the three SPC workflows.
 
 This is a monorepo. Two previously standalone apps now live here with their **full commit history

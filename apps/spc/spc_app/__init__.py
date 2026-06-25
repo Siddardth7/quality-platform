@@ -8,4 +8,4 @@ drifts. The app is ``package = false`` (not installed as a distribution), so
 Keep this in sync with ``apps/spc/pyproject.toml`` at release (bump both together).
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

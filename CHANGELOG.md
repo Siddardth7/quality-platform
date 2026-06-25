@@ -4,6 +4,44 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-24
+
+Week 04: Shared validation + export. The reuse story is now demonstrable — a single
+`quality_core/io` library owns CSV/Excel/PDF export and validated CSV/Excel ingest, and **both**
+FMEA and SPC consume it. SPC gained downloadable reports and validated uploads; FMEA was pointed
+at the shared library with zero behaviour change (exports byte-identical).
+
+🔗 Live: <https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>
+
+### Added
+
+- **`quality_core/io` export primitives** — app-agnostic CSV/Excel (openpyxl)/PDF (fpdf2) building
+  blocks: formula-injection escaping (`sanitize_for_export`, scalar `sanitize_cell`), styled table
+  and key/value sheets, and PDF chrome (`render_table`, `add_image_page`, `pdf_title`,
+  `pdf_subheader`, `pdf_summary_cells`).
+- **`quality_core/io` validated-ingest boundary** (`validate.py`) — `read_table` (CSV/Excel read +
+  size guard), pluggable `TableSchema` (per-tool Pydantic model), and `load_table`, all surfacing a
+  user-safe `IngestError` (a `ValueError`) with row-addressed messages instead of stack traces.
+- **SPC report export** — downloadable Excel + PDF for control-chart (per-point values, the UCL/LCL
+  each point was tested against, rule violations) and capability (Cp/Cpk/Pp/Ppk, distribution,
+  normality, stability) reports; injection-safe.
+- **SPC validated uploads** — control-chart and capability uploads run through `load_table` with an
+  SPC schema (`spc_app/schema.py`), so a malformed CSV gives a friendly error.
+
+### Changed
+
+- **FMEA points at the shared `quality_core/io`** — its hand-rolled PDF chrome and upload/CLI read
+  now compose the core helpers. Verified content-identical (xlsx/pdf/csv); FMEA's domain-specific
+  validation messages are intentionally preserved.
+- **One shared IO implementation across both tools** — "write export and validation once, consume
+  twice" is now real, replacing per-app copies.
+
+### Tested
+
+- **`quality_core.io` at 100% coverage** from its own tests (injection + validation paths), locked
+  by a CI gate; the SPC testable surface (now including the report exporter and upload schema) stays
+  gated at ≥95%.
+
 ## [0.3.0] - 2026-06-16
 
 Week 03: AP-native FMEA. FMEA moves from RPN-only to the AIAG/VDA 2019 Action Priority standard —
