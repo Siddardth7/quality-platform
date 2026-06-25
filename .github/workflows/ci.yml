@@ -52,6 +52,17 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=100
 
+      # Core schema coverage gate: quality_core.schema holds the shared FMEA
+      # row/dataset contracts (W05-1), promoted out of the FMEA app so every tool
+      # shares one schema. Like io, it must be fully covered by its OWN tests, not
+      # only incidentally via the FMEA suite. Held at 100% from packages/quality-core.
+      - name: Core schema coverage gate
+        run: >
+          uv run pytest packages/quality-core
+          --cov=quality_core.schema
+          --cov-report=term-missing
+          --cov-fail-under=100
+
       # SPC coverage gate: the testable SPC surface (engine, simulation logic,
       # figure builders, report exporter) must stay highly covered so it can't
       # regress silently. The Streamlit `pages/` are excluded — they need a
