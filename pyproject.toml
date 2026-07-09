@@ -41,6 +41,13 @@ addopts = "--tb=short --import-mode=importlib"
 testpaths = ["packages", "apps"]
 
 # Coverage across the shared core and both apps (`uv run pytest --cov`).
+# `branch = true` is mandatory: line coverage alone lets a 100%-line file hide an
+# untested branch (a missing `else`). Every per-surface CI gate measures branch
+# coverage because it reads this config. See docs/COVERAGE_BASELINE_2026-07-09.md.
 [tool.coverage.run]
 source = ["quality_core", "fmea_app", "ui", "spc_app"]
 omit = ["*/tests/*"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true  # print uncovered lines/branches so gaps are an actionable worklist
