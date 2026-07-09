@@ -19,6 +19,8 @@ so formula-injection escaping and friendly upload validation are guaranteed iden
 
 🔗 **Live demo:** **<https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>** — one URL, Home + FMEA + the three SPC workflows.
 
+🗺️ **New here? Read the [ROADMAP.md](ROADMAP.md)** — the full project guide: vision, architecture (with diagrams), the 12-week plan, what's shipped, and what's next.
+
 This is a monorepo. Two previously standalone apps now live here with their **full commit history
 preserved** (the histories are part of the engineering story):
 
