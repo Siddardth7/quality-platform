@@ -9,10 +9,10 @@ from typing import Annotated
 
 import pydantic
 
+from quality_core.schema._base import StrictModel, find_duplicates
 
-class FMEARow(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(strict=True)
 
+class FMEARow(StrictModel):
     ID:              Annotated[int, pydantic.Field(gt=0)]
     Process_Step:    Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
     Component:       Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
@@ -25,17 +25,6 @@ class FMEARow(pydantic.BaseModel):
     Current_Control: Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
     Detection:       Annotated[int, pydantic.Field(ge=1, le=10)]
 
-    @pydantic.field_validator(
-        "Process_Step", "Component", "Function",
-        "Failure_Mode", "Effect", "Cause", "Current_Control",
-        mode="before",
-    )
-    @classmethod
-    def reject_blank(cls, v: object) -> object:
-        if isinstance(v, str) and not v.strip():
-            raise ValueError("field must not be blank or whitespace-only")
-        return v.strip() if isinstance(v, str) else v
-
     @property
     def RPN(self) -> int:
         return self.Severity * self.Occurrence * self.Detection
@@ -46,14 +35,7 @@ class FMEADataset(pydantic.BaseModel):
 
     @pydantic.model_validator(mode="after")
     def check_no_duplicate_ids(self) -> "FMEADataset":
-        ids = [row.ID for row in self.rows]
-        seen: set[int] = set()
-        dupes: list[int] = []
-        for i in ids:
-            if i in seen:
-                dupes.append(i)
-            else:
-                seen.add(i)
+        dupes = find_duplicates(row.ID for row in self.rows)
         if dupes:
             raise ValueError(f"duplicate IDs found: {dupes}")
         return self

@@ -6,11 +6,36 @@ validator, the derived `RPN` property, and the dataset-level duplicate-ID rule.
 The FMEA app re-exports these from `fmea_app.schema`, so promoting them here is a
 zero-behaviour-change move that lets SPC and the future Control Plan share one
 schema package — mirroring how `quality_core.io` consolidates export + ingest.
+
+`relational` holds the AIAG/VDA-structured domain model (W05-2) — Function →
+FailureMode → Effect/Cause/Control with Severity on Effect, Occurrence on Cause,
+Detection on Control — plus loss-less `flat_to_relational` / `relational_to_flat`
+adapters to and from the flat row representation.
 """
 
 from quality_core.schema.fmea import FMEADataset, FMEARow
+from quality_core.schema.relational import (
+    Cause,
+    Control,
+    Effect,
+    FailureLink,
+    FailureMode,
+    Function,
+    RelationalFMEA,
+    flat_to_relational,
+    relational_to_flat,
+)
 
 __all__ = [
     "FMEARow",
     "FMEADataset",
+    "Effect",
+    "Cause",
+    "Control",
+    "FailureLink",
+    "FailureMode",
+    "Function",
+    "RelationalFMEA",
+    "flat_to_relational",
+    "relational_to_flat",
 ]
