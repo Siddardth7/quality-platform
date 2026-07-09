@@ -4,6 +4,42 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Week 05 (toward v0.5.0): the FMEA schema moves into the shared core and gains a relational domain
+model; the engineering system is written down and branch coverage is turned on.
+
+### Added
+
+- **`quality_core.schema`** — the FMEA row/dataset contracts (`FMEARow`, `FMEADataset`), promoted out
+  of the FMEA app so every tool shares one schema; re-exported from `fmea_app.schema` (zero-behaviour
+  change), held at 100% by its own tests + a CI gate (W05-1, #34).
+- **`quality_core.schema.relational`** — the AIAG/VDA relational model **Function → FailureMode →
+  Effect / Cause / Control** (Severity on the Effect, Occurrence on the Cause, Detection on the
+  Control), with loss-less `flat_to_relational` / `relational_to_flat` adapters. The model enforces
+  the canonical invariants (unique IDs; no two entities share a `(description, rating)` pair; every
+  entity referenced by ≥1 link) so the flat↔relational round-trip is loss-less both directions
+  (W05-2, #35).
+- **Shared schema base** — `quality_core.schema._base` (`StrictModel`, `find_duplicates`); the flat
+  and relational models reuse one blank-rejection validator and one duplicate finder instead of
+  hand-copying (#35).
+- **Engineering system docs** — `docs/DEFINITION_OF_DONE.md`, `docs/ENGINEERING_SYSTEM_PLAYBOOK.md`,
+  `docs/README.md`, `CONTRIBUTING.md`, and the project `ROADMAP.md`, codifying the issue → gates → PR
+  → release loop (#41).
+
+### Changed
+
+- **Branch coverage is on** — `branch = true` + `show_missing = true` in `pyproject.toml`; every
+  per-surface gate (io/schema 100%, SPC ≥95%) now measures line **and** branch. Baseline recorded in
+  `docs/COVERAGE_BASELINE_2026-07-09.md` (#41).
+- **Workflow** — adopt PR-per-issue + squash-merge with CI-green-required, going forward (#41).
+
+### Fixed
+
+- **`quality_core.io` `_format_row_error`** — removed a dead defensive branch (`"input" in first`;
+  Pydantic's default `errors()` always carries `input`) and made the value echo crash-safe via
+  `.get`; io is now 100% line + branch (#41).
+
 ## [0.4.0] - 2026-06-24
 
 Week 04: Shared validation + export. The reuse story is now demonstrable — a single

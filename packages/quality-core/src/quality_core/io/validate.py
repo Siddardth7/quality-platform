@@ -222,12 +222,12 @@ def _format_row_error(row_number: int, schema: TableSchema, exc: pydantic.Valida
     column = ".".join(str(part) for part in first.get("loc", ()))
     where = f"Row {row_number}" + (f", column '{column}'" if column else "")
     msg = first.get("msg", "invalid value")
-    echo = ""
-    if "input" in first:
-        shown = repr(first["input"])
-        if len(shown) > _MAX_ECHO_LEN:
-            shown = shown[: _MAX_ECHO_LEN - 3] + "..."
-        echo = f" (got {shown})"
+    # `exc.errors()` (default include_input=True) always carries the offending
+    # value, so echo it unconditionally; `.get` stays crash-safe regardless.
+    shown = repr(first.get("input"))
+    if len(shown) > _MAX_ECHO_LEN:
+        shown = shown[: _MAX_ECHO_LEN - 3] + "..."
+    echo = f" (got {shown})"
     return f"{where}: {msg}{echo}.{schema._hint_suffix()}"
 
 
