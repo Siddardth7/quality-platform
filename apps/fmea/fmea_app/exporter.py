@@ -42,6 +42,7 @@ from quality_core.io.export import (
 from quality_core.theme import TIER_FILL_HEX, TIER_RGB
 
 from fmea_app import __version__
+from fmea_app.rpn_engine import ACTION_COLUMNS
 
 # ---------------------------------------------------------------------------
 # FMEA export configuration
@@ -59,6 +60,10 @@ _COL_WIDTHS = {
     "Effect": 24, "Severity": 10, "Occurrence": 12, "Detection": 11,
     "RPN": 8, "AP": 10, "Risk_Tier": 12,
     "Flag_High_RPN": 14, "Flag_High_Severity": 16, "Flag_Action_Priority_H": 20,
+    # Action-tracking columns (W05-4b) — appended only when the frame carries them.
+    "Action_Owner": 22, "Action_Status": 14, "Action_Due": 13,
+    "S_After": 9, "O_After": 9, "D_After": 9,
+    "RPN_Revised": 13, "AP_Revised": 12, "RPN_Delta": 11,
 }
 
 # Read from the package single source of truth (fmea_app/__init__.py) — never hardcode.
@@ -116,7 +121,9 @@ def export_excel(df: pd.DataFrame) -> bytes:
     write_table_sheet(
         ws, df,
         title="FMEA Analysis",
-        columns=_EXPORT_COLUMNS,
+        # write_table_sheet keeps only columns present in df, so the action
+        # columns appear only when the relational path added them (W05-4b).
+        columns=[*_EXPORT_COLUMNS, *ACTION_COLUMNS],
         col_widths=_COL_WIDTHS,
         row_fill_hex=_excel_row_fill,
     )
@@ -180,6 +187,7 @@ def export_pdf(df: pd.DataFrame) -> bytes:
     pdf.set_margins(10, 10, 10)
 
     _pdf_page1(pdf, df)
+    _pdf_action_page(pdf, df)
 
     # Use matplotlib (no Chrome/kaleido needed on Streamlit Cloud)
     with tempfile.TemporaryDirectory(prefix="fmea_pdf_") as tmp_dir:
@@ -272,3 +280,65 @@ def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
 def _pdf_chart_page_from_file(pdf: Any, png_path: str, title: str) -> None:
     """Embed a pre-rendered PNG file as a new PDF page (kept as a patchable seam)."""
     add_image_page(pdf, png_path, title)
+
+
+# ---------------------------------------------------------------------------
+# PDF Action Tracking page (W05-4b) — only rendered when actions are present
+# ---------------------------------------------------------------------------
+
+_PDF_ACTION_COLS = [
+    ("ID",     12),
+    ("Owner",  48),
+    ("Status", 26),
+    ("Due",    26),
+    ("S'",     12),
+    ("O'",     12),
+    ("D'",     12),
+    ("RPN'",   20),
+    ("AP'",    20),
+    ("Delta",  20),
+]
+
+
+def _pdf_white_row(row: pd.Series) -> tuple[int, int, int]:
+    return (255, 255, 255)
+
+
+def _pdf_action_row_values(row: pd.Series) -> list[str]:
+    return [
+        str(int(row["ID"])),
+        safe_text(str(row.get("Action_Owner", ""))[:26]),
+        safe_text(str(row.get("Action_Status", ""))),
+        safe_text(str(row.get("Action_Due", ""))),
+        safe_text(str(row.get("S_After", ""))),
+        safe_text(str(row.get("O_After", ""))),
+        safe_text(str(row.get("D_After", ""))),
+        safe_text(str(row.get("RPN_Revised", ""))),
+        safe_text(str(row.get("AP_Revised", ""))),
+        safe_text(str(row.get("RPN_Delta", ""))),
+    ]
+
+
+def _pdf_action_page(pdf: Any, df: pd.DataFrame) -> None:
+    """Add an 'Action Tracking' page listing the rows that carry an action.
+
+    No-op when the frame has no action columns or no action rows, so action-free
+    reports keep their original page set unchanged.
+    """
+    if "Action_Owner" not in df.columns:
+        return
+    action_df = df[df["Action_Owner"].astype(str).str.len() > 0]
+    if action_df.empty:
+        return
+    pdf.add_page()
+    pdf_title(pdf, "Action Tracking")
+    pdf_subheader(
+        pdf,
+        "Action effectiveness — revised S/O/D, RPN, and Action Priority after each action.",
+    )
+    render_table(
+        pdf, action_df,
+        columns=_PDF_ACTION_COLS,
+        row_values=_pdf_action_row_values,
+        row_rgb=_pdf_white_row,
+    )

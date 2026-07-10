@@ -19,6 +19,7 @@ from pathlib import Path
 import pydantic
 import pytest
 from quality_core.schema import (
+    Action,
     Cause,
     Control,
     Effect,
@@ -304,3 +305,23 @@ def test_rating_out_of_range_rejected(severity: int) -> None:
 def test_non_positive_row_id_rejected() -> None:
     with pytest.raises(pydantic.ValidationError):
         FailureLink(row_id=0, effect_id="E1", cause_id="C1", control_id="CT1")
+
+
+def test_failure_link_defaults_to_no_action() -> None:
+    assert FailureLink(row_id=1, effect_id="E1", cause_id="C1", control_id="CT1").action is None
+
+
+def test_failure_link_carries_optional_action_outside_canonical_round_trip() -> None:
+    # An action attaches to the link but is not a canonical column, so it does not
+    # affect the flat round-trip (it is simply absent from the flat rows).
+    flat = FMEADataset(rows=[FMEARow(
+        ID=1, Process_Step="Mix", Component="Resin", Function="Bond",
+        Failure_Mode="Uncured", Effect="Delam", Severity=9, Cause="Cold",
+        Occurrence=8, Current_Control="Oven", Detection=5,
+    )])
+    model = flat_to_relational(flat)
+    model.functions[0].failure_modes[0].links[0].action = Action(owner="QE", o_after=1)
+    revalidated = RelationalFMEA(functions=model.functions)
+    assert revalidated.functions[0].failure_modes[0].links[0].action is not None
+    # canonical flat is unchanged whether or not the link carries an action
+    assert relational_to_flat(revalidated).rows == flat.rows

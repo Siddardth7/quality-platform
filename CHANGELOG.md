@@ -41,6 +41,11 @@ model; the engineering system is written down and branch coverage is turned on.
   validate → score → rank pipeline as the flat path, so structured input scores and exports
   identically. Proven by content-level export equivalence (CSV bytes, Excel data-sheet grid, and
   PDF with timestamps stripped) against the flat-equivalent (W05-4, #37).
+- **Action-tracking columns in FMEA exports** — a `FailureLink` can now carry an optional `Action`;
+  when present, `relational_to_dataframe` appends action columns (owner, status, due, S/O/D after,
+  revised RPN/AP, RPN delta via `Action.effectiveness`, blank for rows without an action). Excel and
+  CSV render the extra columns; the PDF gains an **"Action Tracking"** page. All formula-injection-safe;
+  action-free models export identically to the flat path (W05-4b, #47).
 
 ### Changed
 
