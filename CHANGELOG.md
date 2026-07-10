@@ -6,8 +6,13 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
-Week 05 (toward v0.5.0): the FMEA schema moves into the shared core and gains a relational domain
-model; the engineering system is written down and branch coverage is turned on.
+## [0.5.0] - 2026-07-10
+
+Week 05: **relational domain model + cross-tool schema contracts.** The FMEA schema moves into the
+shared core and gains an AIAG/VDA relational model (Function → Failure Mode → Effect/Cause/Control)
+with loss-less flat adapters, action tracking + effectiveness, and end-to-end relational scoring/
+exports. The engineering system was written down (Definition of Done, playbook, PR workflow) and
+branch coverage turned on across every gate.
 
 ### Added
 
