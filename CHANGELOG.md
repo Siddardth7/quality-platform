@@ -57,6 +57,9 @@ model; the engineering system is written down and branch coverage is turned on.
 - **Branch coverage is on** — `branch = true` + `show_missing = true` in `pyproject.toml`; every
   per-surface gate (io/schema 100%, SPC ≥95%) now measures line **and** branch. Baseline recorded in
   `docs/COVERAGE_BASELINE_2026-07-09.md` (#41).
+- **`quality_core.schema` locked at 100%** — the relational + action model is held at the 100%
+  line+branch CI gate (established W05-1), with a consolidated guardrail-contract test asserting every
+  malformed relational payload surfaces a clear, entity/row-addressed error (W05-6, #39).
 - **Workflow** — adopt PR-per-issue + squash-merge with CI-green-required, going forward (#41).
 
 ### Fixed
