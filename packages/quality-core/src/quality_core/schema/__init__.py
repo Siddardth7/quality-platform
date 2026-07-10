@@ -11,8 +11,13 @@ schema package — mirroring how `quality_core.io` consolidates export + ingest.
 FailureMode → Effect/Cause/Control with Severity on Effect, Occurrence on Cause,
 Detection on Control — plus loss-less `flat_to_relational` / `relational_to_flat`
 adapters to and from the flat row representation.
+
+`action` holds action tracking + effectiveness (W05-3): an `Action` (owner, due,
+status, optional re-rated S/O/D) and `Action.effectiveness(...)` comparing RPN/AP
+before → after via the shared `quality_core.scoring` scorers.
 """
 
+from quality_core.schema.action import Action, ActionStatus, Effectiveness
 from quality_core.schema.fmea import FMEADataset, FMEARow
 from quality_core.schema.relational import (
     Cause,
@@ -38,4 +43,7 @@ __all__ = [
     "RelationalFMEA",
     "flat_to_relational",
     "relational_to_flat",
+    "Action",
+    "ActionStatus",
+    "Effectiveness",
 ]

@@ -31,6 +31,11 @@ model; the engineering system is written down and branch coverage is turned on.
   without importing an app; held at 100% by its own tests + a CI gate. `fmea_app.ap_engine` now
   re-exports the scalar API and keeps its pandas `calculate_ap` / `rank_by_ap` layers — zero-behaviour
   change (W05-3a, #44).
+- **`quality_core.schema.action`** — FMEA action tracking + effectiveness (the AIAG "optimization"
+  loop): `Action` (owner, `due` date, `ActionStatus` enum, optional re-rated `s_after`/`o_after`/
+  `d_after`) and `Action.effectiveness(severity, occurrence, detection)` → an `Effectiveness` value
+  reporting RPN and Action Priority **before → after**, the RPN delta, and whether AP dropped a band.
+  Unset `*_after` fall back to the original; the original assessment is never mutated (W05-3, #36).
 
 ### Changed
 
