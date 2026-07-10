@@ -19,7 +19,7 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 import pydantic as _pydantic
-from quality_core.schema import RelationalFMEA, relational_to_flat
+from quality_core.schema import RelationalFMEA, flat_to_relational, relational_to_flat
 
 from fmea_app.schema import FMEADataset, FMEARow
 
@@ -428,3 +428,20 @@ def run_pipeline_relational(model: RelationalFMEA) -> pd.DataFrame:
     input scores and exports the same as the flat-equivalent.
     """
     return run_pipeline(relational_to_dataframe(model))
+
+
+def dataframe_to_relational(df: pd.DataFrame) -> RelationalFMEA:
+    """Build the relational model from a flat FMEA DataFrame.
+
+    The inverse of :func:`relational_to_dataframe`: a flat CSV/Excel upload
+    converts to the Function → FailureMode → Effect/Cause/Control view via the
+    W05-2 adapter, so both entry paths share one model. Assumes ``df`` has passed
+    :func:`validate_input` (the canonical columns, S/O/D in range).
+    """
+    dataset = FMEADataset(
+        rows=[
+            FMEARow(**cast("dict[str, Any]", rec))
+            for rec in df[REQUIRED_COLUMNS].to_dict(orient="records")
+        ]
+    )
+    return flat_to_relational(dataset)

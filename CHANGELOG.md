@@ -46,6 +46,11 @@ model; the engineering system is written down and branch coverage is turned on.
   revised RPN/AP, RPN delta via `Action.effectiveness`, blank for rows without an action). Excel and
   CSV render the extra columns; the PDF gains an **"Action Tracking"** page. All formula-injection-safe;
   action-free models export identically to the flat path (W05-4b, #47).
+- **Relational + action-tracking UI (FMEA app)** — a **Relational** tab shows the
+  Function → Failure Mode → Effect/Cause/Control hierarchy (auto-built from any upload via the W05-2
+  adapter), and an **Actions** tab provides a per-failure action editor (owner, status, due, re-rated
+  S'/O'/D') that reports before→after RPN/AP + the RPN delta and offers an action-aware Excel/PDF/CSV
+  download. Flat CSV/Excel uploads are unchanged and auto-convert to the relational view (W05-5, #38).
 
 ### Changed
 
