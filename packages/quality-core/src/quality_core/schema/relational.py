@@ -22,6 +22,7 @@ from typing import Annotated
 import pydantic
 
 from quality_core.schema._base import StrictModel, find_duplicates
+from quality_core.schema.action import Action
 from quality_core.schema.fmea import FMEADataset, FMEARow
 
 EntityId = Annotated[str, pydantic.Field(min_length=1, max_length=100)]
@@ -48,12 +49,19 @@ class Control(StrictModel):
 
 
 class FailureLink(StrictModel):
-    """One original flat row: ties an (effect, cause, control) triple to its ID."""
+    """One original flat row: ties an (effect, cause, control) triple to its ID.
+
+    An optional `action` records the AIAG optimization step taken on this failure
+    (owner, status, re-rated S/O/D); its effectiveness is scored against this
+    link's effect.severity / cause.occurrence / control.detection. Actions live
+    outside the canonical columns, so they don't affect the flat round-trip.
+    """
 
     row_id: Annotated[int, pydantic.Field(gt=0)]
     effect_id: EntityId
     cause_id: EntityId
     control_id: EntityId
+    action: Action | None = None
 
 
 class FailureMode(StrictModel):

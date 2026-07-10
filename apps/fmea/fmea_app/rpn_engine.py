@@ -348,18 +348,76 @@ def run_pipeline(df: pd.DataFrame) -> pd.DataFrame:
 # output (W05-4).
 # ---------------------------------------------------------------------------
 
+# Action-tracking columns appended to the flat frame when the relational model
+# carries actions (W05-4b). Absent when no link has an action, so an action-free
+# model exports identically to a flat upload.
+ACTION_COLUMNS = [
+    "Action_Owner",
+    "Action_Status",
+    "Action_Due",
+    "S_After",
+    "O_After",
+    "D_After",
+    "RPN_Revised",
+    "AP_Revised",
+    "RPN_Delta",
+]
+
+
+def _relational_actions(model: RelationalFMEA) -> dict[int, dict[str, object]]:
+    """Map each row ID that has a tracked action to its action-column values.
+
+    Effectiveness is scored against the link's own effect.severity /
+    cause.occurrence / control.detection — the "before" ratings for that row.
+    """
+    out: dict[int, dict[str, object]] = {}
+    for function in model.functions:
+        for fm in function.failure_modes:
+            effects = {e.id: e for e in fm.effects}
+            causes = {c.id: c for c in fm.causes}
+            controls = {c.id: c for c in fm.controls}
+            for link in fm.links:
+                action = link.action
+                if action is None:
+                    continue
+                eff = action.effectiveness(
+                    effects[link.effect_id].severity,
+                    causes[link.cause_id].occurrence,
+                    controls[link.control_id].detection,
+                )
+                out[link.row_id] = {
+                    "Action_Owner": action.owner,
+                    "Action_Status": action.status.value,
+                    "Action_Due": action.due.isoformat() if action.due is not None else "",
+                    "S_After": action.s_after if action.s_after is not None else "",
+                    "O_After": action.o_after if action.o_after is not None else "",
+                    "D_After": action.d_after if action.d_after is not None else "",
+                    "RPN_Revised": eff.revised_rpn,
+                    "AP_Revised": eff.revised_ap,
+                    "RPN_Delta": eff.rpn_delta,
+                }
+    return out
+
+
 def relational_to_dataframe(model: RelationalFMEA) -> pd.DataFrame:
-    """Flatten a relational FMEA model to the canonical flat DataFrame the engine
-    consumes.
+    """Flatten a relational FMEA model to the flat DataFrame the engine consumes.
 
     Uses the loss-less W05-2 adapter, so the relational path feeds the exact same
-    columns (in the canonical order) as a flat CSV/Excel upload would.
+    canonical columns (in canonical order) as a flat CSV/Excel upload would. When
+    any link carries an action, the ``ACTION_COLUMNS`` are appended (blank for
+    rows without an action); otherwise they're omitted entirely.
     """
     dataset = relational_to_flat(model)
-    return pd.DataFrame(
+    df = pd.DataFrame(
         [row.model_dump() for row in dataset.rows],
         columns=REQUIRED_COLUMNS,
     )
+    actions = _relational_actions(model)
+    if actions:
+        for col in ACTION_COLUMNS:
+            values: list[Any] = [actions.get(int(rid), {}).get(col, "") for rid in df["ID"]]
+            df[col] = values
+    return df
 
 
 def run_pipeline_relational(model: RelationalFMEA) -> pd.DataFrame:
