@@ -36,6 +36,11 @@ model; the engineering system is written down and branch coverage is turned on.
   `d_after`) and `Action.effectiveness(severity, occurrence, detection)` → an `Effectiveness` value
   reporting RPN and Action Priority **before → after**, the RPN delta, and whether AP dropped a band.
   Unset `*_after` fall back to the original; the original assessment is never mutated (W05-3, #36).
+- **Relational FMEA engine entrypoint** — `fmea_app.rpn_engine.run_pipeline_relational(model)` (and
+  `relational_to_dataframe`) run the W05-2 relational model through the exact same
+  validate → score → rank pipeline as the flat path, so structured input scores and exports
+  identically. Proven by content-level export equivalence (CSV bytes, Excel data-sheet grid, and
+  PDF with timestamps stripped) against the flat-equivalent (W05-4, #37).
 
 ### Changed
 

@@ -19,6 +19,7 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 import pydantic as _pydantic
+from quality_core.schema import RelationalFMEA, relational_to_flat
 
 from fmea_app.schema import FMEADataset, FMEARow
 
@@ -339,3 +340,33 @@ def run_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     df = flag_critical(df)
     df = rank_by_rpn(df)
     return df
+
+
+# ---------------------------------------------------------------------------
+# Relational entrypoint — score the W05-2 relational model through the same
+# flat pipeline, so structured input produces identical validate→score→export
+# output (W05-4).
+# ---------------------------------------------------------------------------
+
+def relational_to_dataframe(model: RelationalFMEA) -> pd.DataFrame:
+    """Flatten a relational FMEA model to the canonical flat DataFrame the engine
+    consumes.
+
+    Uses the loss-less W05-2 adapter, so the relational path feeds the exact same
+    columns (in the canonical order) as a flat CSV/Excel upload would.
+    """
+    dataset = relational_to_flat(model)
+    return pd.DataFrame(
+        [row.model_dump() for row in dataset.rows],
+        columns=REQUIRED_COLUMNS,
+    )
+
+
+def run_pipeline_relational(model: RelationalFMEA) -> pd.DataFrame:
+    """Run the full FMEA pipeline on a relational model.
+
+    Flattens via :func:`relational_to_dataframe` then runs the identical
+    validate → RPN → flag → rank pipeline as :func:`run_pipeline`, so structured
+    input scores and exports the same as the flat-equivalent.
+    """
+    return run_pipeline(relational_to_dataframe(model))
