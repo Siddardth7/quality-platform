@@ -18,6 +18,7 @@ from quality_core.io import read_table
 from fmea_app import __version__
 from fmea_app.ap_engine import BASIS_AP, calculate_ap, rank_by_ap
 from fmea_app.rpn_engine import (
+    dataframe_to_relational,
     rank_by_rpn,
     run_pipeline,
     validate_input,
@@ -45,6 +46,7 @@ from ui.filters import (
     render_rpn_slider,
     render_severity_toggle,
 )
+from ui.relational import render_action_tracker, render_hierarchy
 from ui.styles import apply_css
 
 # ---------------------------------------------------------------------------
@@ -208,11 +210,15 @@ def render_fmea() -> None:
             st.session_state["_pipeline_cache_key"] = raw_hash
             st.session_state["_pipeline_result"] = df_analyzed
             st.session_state["_dataset_rpn_max"] = int(df_analyzed["RPN"].max())
+            # Flat upload auto-converts to the relational view (W05-5) via the
+            # shared adapter, so both entry paths share one model.
+            st.session_state["_relational_model"] = dataframe_to_relational(raw_df)
         except (ValueError, KeyError) as exc:
             st.error(f"**Pipeline error:** {exc}")
             st.stop()
     else:
         df_analyzed = st.session_state["_pipeline_result"]
+    relational_model = st.session_state["_relational_model"]
 
     render_validation_summary(df_analyzed)
 
@@ -248,11 +254,16 @@ def render_fmea() -> None:
     render_insights(df_filtered)
     st.divider()
 
-    tab_table, tab_pareto, tab_heatmap, tab_critical, tab_scale = st.tabs([
+    (
+        tab_table, tab_pareto, tab_heatmap, tab_critical,
+        tab_relational, tab_actions, tab_scale,
+    ) = st.tabs([
         "📋  Risk Table",
         "📊  Pareto Chart",
         "🗺️  Risk Heatmap",
         "⚠️  Critical Items",
+        "🧬  Relational",
+        "🎯  Actions",
         "📐  Rating Scale",
     ])
 
@@ -267,6 +278,12 @@ def render_fmea() -> None:
 
     with tab_critical:
         render_critical_panel(df_filtered, basis)
+
+    with tab_relational:
+        render_hierarchy(relational_model)
+
+    with tab_actions:
+        render_action_tracker(relational_model)
 
     with tab_scale:
         render_rating_scales(scale_set)
