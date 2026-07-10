@@ -282,6 +282,50 @@ def test_duplicate_row_ids_across_functions_rejected() -> None:
         RelationalFMEA(functions=[fn1, fn2])
 
 
+# --- The guardrail contract (W05-6): every rejection is entity/row-addressed ---
+# One readable place documenting that a malformed relational payload surfaces a
+# clear, addressed message — the "friendly, not a stack trace" guarantee that lets
+# both tools trust the shared schema.
+
+
+def _fm_missing_a_child() -> FailureMode:
+    return FailureMode(**{**_valid_fm_kwargs(), "effects": []})  # type: ignore[arg-type]
+
+
+def _fm_link_to_unknown_entity() -> FailureMode:
+    kwargs = _valid_fm_kwargs()
+    kwargs["links"] = [
+        *kwargs["links"],  # type: ignore[misc]
+        FailureLink(row_id=2, effect_id="E9", cause_id="C1", control_id="CT1"),
+    ]
+    return FailureMode(**kwargs)  # type: ignore[arg-type]
+
+
+def _fm_with_orphan_entity() -> FailureMode:
+    kwargs = _valid_fm_kwargs()
+    kwargs["effects"] = [*kwargs["effects"], Effect(id="E2", description="Other", severity=3)]  # type: ignore[misc]
+    return FailureMode(**kwargs)  # type: ignore[arg-type]
+
+
+def _relational_with_duplicate_function_ids() -> RelationalFMEA:
+    fm = FailureMode(**_valid_fm_kwargs())  # type: ignore[arg-type]
+    return RelationalFMEA(functions=[_valid_function(fm), _valid_function(fm)])
+
+
+@pytest.mark.parametrize(
+    ("build", "fragment"),
+    [
+        (_fm_missing_a_child, "at least 1"),
+        (_fm_link_to_unknown_entity, r"unknown effect ID 'E9'"),
+        (_fm_with_orphan_entity, "unreferenced effect"),
+        (_relational_with_duplicate_function_ids, "duplicate function IDs"),
+    ],
+)
+def test_malformed_payload_gives_entity_addressed_error(build, fragment) -> None:  # type: ignore[no-untyped-def]
+    with pytest.raises(pydantic.ValidationError, match=fragment):
+        build()
+
+
 # --- Field-level constraints ------------------------------------------------------
 
 
