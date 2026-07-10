@@ -26,6 +26,11 @@ model; the engineering system is written down and branch coverage is turned on.
 - **Engineering system docs** — `docs/DEFINITION_OF_DONE.md`, `docs/ENGINEERING_SYSTEM_PLAYBOOK.md`,
   `docs/README.md`, `CONTRIBUTING.md`, and the project `ROADMAP.md`, codifying the issue → gates → PR
   → release loop (#41).
+- **`quality_core.scoring`** — the shared scalar risk scorers `rpn(s,o,d)` and `action_priority(s,o,d)`
+  (the AIAG-VDA 2019 Action Priority table), promoted out of the FMEA app so `quality_core` can score
+  without importing an app; held at 100% by its own tests + a CI gate. `fmea_app.ap_engine` now
+  re-exports the scalar API and keeps its pandas `calculate_ap` / `rank_by_ap` layers — zero-behaviour
+  change (W05-3a, #44).
 
 ### Changed
 

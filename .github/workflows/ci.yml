@@ -63,6 +63,17 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=100
 
+      # Core scoring coverage gate: quality_core.scoring holds the shared scalar
+      # risk scorers (RPN + the AIAG-VDA Action Priority table, promoted W05-3a),
+      # used by FMEA and the future action-effectiveness model. A standards table
+      # must be fully covered by its OWN tests. Held at 100% from packages/quality-core.
+      - name: Core scoring coverage gate
+        run: >
+          uv run pytest packages/quality-core
+          --cov=quality_core.scoring
+          --cov-report=term-missing
+          --cov-fail-under=100
+
       # SPC coverage gate: the testable SPC surface (engine, simulation logic,
       # figure builders, report exporter) must stay highly covered so it can't
       # regress silently. The Streamlit `pages/` are excluded — they need a
