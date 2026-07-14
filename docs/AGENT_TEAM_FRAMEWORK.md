@@ -26,15 +26,15 @@ branch without the SME.**
 | # | Role | Implemented as | Model | Reads | Writes |
 |---|------|----------------|-------|-------|--------|
 | 0 | **Stakeholder / SME** | Human (Sid) | — | everything | approvals, merges, direction |
-| 1 | **Team Lead / Orchestrator** | `.claude/commands/ship.md` (+ `promote`, `release`) run by the **main Fable 5 session** | Fable 5 | all `.pipeline/` files | branches, PRs (via `gh`), sequencing |
-| 2 | **Research & Planning** | `.claude/agents/research.md` | Fable 5 (`inherit`) | codebase, standards, web | `.pipeline/spec.md` |
-| 3 | **Coding** | `.claude/agents/coder.md` | Sonnet | `spec.md`, codebase | source changes + `.pipeline/changes.md` |
-| 4 | **Testing / QA** | `.claude/agents/tester.md` | Sonnet | `changes.md`, `spec.md`, code | tests + `.pipeline/test-results.md` |
-| 5 | **Reviewer** | `.claude/agents/reviewer.md` (read-only) | Fable 5 (`inherit`) | all `.pipeline/` + `git diff` | `.pipeline/review.md` verdict |
+| 1 | **Team Lead / Orchestrator** | `.claude/commands/ship.md` (+ `promote`, `release`) run by the **main daily session (Opus 4.8)** | Opus 4.8 | all `.pipeline/` files | branches, PRs (via `gh`), sequencing |
+| 2 | **Research & Planning** | `.claude/agents/research.md` | Opus 4.8 | codebase, standards, web | `.pipeline/spec.md` |
+| 3 | **Coding** | `.claude/agents/coder.md` | Opus 4.8 → Fable 5 on limits | `spec.md`, codebase | source changes + `.pipeline/changes.md` |
+| 4 | **Testing / QA** | `.claude/agents/tester.md` | Opus 4.8 → Fable 5 on limits | `changes.md`, `spec.md`, code | tests + `.pipeline/test-results.md` |
+| 5 | **Reviewer** | `.claude/agents/reviewer.md` (read-only) | Opus 4.8 | all `.pipeline/` + `git diff` | `.pipeline/review.md` verdict |
 
 **Why the Team Lead is a command, not a subagent.** In Claude Code, a subagent cannot spawn other
-subagents — only the main session can delegate. So the Team Lead *is* the main Fable 5 session executing
-an orchestrator command; that command is what invokes Research → Coder → Tester → Reviewer in order.
+subagents — only the main session can delegate. So the Team Lead *is* the main daily session (Opus 4.8)
+executing an orchestrator command; that command is what invokes Research → Coder → Tester → Reviewer in order.
 This is a hard platform constraint, and it is also the cleanest design: the conductor sits in the main
 loop where the `Task`/delegation tool lives.
 
@@ -44,17 +44,25 @@ structural guarantee, not a style choice.
 
 ---
 
-## 3. Model routing (mixed)
+## 3. Model routing — built with Fable 5, run on Opus 4.8
 
-| Role | Model | Why |
-|------|-------|-----|
-| Team Lead, Research, Reviewer | **Fable 5** | Highest-leverage reasoning — planning sets the ceiling, review is the last gate, orchestration must not drop a step. Each runs roughly once per feature. |
-| Coder, Tester | **Sonnet** | Implementation and test-writing against a clear spec is bounded, token-heavy work Sonnet handles well at a fraction of the cost. These produce most of the tokens. |
+**Two different models, two different jobs:**
+- **Fable 5 is the build-time model.** The team — this framework, the agent files, the commands — is
+  *authored* with Fable 5. Fable 5 does not run the day-to-day pipeline.
+- **Opus 4.8 is the daily driver.** When the team runs, the main session (which *is* the Team Lead)
+  runs on Opus 4.8, and the subagents run per the table below.
 
-Net effect: the token-heavy roles run on the cheaper model, the once-per-feature reasoning roles run on
-Fable 5. `inherit` means an agent runs on whatever the **main session** runs — so keep the session on
-Fable 5 for the routing above to hold. If your Claude Code build accepts explicit model IDs in agent
-frontmatter, you may pin `model: claude-fable-5` instead of `inherit`.
+| Role | Runtime model | Why |
+|------|---------------|-----|
+| Team Lead, Research, Reviewer | **Opus 4.8** | Highest-leverage reasoning — planning sets the ceiling, review is the last gate, orchestration must not drop a step. Each runs roughly once per feature. |
+| Coder, Tester | **Opus 4.8** by default, **Fable 5** as fallback | Run on Opus 4.8 for top quality; when you're bumping Opus usage limits, switch these two (the token-heavy roles) to Fable 5 to keep shipping. |
+
+**How the models are pinned:** subagent frontmatter uses `model: opus`, which resolves to the account's
+current Opus (4.8). Because the main daily session runs on Opus 4.8, `inherit` would also resolve to
+Opus 4.8 — but we pin `opus` explicitly so routing holds regardless of the session model. To pin the
+exact build, use `model: claude-opus-4-8`. **The Fable-5 fallback for Coder/Tester** is operational:
+when Opus limits bite, change those two agents' frontmatter to `model: claude-fable-5` (or run them in a
+Fable 5 session), then switch back. The reasoning roles stay on Opus 4.8.
 
 ---
 
@@ -141,7 +149,10 @@ start of every `/ship` run so no agent reads a stale file from the last feature.
 
 ---
 
-## 7. Agent definitions — copy into `.claude/agents/`
+## 7. Agent definitions — live in `.claude/agents/`
+
+> **These files exist in this repo** — `.claude/agents/` and `.claude/commands/` are version-controlled
+> and are the canonical team. The listings below are reference copies; if they ever drift, the files win.
 
 ### `.claude/agents/research.md`
 
@@ -153,7 +164,7 @@ description: >
   standards, and prior art, then writes a tight implementation spec to .pipeline/spec.md.
   First stage, before the coder. Never writes implementation code.
 tools: Read, Grep, Glob, Write, WebSearch, WebFetch, Bash
-model: inherit
+model: opus
 ---
 You are the Research & Planning specialist for the Quality Platform. You do NOT write implementation code.
 
@@ -188,7 +199,8 @@ description: >
   current feature branch, then summarizes changes to .pipeline/changes.md. After research,
   before tester.
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
+# Fallback: switch to `claude-fable-5` when Opus usage limits bite.
 ---
 You are the Implementation specialist for the Quality Platform.
 
@@ -214,7 +226,8 @@ description: >
   checks coverage, and reports to .pipeline/test-results.md. Never fixes the code. After coder,
   before reviewer.
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
+# Fallback: switch to `claude-fable-5` when Opus usage limits bite.
 ---
 You are the Test / QA specialist for the Quality Platform.
 
@@ -244,7 +257,7 @@ description: >
   Stage 4 of the ship pipeline. Read-only final gate. Reads the spec, changes, test results, and
   git diff and writes a SHIP / NEEDS WORK / BLOCK verdict to .pipeline/review.md. Cannot edit code.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: opus
 ---
 You are the senior Reviewer for the Quality Platform. You are READ-ONLY. You do not edit code or tests.
 
@@ -355,7 +368,8 @@ mkdir -p .claude/agents .claude/commands
 ```
 
 Then, in the GitHub UI (or `gh api`), add **branch protection** for `test`, `dev`, and `main` per §4,
-and confirm the **main session model is Fable 5** so the `inherit` roles route correctly.
+and run the **daily session on Opus 4.8** (the Team Lead orchestrator runs there; the subagents pin
+their own models via frontmatter).
 
 **Verify the wiring:** run `/ship` on one small, bounded issue and watch the four handoff files appear
 in `.pipeline/` and a PR land on `test`. Do not scale up until one clean pass works end to end.

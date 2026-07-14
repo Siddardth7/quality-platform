@@ -31,3 +31,6 @@ htmlcov/
 # IDE
 .vscode/
 .idea/
+
+# agent pipeline handoff (transient)
+.pipeline/
