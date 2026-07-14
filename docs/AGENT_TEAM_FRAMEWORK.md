@@ -94,7 +94,9 @@ flowchart LR
 **Protection (configure once):**
 - `test` — require the `CI / gate` status check.
 - `dev` — require `CI / gate` **and** the coverage bars (`quality_core.io` 100%, `quality_core.schema` 100% line+branch, SPC ≥95%). Merges from `test` only (convention).
-- `main` — require `CI / gate` + coverage + **1 approval (SME)**. Squash-merge. Merges from `dev` only. Tag on merge.
+- `main` — require `CI / gate` + coverage. Squash-merge. Merges from `dev` only. Tag on merge.
+  **SME approval = the SME performs the merge** (a required-approval count would deadlock a solo repo,
+  since GitHub blocks approving your own PR; agents never merge, so the human merge *is* the approval).
 
 ---
 
