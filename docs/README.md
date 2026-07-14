@@ -16,6 +16,7 @@ these paths, so living docs are never moved once created. Each entry is one line
 |---|---|
 | [`DEFINITION_OF_DONE.md`](DEFINITION_OF_DONE.md) | The per-issue + per-version gates. Mirrored as a pinned issue; every issue links here. |
 | [`ENGINEERING_SYSTEM_PLAYBOOK.md`](ENGINEERING_SYSTEM_PLAYBOOK.md) | The whole system end-to-end, adapted to this monorepo. |
+| [`AGENT_TEAM_FRAMEWORK.md`](AGENT_TEAM_FRAMEWORK.md) | The 5-role AI agent team + the `feature → test → dev → main` branch ladder; agent/command files ready to build from. |
 
 ## Baselines, audits & trials (point-in-time evidence)
 | Doc | What / why |
