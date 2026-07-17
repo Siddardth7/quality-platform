@@ -15,6 +15,15 @@ All notable changes to the Quality Platform are documented here. The format foll
   types and `(part, appraiser, trial)` uniqueness. Study-level tolerance (USL/LSL) is captured as page
   inputs, not a CSV column. Includes a `gage_rr_template.csv` input template + download button. The
   Gage R&R computation (%GRR, ndc, AIAG verdict) lands in a later issue (#54).
+- **`apps/controlplan`** — Control Plan app scaffold: shell-mounted (`app.py`,
+  "Control Plan" nav group), version SSOT, and conftest, following the `apps/msa`
+  pattern. Adds an app-local typed Control Plan row/dataset schema
+  (`controlplan_app.schema`) on the shared `quality_core.io` validated-ingest
+  boundary — characteristic, spec/tolerance (LSL/target/USL), measurement method,
+  sample size/frequency, a nullable recommended SPC chart, and reaction plan, with
+  a USL>LSL check, a target-within-`[lsl, usl]` check, and duplicate-characteristic
+  dataset rejection. Scaffold + schema only — FMEA→Control Plan mapping (W06-2) and
+  the authoring UI (W06-3) land later (#83).
 
 ### Changed
 

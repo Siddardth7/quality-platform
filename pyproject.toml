@@ -9,6 +9,7 @@ dependencies = [
     "fmea-app",
     "spc-app",
     "msa-app",
+    "controlplan-app",
 ]
 
 [tool.uv.workspace]
@@ -19,6 +20,7 @@ quality-core = { workspace = true }
 fmea-app = { workspace = true }
 spc-app = { workspace = true }
 msa-app = { workspace = true }
+controlplan-app = { workspace = true }
 
 # The workspace root is a coordinator, not an installable package.
 [tool.uv]
@@ -47,7 +49,7 @@ testpaths = ["packages", "apps"]
 # untested branch (a missing `else`). Every per-surface CI gate measures branch
 # coverage because it reads this config. See docs/COVERAGE_BASELINE_2026-07-09.md.
 [tool.coverage.run]
-source = ["quality_core", "fmea_app", "ui", "spc_app", "msa_app"]
+source = ["quality_core", "fmea_app", "ui", "spc_app", "msa_app", "controlplan_app"]
 omit = ["*/tests/*"]
 branch = true
 
