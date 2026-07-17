@@ -36,9 +36,11 @@ import streamlit as st
 _ROOT = Path(__file__).resolve().parent
 _FMEA_DIR = _ROOT / "apps" / "fmea"
 _SPC_DIR = _ROOT / "apps" / "spc"
+_MSA_DIR = _ROOT / "apps" / "msa"
+_CONTROLPLAN_DIR = _ROOT / "apps" / "controlplan"
 _CORE_SRC = _ROOT / "packages" / "quality-core" / "src"
 
-for _src_dir in (_CORE_SRC, _SPC_DIR, _FMEA_DIR):
+for _src_dir in (_CORE_SRC, _SPC_DIR, _FMEA_DIR, _MSA_DIR, _CONTROLPLAN_DIR):
     _path = str(_src_dir)
     if _path not in sys.path:
         sys.path.insert(0, _path)
@@ -65,6 +67,8 @@ def _load_module_from_path(name: str, path: Path) -> ModuleType:
 # Mounted render callables
 # ---------------------------------------------------------------------------
 
+from controlplan_app.pages import render_control_plan  # noqa: E402
+from msa_app.pages import render_gage_study  # noqa: E402
 from quality_core.theme import apply_theme  # noqa: E402  (after sys.path setup)
 
 from shell.home import render_home  # noqa: E402
@@ -117,6 +121,17 @@ navigation = st.navigation(
                 icon="🎛️",
                 url_path="simulation",
             ),
+        ],
+        "Control Plan": [
+            st.Page(
+                render_control_plan,
+                title="Control Plan",
+                icon="🧩",
+                url_path="control-plan",
+            ),
+        ],
+        "MSA": [
+            st.Page(render_gage_study, title="Gage R&R", icon="📏", url_path="gage-rr"),
         ],
     }
 )

@@ -6,6 +6,33 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **`apps/msa` — Measurement System Analysis scaffold.** A new `msa_app` package mounts into the
+  unified shell under an "MSA" nav group (Gage R&R page), following the SPC app pattern. It ships an
+  app-local typed gage-study schema (`GageStudyRow` / `GageStudyDataset`) and validated CSV ingest via
+  `quality_core.io.load_table`: rows carry `part, appraiser, trial, measurement`; ingest checks row
+  types and `(part, appraiser, trial)` uniqueness. Study-level tolerance (USL/LSL) is captured as page
+  inputs, not a CSV column. Includes a `gage_rr_template.csv` input template + download button. The
+  Gage R&R computation (%GRR, ndc, AIAG verdict) lands in a later issue (#54).
+- **`apps/controlplan`** — Control Plan app scaffold: shell-mounted (`app.py`,
+  "Control Plan" nav group), version SSOT, and conftest, following the `apps/msa`
+  pattern. Adds an app-local typed Control Plan row/dataset schema
+  (`controlplan_app.schema`) on the shared `quality_core.io` validated-ingest
+  boundary — characteristic, spec/tolerance (LSL/target/USL), measurement method,
+  sample size/frequency, a nullable recommended SPC chart, and reaction plan, with
+  a USL>LSL check, a target-within-`[lsl, usl]` check, and duplicate-characteristic
+  dataset rejection. Scaffold + schema only — FMEA→Control Plan mapping (W06-2) and
+  the authoring UI (W06-3) land later (#83).
+
+### Changed
+
+- **Ship-pipeline model routing** — split the four subagents by stage instead of all-Opus: the
+  reasoning gates stay on Opus 4.8 (`research` = spec-in, `reviewer` = quality-out), while the
+  spec-constrained middle stages move to Sonnet 5 (`coder`, `tester`). Keeps Opus judgment exactly
+  where a mistake is expensive to unwind and cuts per-run model cost ~43% (coder+tester are ~54% of
+  pipeline tokens, Sonnet ≈ 1/5 the per-token cost). Config-only change to `.claude/agents/*.md`.
+
 ## [0.5.0] - 2026-07-10
 
 Week 05: **relational domain model + cross-tool schema contracts.** The FMEA schema moves into the
