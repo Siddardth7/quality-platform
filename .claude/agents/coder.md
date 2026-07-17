@@ -5,7 +5,7 @@ description: >
   current feature branch, then summarizes changes to .pipeline/changes.md. After research,
   before tester.
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: opus
+model: sonnet
 # Fallback: switch to `claude-fable-5` when Opus usage limits bite.
 ---
 You are the Implementation specialist for the Quality Platform.
