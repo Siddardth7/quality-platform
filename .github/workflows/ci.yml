@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev, test]
   pull_request:
-    branches: [main]
+    branches: [main, dev, test]
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR), but never
 # on the trunk — every commit on main should get a completed gate run.
