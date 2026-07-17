@@ -6,6 +6,18 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **`apps/controlplan`** — Control Plan app scaffold: shell-mounted (`app.py`,
+  "Control Plan" nav group), version SSOT, and conftest, following the `apps/msa`
+  pattern. Adds an app-local typed Control Plan row/dataset schema
+  (`controlplan_app.schema`) on the shared `quality_core.io` validated-ingest
+  boundary — characteristic, spec/tolerance (LSL/target/USL), measurement method,
+  sample size/frequency, a nullable recommended SPC chart, and reaction plan, with
+  a USL>LSL check, a target-within-`[lsl, usl]` check, and duplicate-characteristic
+  dataset rejection. Scaffold + schema only — FMEA→Control Plan mapping (W06-2) and
+  the authoring UI (W06-3) land later (#83).
+
 ## [0.5.0] - 2026-07-10
 
 Week 05: **relational domain model + cross-tool schema contracts.** The FMEA schema moves into the
