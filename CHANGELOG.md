@@ -16,6 +16,14 @@ All notable changes to the Quality Platform are documented here. The format foll
   inputs, not a CSV column. Includes a `gage_rr_template.csv` input template + download button. The
   Gage R&R computation (%GRR, ndc, AIAG verdict) lands in a later issue (#54).
 
+### Changed
+
+- **Ship-pipeline model routing** — split the four subagents by stage instead of all-Opus: the
+  reasoning gates stay on Opus 4.8 (`research` = spec-in, `reviewer` = quality-out), while the
+  spec-constrained middle stages move to Sonnet 5 (`coder`, `tester`). Keeps Opus judgment exactly
+  where a mistake is expensive to unwind and cuts per-run model cost ~43% (coder+tester are ~54% of
+  pipeline tokens, Sonnet ≈ 1/5 the per-token cost). Config-only change to `.claude/agents/*.md`.
+
 ## [0.5.0] - 2026-07-10
 
 Week 05: **relational domain model + cross-tool schema contracts.** The FMEA schema moves into the
