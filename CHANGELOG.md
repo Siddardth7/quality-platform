@@ -6,6 +6,16 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **`apps/msa` — Measurement System Analysis scaffold.** A new `msa_app` package mounts into the
+  unified shell under an "MSA" nav group (Gage R&R page), following the SPC app pattern. It ships an
+  app-local typed gage-study schema (`GageStudyRow` / `GageStudyDataset`) and validated CSV ingest via
+  `quality_core.io.load_table`: rows carry `part, appraiser, trial, measurement`; ingest checks row
+  types and `(part, appraiser, trial)` uniqueness. Study-level tolerance (USL/LSL) is captured as page
+  inputs, not a CSV column. Includes a `gage_rr_template.csv` input template + download button. The
+  Gage R&R computation (%GRR, ndc, AIAG verdict) lands in a later issue (#54).
+
 ### Changed
 
 - **Ship-pipeline model routing** — split the four subagents by stage instead of all-Opus: the

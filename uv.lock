@@ -16,6 +16,7 @@ resolution-markers = [
 [manifest]
 members = [
     "fmea-app",
+    "msa-app",
     "quality-core",
     "quality-platform",
     "spc-app",
@@ -936,6 +937,25 @@ wheels = [
 ]
 
 [[package]]
+name = "msa-app"
+version = "0.5.0"
+source = { virtual = "apps/msa" }
+dependencies = [
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "quality-core" },
+    { name = "streamlit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "quality-core", editable = "packages/quality-core" },
+    { name = "streamlit", specifier = ">=1.56.0" },
+]
+
+[[package]]
 name = "mypy"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1574,6 +1594,7 @@ version = "0.5.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fmea-app" },
+    { name = "msa-app" },
     { name = "quality-core" },
     { name = "spc-app" },
 ]
@@ -1591,6 +1612,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fmea-app", virtual = "apps/fmea" },
+    { name = "msa-app", virtual = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
     { name = "spc-app", virtual = "apps/spc" },
 ]
