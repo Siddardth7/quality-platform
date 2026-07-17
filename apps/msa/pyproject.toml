@@ -1,0 +1,19 @@
+[project]
+name = "msa-app"
+version = "0.5.0"
+description = "Measurement System Analysis — Streamlit app (gage-study ingest; Gage R&R math lands later)."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "quality-core",
+    "streamlit>=1.56.0",
+    "pandas>=3.0.2",
+    "pydantic>=2.0",
+]
+
+[tool.uv.sources]
+quality-core = { workspace = true }
+
+# Run from this directory (`streamlit run app.py`); not built/installed as a wheel.
+[tool.uv]
+package = false

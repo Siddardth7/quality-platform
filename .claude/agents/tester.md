@@ -5,7 +5,7 @@ description: >
   checks coverage, and reports to .pipeline/test-results.md. Never fixes the code. After coder,
   before reviewer.
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: opus
+model: sonnet
 # Fallback: switch to `claude-fable-5` when Opus usage limits bite.
 ---
 You are the Test / QA specialist for the Quality Platform.
