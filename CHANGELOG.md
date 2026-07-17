@@ -8,6 +8,25 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **`apps/controlplan` — FMEA → Control Plan connector engine (W06-2, #84).** New
+  `controlplan_app.connector` maps a relational FMEA
+  (`quality_core.schema.relational.RelationalFMEA`) into the #83 typed
+  `ControlPlanDataset` output contract: `build_control_plan(fmea)` emits one row per
+  `FailureMode` (worst-link S/O/D via `quality_core.scoring.rpn`/`action_priority`),
+  sorted highest-risk first (AP then RPN, mirroring `fmea_app.ap_engine.rank_by_ap`);
+  `characteristic` is derived from the owning `Function`'s component + the failure
+  mode (collision-safe); `measurement_method` comes from the worst link's Current
+  Process Control. Fields the relational FMEA has no source for
+  (`sample_size`, `frequency`, `reaction_plan`, `recommended_chart`) are documented
+  placeholder defaults (`# ponytail:`-marked) the W06-3 authoring UI will make
+  editable. Also ships the standalone, fully-cited `recommend_chart(...)` AIAG
+  SPC chart-selection rule table (variable: I-MR/Xbar-R/Xbar-S by subgroup size;
+  attribute: p/c/u by defect-vs-defective and constant-vs-variable sample) as the
+  standards core for later enrichment. New
+  `apps/controlplan/docs/ASSUMPTIONS_LOG.md` records the citation and flags the
+  Xbar-R↔Xbar-S subgroup-size boundary (n≥10→S) for primary-source confirmation.
+  Engine + typed output only — no UI (W06-3, #85) and no CP→SPC→FMEA loop (Week 7).
+
 - **`apps/msa` — Measurement System Analysis scaffold.** A new `msa_app` package mounts into the
   unified shell under an "MSA" nav group (Gage R&R page), following the SPC app pattern. It ships an
   app-local typed gage-study schema (`GageStudyRow` / `GageStudyDataset`) and validated CSV ingest via
