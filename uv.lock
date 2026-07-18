@@ -318,7 +318,7 @@ wheels = [
 
 [[package]]
 name = "controlplan-app"
-version = "0.5.0"
+version = "0.6.0"
 source = { virtual = "apps/controlplan" }
 dependencies = [
     { name = "fpdf2" },
@@ -472,7 +472,7 @@ wheels = [
 
 [[package]]
 name = "fmea-app"
-version = "0.5.0"
+version = "0.6.0"
 source = { virtual = "apps/fmea" }
 dependencies = [
     { name = "fpdf2" },
@@ -962,7 +962,7 @@ wheels = [
 
 [[package]]
 name = "msa-app"
-version = "0.5.0"
+version = "0.6.0"
 source = { virtual = "apps/msa" }
 dependencies = [
     { name = "pandas" },
@@ -1595,7 +1595,7 @@ wheels = [
 
 [[package]]
 name = "quality-core"
-version = "0.5.0"
+version = "0.6.0"
 source = { editable = "packages/quality-core" }
 dependencies = [
     { name = "openpyxl" },
@@ -1614,7 +1614,7 @@ requires-dist = [
 
 [[package]]
 name = "quality-platform"
-version = "0.5.0"
+version = "0.6.0"
 source = { virtual = "." }
 dependencies = [
     { name = "controlplan-app" },
@@ -1935,7 +1935,7 @@ wheels = [
 
 [[package]]
 name = "spc-app"
-version = "0.5.0"
+version = "0.6.0"
 source = { virtual = "apps/spc" }
 dependencies = [
     { name = "fpdf2" },
