@@ -33,7 +33,10 @@ fonttools==4.63.0
     #   fpdf2
     #   matplotlib
 fpdf2==2.8.7
-    # via fmea-app
+    # via
+    #   controlplan-app
+    #   fmea-app
+    #   spc-app
 gitdb==4.0.12
     # via gitpython
 gitpython==3.1.50
@@ -69,7 +72,11 @@ numpy==2.4.4
     #   spc-app
     #   streamlit
 openpyxl==3.1.5
-    # via fmea-app
+    # via
+    #   controlplan-app
+    #   fmea-app
+    #   quality-core
+    #   spc-app
 packaging==26.2
     # via
     #   altair
@@ -78,7 +85,9 @@ packaging==26.2
     #   streamlit
 pandas==3.0.2
     # via
+    #   controlplan-app
     #   fmea-app
+    #   msa-app
     #   quality-core
     #   spc-app
     #   streamlit
@@ -97,7 +106,9 @@ pyarrow==24.0.0
     # via streamlit
 pydantic==2.13.4
     # via
+    #   controlplan-app
     #   fmea-app
+    #   msa-app
     #   quality-core
 pydantic-core==2.46.4
     # via pydantic
@@ -127,7 +138,9 @@ smmap==5.0.3
     # via gitdb
 streamlit==1.56.0
     # via
+    #   controlplan-app
     #   fmea-app
+    #   msa-app
     #   quality-core
     #   spc-app
 tenacity==9.1.4

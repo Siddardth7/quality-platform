@@ -1,0 +1,2 @@
+ID,Process_Step,Component,Function,Failure_Mode,Effect,Severity,Cause,Occurrence,Current_Control,Detection
+1,<Process_Step>,<Component>,<Function>,<Failure_Mode>,<Effect>,<1-10>,<Cause>,<1-10>,<Current_Control>,<1-10>
