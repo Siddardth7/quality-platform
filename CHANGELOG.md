@@ -75,6 +75,16 @@ All notable changes to the Quality Platform are documented here. The format foll
   where a mistake is expensive to unwind and cuts per-run model cost ~43% (coder+tester are ~54% of
   pipeline tokens, Sonnet ≈ 1/5 the per-token cost). Config-only change to `.claude/agents/*.md`.
 
+### Fixed
+
+- **mypy gate now covers `apps/controlplan` (W06-5, #95).** Added
+  `apps/controlplan/controlplan_app,` to `mypy.ini`'s `files=` list, closing the gap
+  where the app's typed library package was silently skipped by CI's bare
+  `uv run mypy`. Adding the app surfaced a real (pre-existing) error at
+  `control_plan.py:55` — a `**dict` unpack into `FMEARow` — fixed with the same
+  `cast("dict[str, Any]", ...)` pattern already used in `fmea_app/rpn_engine.py`
+  (type-only change, no runtime behavior difference). `uv run mypy` is green.
+
 ## [0.5.0] - 2026-07-10
 
 Week 05: **relational domain model + cross-tool schema contracts.** The FMEA schema moves into the

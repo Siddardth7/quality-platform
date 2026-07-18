@@ -52,7 +52,7 @@ def load_uploaded_fmea(source: str | BinaryIO) -> RelationalFMEA:
     df = load_table(source, FMEA_INPUT_SCHEMA)
     dataset = FMEADataset(
         rows=[
-            FMEARow(**{k: (None if pd.isna(v) else v) for k, v in rec.items()})
+            FMEARow(**cast("dict[str, Any]", {k: (None if pd.isna(v) else v) for k, v in rec.items()}))
             for rec in df.to_dict("records")
         ]
     )
