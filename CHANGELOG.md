@@ -8,6 +8,21 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **`apps/controlplan` — Control Plan app UI (W06-3, #85).** The Control Plan page
+  now runs the full FMEA → Control Plan flow: upload a flat FMEA CSV (or click
+  "Load demo FMEA") through the shared `quality_core.io.load_table` boundary,
+  adapt it with `flat_to_relational`, and derive a draft plan via
+  `controlplan_app.connector.build_control_plan`. The generated rows are shown in
+  an editable `st.data_editor` (add/delete rows, a `recommended_chart`
+  selectbox); edits are re-validated through the existing
+  `ControlPlanRow`/`ControlPlanDataset` models before export — the trust
+  boundary is never skipped. New `controlplan_app/exporter.py` composes the
+  shared `quality_core.io.export` primitives (mirrors `fmea_app/exporter.py`,
+  minus matplotlib/chart pages — a Control Plan is a table) for CSV/Excel/PDF
+  download buttons. The FMEA demo and input template CSVs are copied
+  locally into `apps/controlplan/data/` (SME-resolved: self-contained app, no
+  cross-app path coupling). Adds `openpyxl`/`fpdf2` to the app's dependencies.
+
 - **`apps/controlplan` — FMEA → Control Plan connector engine (W06-2, #84).** New
   `controlplan_app.connector` maps a relational FMEA
   (`quality_core.schema.relational.RelationalFMEA`) into the #83 typed
