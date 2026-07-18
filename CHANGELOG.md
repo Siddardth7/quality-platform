@@ -8,6 +8,14 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **CI — Control Plan coverage gate (W06-4, #86).** New `Control Plan coverage gate`
+  step in `.github/workflows/ci.yml`, mirroring the SPC gate pattern, holds
+  `controlplan_app.connector` + `controlplan_app.schema` (the FMEA→Control Plan
+  engine and validated ingest schema) at 100% line+branch coverage. Scope excludes
+  `controlplan_app.exporter` (W06-3), which is out of scope for #86. No test or
+  source files changed — `test_connector.py` + `test_schema.py` already meet the
+  floor.
+
 - **`apps/controlplan` — Control Plan app UI (W06-3, #85).** The Control Plan page
   now runs the full FMEA → Control Plan flow: upload a flat FMEA CSV (or click
   "Load demo FMEA") through the shared `quality_core.io.load_table` boundary,

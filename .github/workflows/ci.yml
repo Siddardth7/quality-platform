@@ -89,3 +89,17 @@ jobs:
           --cov=spc_app.schema
           --cov-report=term-missing
           --cov-fail-under=95
+
+      # Control Plan coverage gate: the FMEA→Control Plan connector engine (W06-2)
+      # and the validated Control Plan ingest schema (W06-1) are new testable surface
+      # and must stay fully covered so the mapping/rule-table and rejection paths can't
+      # regress silently. The Streamlit pages/ and the exporter are excluded here —
+      # mirroring how the SPC bar covers the engine surface but not its entry scripts.
+      # branch coverage is inherited from [tool.coverage.run] branch=true in pyproject.
+      - name: Control Plan coverage gate
+        run: >
+          uv run pytest apps/controlplan
+          --cov=controlplan_app.connector
+          --cov=controlplan_app.schema
+          --cov-report=term-missing
+          --cov-fail-under=100
