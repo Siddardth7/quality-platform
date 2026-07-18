@@ -1,6 +1,6 @@
 [project]
 name = "fmea-app"
-version = "0.5.0"
+version = "0.6.0"
 description = "FMEA Risk Analyzer — Streamlit app (RPN / AIAG-VDA Action Priority)."
 readme = "README.md"
 requires-python = ">=3.11"
