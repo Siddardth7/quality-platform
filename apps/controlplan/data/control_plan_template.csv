@@ -1,0 +1,4 @@
+characteristic,lsl,usl,target,measurement_method,sample_size,frequency,recommended_chart,reaction_plan
+Bore Diameter,24.90,25.10,25.00,Bore gauge,5,per shift,Xbar-R,Stop line; notify quality engineer; re-check last good part.
+Surface Finish,,3.2,,Profilometer,3,hourly,I-MR,Rework part; adjust feed rate; log deviation.
+Visual Inspection,,,,Visual check against master sample,10,each lot,,Segregate suspect lot; escalate to supervisor.

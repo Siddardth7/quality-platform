@@ -6,6 +6,95 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-18
+
+Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
+connector engine that turns relational FMEA failure modes into typed Control Plan
+rows (with the AIAG SPC chart-selection rule table and AP/RPN prioritization), a
+Streamlit authoring UI (ingest → review/edit → injection-safe CSV/Excel/PDF
+export), and the enforcement to keep it honest — a 100% line+branch coverage gate
+on the connector + schema, plus the Control Plan app added to the mypy gate.
+Milestone issues #83, #84, #85, #86, #95 closed; all coverage bars green on `dev`.
+
+### Added
+
+- **CI — Control Plan coverage gate (W06-4, #86).** New `Control Plan coverage gate`
+  step in `.github/workflows/ci.yml`, mirroring the SPC gate pattern, holds
+  `controlplan_app.connector` + `controlplan_app.schema` (the FMEA→Control Plan
+  engine and validated ingest schema) at 100% line+branch coverage. Scope excludes
+  `controlplan_app.exporter` (W06-3), which is out of scope for #86. No test or
+  source files changed — `test_connector.py` + `test_schema.py` already meet the
+  floor.
+
+- **`apps/controlplan` — Control Plan app UI (W06-3, #85).** The Control Plan page
+  now runs the full FMEA → Control Plan flow: upload a flat FMEA CSV (or click
+  "Load demo FMEA") through the shared `quality_core.io.load_table` boundary,
+  adapt it with `flat_to_relational`, and derive a draft plan via
+  `controlplan_app.connector.build_control_plan`. The generated rows are shown in
+  an editable `st.data_editor` (add/delete rows, a `recommended_chart`
+  selectbox); edits are re-validated through the existing
+  `ControlPlanRow`/`ControlPlanDataset` models before export — the trust
+  boundary is never skipped. New `controlplan_app/exporter.py` composes the
+  shared `quality_core.io.export` primitives (mirrors `fmea_app/exporter.py`,
+  minus matplotlib/chart pages — a Control Plan is a table) for CSV/Excel/PDF
+  download buttons. The FMEA demo and input template CSVs are copied
+  locally into `apps/controlplan/data/` (SME-resolved: self-contained app, no
+  cross-app path coupling). Adds `openpyxl`/`fpdf2` to the app's dependencies.
+
+- **`apps/controlplan` — FMEA → Control Plan connector engine (W06-2, #84).** New
+  `controlplan_app.connector` maps a relational FMEA
+  (`quality_core.schema.relational.RelationalFMEA`) into the #83 typed
+  `ControlPlanDataset` output contract: `build_control_plan(fmea)` emits one row per
+  `FailureMode` (worst-link S/O/D via `quality_core.scoring.rpn`/`action_priority`),
+  sorted highest-risk first (AP then RPN, mirroring `fmea_app.ap_engine.rank_by_ap`);
+  `characteristic` is derived from the owning `Function`'s component + the failure
+  mode (collision-safe); `measurement_method` comes from the worst link's Current
+  Process Control. Fields the relational FMEA has no source for
+  (`sample_size`, `frequency`, `reaction_plan`, `recommended_chart`) are documented
+  placeholder defaults (`# ponytail:`-marked) the W06-3 authoring UI will make
+  editable. Also ships the standalone, fully-cited `recommend_chart(...)` AIAG
+  SPC chart-selection rule table (variable: I-MR/Xbar-R/Xbar-S by subgroup size;
+  attribute: p/c/u by defect-vs-defective and constant-vs-variable sample) as the
+  standards core for later enrichment. New
+  `apps/controlplan/docs/ASSUMPTIONS_LOG.md` records the citation and flags the
+  Xbar-R↔Xbar-S subgroup-size boundary (n≥10→S) for primary-source confirmation.
+  Engine + typed output only — no UI (W06-3, #85) and no CP→SPC→FMEA loop (Week 7).
+
+- **`apps/msa` — Measurement System Analysis scaffold.** A new `msa_app` package mounts into the
+  unified shell under an "MSA" nav group (Gage R&R page), following the SPC app pattern. It ships an
+  app-local typed gage-study schema (`GageStudyRow` / `GageStudyDataset`) and validated CSV ingest via
+  `quality_core.io.load_table`: rows carry `part, appraiser, trial, measurement`; ingest checks row
+  types and `(part, appraiser, trial)` uniqueness. Study-level tolerance (USL/LSL) is captured as page
+  inputs, not a CSV column. Includes a `gage_rr_template.csv` input template + download button. The
+  Gage R&R computation (%GRR, ndc, AIAG verdict) lands in a later issue (#54).
+- **`apps/controlplan`** — Control Plan app scaffold: shell-mounted (`app.py`,
+  "Control Plan" nav group), version SSOT, and conftest, following the `apps/msa`
+  pattern. Adds an app-local typed Control Plan row/dataset schema
+  (`controlplan_app.schema`) on the shared `quality_core.io` validated-ingest
+  boundary — characteristic, spec/tolerance (LSL/target/USL), measurement method,
+  sample size/frequency, a nullable recommended SPC chart, and reaction plan, with
+  a USL>LSL check, a target-within-`[lsl, usl]` check, and duplicate-characteristic
+  dataset rejection. Scaffold + schema only — FMEA→Control Plan mapping (W06-2) and
+  the authoring UI (W06-3) land later (#83).
+
+### Changed
+
+- **Ship-pipeline model routing** — split the four subagents by stage instead of all-Opus: the
+  reasoning gates stay on Opus 4.8 (`research` = spec-in, `reviewer` = quality-out), while the
+  spec-constrained middle stages move to Sonnet 5 (`coder`, `tester`). Keeps Opus judgment exactly
+  where a mistake is expensive to unwind and cuts per-run model cost ~43% (coder+tester are ~54% of
+  pipeline tokens, Sonnet ≈ 1/5 the per-token cost). Config-only change to `.claude/agents/*.md`.
+
+### Fixed
+
+- **mypy gate now covers `apps/controlplan` (W06-5, #95).** Added
+  `apps/controlplan/controlplan_app,` to `mypy.ini`'s `files=` list, closing the gap
+  where the app's typed library package was silently skipped by CI's bare
+  `uv run mypy`. Adding the app surfaced a real (pre-existing) error at
+  `control_plan.py:55` — a `**dict` unpack into `FMEARow` — fixed with the same
+  `cast("dict[str, Any]", ...)` pattern already used in `fmea_app/rpn_engine.py`
+  (type-only change, no runtime behavior difference). `uv run mypy` is green.
+
 ## [0.5.0] - 2026-07-10
 
 Week 05: **relational domain model + cross-tool schema contracts.** The FMEA schema moves into the
