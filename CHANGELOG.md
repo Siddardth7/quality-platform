@@ -27,6 +27,22 @@ All notable changes to the Quality Platform are documented here. The format foll
   FMEA → Control Plan → SPC → FMEA walk in the unified shell. Added
   `spc_app.fmea_feedback` to the SPC coverage gate (CI + `apps/spc/CLAUDE.md`).
 
+### Tests
+
+- **Dedicated Week-7 loop integration test (W07-4, #90).** New
+  `apps/spc/tests/test_loop_integration.py` walks the composite-panel FMEA
+  demo through the full Control Plan → SPC → FMEA chain on real sample data
+  (no stubbed boundaries) and asserts the join-key round-trips end to end —
+  the candidate feedback's `source_cause_id` matches the originating Control
+  Plan row's and names the correct FMEA cause — and that the human-in-the-loop
+  invariant holds (`current_occurrence` echoes unchanged, `suggested_occurrence`
+  is a distinct candidate, nothing mutates the FMEA source mapping). Guarded
+  with `pytest.importorskip` so it runs under the full root `uv run pytest`
+  and skips cleanly under the isolated SPC gate. SPC coverage floor ratcheted
+  95% → 100% (`.github/workflows/ci.yml`, `apps/spc/CLAUDE.md`) — all gated
+  SPC modules already sit at 100% line+branch, so the ratchet is earned and
+  safe.
+
 ## [0.6.0] - 2026-07-18
 
 Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
