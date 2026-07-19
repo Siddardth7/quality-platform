@@ -38,7 +38,7 @@ uv run pytest apps/spc \
   --cov=spc_app.spc_engine --cov=spc_app.simulation --cov=spc_app.visualizer \
   --cov=spc_app.exporter --cov=spc_app.schema --cov=spc_app.control_plan_config \
   --cov=spc_app.fmea_feedback \
-  --cov-fail-under=95
+  --cov-fail-under=100
 ```
 
 CI (`.github/workflows/ci.yml`, job id `gate`) runs exactly these on Python 3.11.
@@ -99,7 +99,7 @@ meaningful on a stable process.
   dispatch variables that span chart types are typed `Mapping[str, Any]` (honest read-only
   union surface); engine functions keep their exact types.
 - **Coverage bar:** the testable SPC surface (`spc_engine` + `simulation` + `visualizer`)
-  is gated at ≥95% in CI. Streamlit `pages/` are excluded — they need a runtime — matching
+  is gated at 100% in CI. Streamlit `pages/` are excluded — they need a runtime — matching
   how the FMEA bar covers `fmea_app/` but not its entry scripts.
 - **Conventional commits**: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `ci:`.
 - **Shared tooling** (`ruff.toml`, `mypy.ini`) lives at the workspace root; the SPC app is
