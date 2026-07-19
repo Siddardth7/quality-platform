@@ -143,6 +143,30 @@ def test_row_optional_fields_default_to_none():
     assert row.usl is None
     assert row.target is None
     assert row.recommended_chart is None
+    assert row.source_cause_id is None
+
+
+# --- ControlPlanRow.source_cause_id (OQ1 join key, W07-2 #89) -----------------
+
+
+def test_row_source_cause_id_round_trips():
+    row = ControlPlanRow(source_cause_id="F1::F1-M1::F1-M1-C1", **GOOD_ROW_KWARGS)
+    assert row.source_cause_id == "F1::F1-M1::F1-M1-C1"
+
+
+def test_row_source_cause_id_blank_coerced_to_none():
+    row = ControlPlanRow(source_cause_id="   ", **GOOD_ROW_KWARGS)
+    assert row.source_cause_id is None
+
+
+def test_row_source_cause_id_stripped():
+    row = ControlPlanRow(source_cause_id="  F1::F1-M1::F1-M1-C1  ", **GOOD_ROW_KWARGS)
+    assert row.source_cause_id == "F1::F1-M1::F1-M1-C1"
+
+
+def test_row_source_cause_id_none_passes_through():
+    row = ControlPlanRow(source_cause_id=None, **GOOD_ROW_KWARGS)
+    assert row.source_cause_id is None
 
 
 def test_row_recommended_chart_accepts_every_spc_chart_key():

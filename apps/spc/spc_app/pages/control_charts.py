@@ -17,6 +17,11 @@ from spc_app.exporter import (
     build_control_chart_report_excel,
     build_control_chart_report_pdf,
 )
+from spc_app.fmea_feedback import (
+    FEEDBACK_STATE_KEY,
+    SOURCE_INDEX_STATE_KEY,
+    build_occurrence_feedback,
+)
 from spc_app.schema import IngestError, load_spc_csv
 from spc_app.spc_engine.control_charts import (
     compute_c,
@@ -51,6 +56,13 @@ CHART_OPTIONS = {
     "p": {"stream": "reject_proportion", "compute": "p"},
     "u": {"stream": "surface_defects", "compute": "u"},
     "c": {"stream": "panel_defects", "compute": "c"},
+}
+#: Demo-only bind of a Control Plan characteristic straight to its own real,
+#: OOC monitored stream (OQ3, W07-2 #89) — (chart_key, stream key). Extend this
+#: map when more demo characteristics get their own stream; every other
+#: characteristic still falls back to the manual chart-type/stream pick above.
+_CHARACTERISTIC_STREAM_OVERRIDE: dict[str, tuple[str, str]] = {
+    "Prepreg Ply — Ply misalignment (>±2°)": ("Xbar-R", "ply_misalignment"),
 }
 
 
@@ -124,6 +136,7 @@ def render_control_charts() -> None:
 
     plan_df = st.session_state.get(PLAN_STATE_KEY)
     cp_config = None
+    selected = "(manual)"
 
     with st.sidebar:
         st.header("Controls")
@@ -134,7 +147,10 @@ def render_control_charts() -> None:
             selected = st.selectbox("Characteristic (from Control Plan)", options=["(manual)", *names])
             if selected != "(manual)":
                 cp_config = config_for(plan_df, selected)
-                preselect_index = chart_type_index(cp_config.chart_key, chart_options)
+                override = _CHARACTERISTIC_STREAM_OVERRIDE.get(selected)
+                preselect_index = chart_type_index(
+                    override[0] if override is not None else cp_config.chart_key, chart_options
+                )
         chart_key = st.selectbox("Chart Type", options=chart_options, index=preselect_index)
         if cp_config is not None:
             st.info(
@@ -155,7 +171,12 @@ def render_control_charts() -> None:
         st.error(str(exc))
         st.stop()
     config = CHART_OPTIONS[chart_key]
-    stream_frame = frame[frame["stream"] == config["stream"]].copy()
+    # A known demo characteristic overrides which physical stream is charted
+    # (OQ3, #89) when its bound chart type is the one currently selected;
+    # every other characteristic (and manual mode) uses CHART_OPTIONS as-is.
+    override = _CHARACTERISTIC_STREAM_OVERRIDE.get(selected) if selected != "(manual)" else None
+    stream_key = override[1] if override is not None and override[0] == chart_key else config["stream"]
+    stream_frame = frame[frame["stream"] == stream_key].copy()
 
     if stream_frame.empty:
         st.error("No rows available for the selected chart type.")
@@ -254,9 +275,33 @@ def render_control_charts() -> None:
 
     st.plotly_chart(figure, use_container_width=True)
 
+    # --- SPC -> FMEA candidate feedback (OQ2/OQ4/OQ5, W07-2 #89) --------------
+    # Fires only for a real Control Plan characteristic (never "(manual)") with
+    # >=1 rule violation; clears any stale feedback from a prior chart/selection
+    # otherwise, so a resolved/changed chart doesn't leave a stale candidate.
+    if selected != "(manual)" and violations:
+        source_lookup = st.session_state.get(SOURCE_INDEX_STATE_KEY)
+        source = source_lookup.get(selected) if source_lookup else None
+        feedback = build_occurrence_feedback(
+            characteristic=selected,
+            stream=stream_key,
+            rule_set=rule_set,
+            violations=violations,
+            total_points=len(points),
+            source=source,
+        )
+        st.session_state[FEEDBACK_STATE_KEY] = feedback
+        st.info(
+            "**SPC → FMEA feedback:** out-of-control signal detected — a candidate "
+            "occurrence-rating review is now available on the FMEA page (not applied "
+            "automatically)."
+        )
+    else:
+        st.session_state.pop(FEEDBACK_STATE_KEY, None)
+
     report = ControlChartReport(
         chart_label=chart_title,
-        stream=config["stream"],
+        stream=stream_key,
         rule_set=rule_set,
         points=points,
         cl=cl,

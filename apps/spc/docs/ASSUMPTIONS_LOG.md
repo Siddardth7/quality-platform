@@ -174,8 +174,41 @@ normal distribution, so the check is advisory context for the Cpk numbers.
 
 ---
 
+## RULE 10 — Occurrence Ranking Table (SPC → FMEA candidate feedback) — AIAG-4 / SAE J1739, SME-confirmed
+
+**Decision:** When an out-of-control signal fires on a Control Plan characteristic's
+chart, map the observed OOC failing-rate (`violating_points / total_points`) onto a
+10-band occurrence-ranking table to produce a **candidate** `suggested_occurrence`
+(never auto-applied — human-in-the-loop). The ten rate bands encoded:
+
+| Rank | Incident rate (upper bound) | Rank | Incident rate (upper bound) |
+|------|------------------------------|------|------------------------------|
+| 1 | ≤ 1 in 1,500,000 | 6 | 1 in 80 |
+| 2 | 1 in 150,000 | 7 | 1 in 20 |
+| 3 | 1 in 15,000 | 8 | 1 in 8 |
+| 4 | 1 in 2,000 | 9 | 1 in 3 |
+| 5 | 1 in 400 | 10 | ≥ 1 in 2 |
+
+**Source:** **AIAG FMEA-4 (4th Ed., 2008) / SAE J1739 — Occurrence ranking table**, where
+occurrence is keyed to the predicted rate of incidents per items/opportunities for a
+cause. The ten values above are exactly that published table.
+
+**Standard-edition note (SME-confirmed):** the harmonised AIAG-VDA FMEA Handbook (1st Ed.,
+2019) does **not** define a numeric incident-rate occurrence table — its Occurrence rating
+is qualitative, keyed to prevention-control effectiveness (verified July 2026 against
+secondary summaries of the 2019 handbook; the 2019 O-table has no rate anchors). A rate→rank
+mapping can therefore only be anchored to the legacy AIAG-4 / J1739 rate table, which is what
+this rule cites and uses. `suggested_occurrence` is a **candidate** under that standard
+(never auto-applied); a shop running pure AIAG-VDA 2019 Occurrence criteria treats it as
+supporting SPC evidence for the analyst's control-based rating.
+
+**Applied In:** `spc_app/fmea_feedback.py::_OCCURRENCE_BANDS`, `_rate_to_occurrence`.
+
+---
+
 *Sources referenced in this log:*
 - *AIAG SPC Reference Manual, 4th Edition (2005) — control-chart constants, attribute charts, capability indices*
 - *Western Electric — Statistical Quality Control Handbook (1956)*
 - *L. S. Nelson — Journal of Quality Technology 16(4), 1984 — tests for special causes*
 - *Shapiro, S. S. & Wilk, M. B. (1965) — An analysis of variance test for normality*
+- *AIAG FMEA-4, 4th Ed. (2008) / SAE J1739 — Occurrence ranking table (rate bands, see Rule 10)*

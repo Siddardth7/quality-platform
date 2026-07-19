@@ -10,7 +10,12 @@ schema round-trip, empty FMEA, and the `recommend_chart` rule table cell-by-cell
 from __future__ import annotations
 
 import pytest
-from controlplan_app.connector import build_control_plan, recommend_chart
+from controlplan_app.connector import (
+    _source_cause_id,
+    build_control_plan,
+    recommend_chart,
+    source_index,
+)
 from controlplan_app.schema import ControlPlanDataset
 from quality_core.schema.relational import (
     Cause,
@@ -357,3 +362,153 @@ def test_recommend_chart_never_returns_np() -> None:
             results.add(recommend_chart("attribute", 5, defect_based=defect_based, constant_sample=constant_sample))
     assert "np" not in results
     assert results <= {"I-MR", "Xbar-R", "Xbar-S", "p", "c", "u"}
+
+
+# ---------------------------------------------------------------------------
+# source_index / _source_cause_id (OQ1, W07-2 #89) — join key from a Control
+# Plan characteristic back to its source FMEA cause. Held to 100% line+branch
+# alongside the rest of connector.py.
+# ---------------------------------------------------------------------------
+
+
+def test_source_index_empty_fmea_yields_empty_dict() -> None:
+    assert source_index(RelationalFMEA(functions=[])) == {}
+
+
+def test_source_index_single_mode_matches_worst_link_cause() -> None:
+    fm = _fm(
+        "F1-M1",
+        "Incomplete weld",
+        s=9,
+        o=7,
+        d=8,
+        row_id=1,
+        cause_desc="Contaminated joint surface",
+    )
+    fmea = RelationalFMEA(functions=[_function("F1", "Bracket", [fm])])
+
+    dataset = build_control_plan(fmea)
+    index = source_index(fmea)
+
+    assert len(dataset.rows) == 1
+    row = dataset.rows[0]
+    assert set(index) == {row.characteristic}
+
+    entry = index[row.characteristic]
+    assert entry == {
+        "failure_mode_id": "F1-M1",
+        "cause_id": "F1::F1-M1::F1-M1-C1",
+        "cause_description": "Contaminated joint surface",
+        "occurrence": 7,
+        "component": "Bracket",
+    }
+    # The persisted schema field and the runtime index must agree exactly.
+    assert row.source_cause_id == entry["cause_id"]
+
+
+def test_source_index_key_set_matches_build_control_plan_characteristics() -> None:
+    fms = [
+        _fm("F1-M1", "Mode A", s=3, o=3, d=3, row_id=1),
+        _fm("F1-M2", "Mode B", s=4, o=4, d=4, row_id=2),
+        _fm("F1-M3", "Mode C", s=5, o=5, d=5, row_id=3),
+    ]
+    fmea = RelationalFMEA(functions=[_function("F1", "Widget", fms)])
+
+    dataset = build_control_plan(fmea)
+    index = source_index(fmea)
+
+    assert set(index) == {r.characteristic for r in dataset.rows}
+    for row in dataset.rows:
+        assert index[row.characteristic]["cause_id"] == row.source_cause_id
+
+
+def test_source_index_key_set_parity_with_collision_dataset() -> None:
+    # Same collision setup as test_characteristic_collision_falls_back_to_failure_mode_id
+    # — proves source_index and build_control_plan share _iter_named_modes, so
+    # their characteristic keys cannot diverge even through the suffix path.
+    fm1 = _fm("F1-M1", "Incomplete weld", s=9, o=6, d=1, row_id=1)
+    fm2 = _fm("F2-M1", "Incomplete weld", s=3, o=3, d=3, row_id=2)
+    fmea = RelationalFMEA(
+        functions=[
+            _function("F1", "Bracket", [fm1], process_step="Weld"),
+            _function("F2", "Bracket", [fm2], process_step="Rework"),
+        ]
+    )
+
+    dataset = build_control_plan(fmea)
+    index = source_index(fmea)
+
+    assert set(index) == {r.characteristic for r in dataset.rows}
+    assert "Bracket — Incomplete weld" in index
+    assert "Bracket — Incomplete weld (F2-M1)" in index
+    for row in dataset.rows:
+        assert index[row.characteristic]["cause_id"] == row.source_cause_id
+        assert index[row.characteristic]["occurrence"] == (
+            6 if row.characteristic == "Bracket — Incomplete weld" else 3
+        )
+
+
+def test_source_index_uses_worst_link_cause_not_first_link() -> None:
+    # Multi-link mode: source_index's occurrence/cause must reflect the same
+    # worst-risk link build_control_plan picked, not an arbitrary/first cause.
+    fm = _multi_link_fm(
+        "F1-M1",
+        "Multi-link mode",
+        [
+            (3, 3, 3, "Effect 1", "Control 1"),
+            (9, 8, 8, "Effect 2 (worst)", "Control 2 (worst)"),
+            (5, 5, 5, "Effect 3", "Control 3"),
+        ],
+    )
+    fmea = RelationalFMEA(functions=[_function("F1", "Comp", [fm])])
+
+    dataset = build_control_plan(fmea)
+    index = source_index(fmea)
+
+    row = dataset.rows[0]
+    entry = index[row.characteristic]
+    assert entry["occurrence"] == 8
+    assert entry["cause_id"] == row.source_cause_id
+    assert entry["cause_id"] == "F1::F1-M1::F1-M1-C2"
+
+
+def test_source_cause_id_is_unique_across_causes_with_same_local_id() -> None:
+    # Two different FailureModes, each with a Cause whose *local* id is "C1" —
+    # the compound id must still differentiate them (proves the collision the
+    # compound-id design exists to avoid is actually avoided).
+    cause1 = Cause(id="C1", description="Cause in mode 1", occurrence=5)
+    cause2 = Cause(id="C1", description="Cause in mode 2", occurrence=6)
+    function = _function(
+        "F1",
+        "Comp",
+        [
+            FailureMode(
+                id="M1",
+                description="Mode 1",
+                effects=[Effect(id="M1-E1", description="Effect", severity=5)],
+                causes=[cause1],
+                controls=[Control(id="M1-CT1", description="Control", detection=5)],
+                links=[FailureLink(row_id=1, effect_id="M1-E1", cause_id="C1", control_id="M1-CT1")],
+            ),
+            FailureMode(
+                id="M2",
+                description="Mode 2",
+                effects=[Effect(id="M2-E1", description="Effect", severity=5)],
+                causes=[cause2],
+                controls=[Control(id="M2-CT1", description="Control", detection=5)],
+                links=[FailureLink(row_id=2, effect_id="M2-E1", cause_id="C1", control_id="M2-CT1")],
+            ),
+        ],
+    )
+    fmea = RelationalFMEA(functions=[function])
+
+    id1 = _source_cause_id(function, function.failure_modes[0], cause1)
+    id2 = _source_cause_id(function, function.failure_modes[1], cause2)
+    assert id1 != id2
+    assert id1 == "F1::M1::C1"
+    assert id2 == "F1::M2::C1"
+
+    # And the same holds through the real derivation path.
+    index = source_index(fmea)
+    cause_ids = {entry["cause_id"] for entry in index.values()}
+    assert len(cause_ids) == 2

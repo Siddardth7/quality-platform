@@ -21,7 +21,7 @@ import streamlit as st
 from quality_core.io import IngestError, TableSchema, load_table
 from quality_core.schema import FMEADataset, FMEARow, RelationalFMEA, flat_to_relational
 
-from controlplan_app.connector import build_control_plan
+from controlplan_app.connector import build_control_plan, source_index
 from controlplan_app.exporter import export_csv, export_excel, export_pdf
 from controlplan_app.schema import ControlPlanDataset, ControlPlanRow
 
@@ -41,6 +41,12 @@ FMEA_INPUT_SCHEMA = TableSchema(
 #: Session-state key holding the current (possibly edited) plan DataFrame, so
 #: the edit survives a rerun and is what actually gets exported.
 _PLAN_STATE_KEY = "_controlplan_plan_df"
+
+#: Session-state key holding ``connector.source_index(relational)`` — the
+#: SPC->FMEA feedback loop's runtime lookup (OQ1, W07-2 #89). Duplicated as a
+#: plain string (not imported) by ``spc_app.fmea_feedback.SOURCE_INDEX_STATE_KEY``
+#: so the standalone SPC app never needs ``controlplan_app`` on ``sys.path``.
+_SOURCE_INDEX_STATE_KEY = "_controlplan_source_index"
 
 
 def load_uploaded_fmea(source: str | BinaryIO) -> RelationalFMEA:
@@ -131,6 +137,7 @@ def render_control_plan() -> None:
             st.stop()
         plan = build_control_plan(relational)
         st.session_state[_PLAN_STATE_KEY] = _plan_to_df(plan)
+        st.session_state[_SOURCE_INDEX_STATE_KEY] = source_index(relational)
 
     plan_df = cast("pd.DataFrame", st.session_state[_PLAN_STATE_KEY])
 
