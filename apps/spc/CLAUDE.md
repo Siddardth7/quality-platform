@@ -36,7 +36,8 @@ uv run pytest --cov
 # SPC coverage gate (CI enforces this on the testable SPC surface):
 uv run pytest apps/spc \
   --cov=spc_app.spc_engine --cov=spc_app.simulation --cov=spc_app.visualizer \
-  --cov=spc_app.exporter --cov=spc_app.schema --cov-fail-under=95
+  --cov=spc_app.exporter --cov=spc_app.schema --cov=spc_app.control_plan_config \
+  --cov-fail-under=95
 ```
 
 CI (`.github/workflows/ci.yml`, job id `gate`) runs exactly these on Python 3.11.
