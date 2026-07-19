@@ -63,6 +63,30 @@ Milestone issues #83, #84, #85, #86, #95 closed; all coverage bars green on `dev
 
 ### Added
 
+- **SPC — Control Plan → Control Charts config (W07-1, #88).** The Control
+  Charts page now reads a loaded Control Plan from session state and offers a
+  "Characteristic (from Control Plan)" selector; picking one preselects the
+  chart type from `recommended_chart` (falling back to the manual selectbox
+  when it's `None`/invalid) and shows an info panel with LSL/USL/target,
+  sample size, and frequency. New pure module
+  `apps/spc/spc_app/control_plan_config.py` (`plan_characteristics`,
+  `config_for`, `chart_type_index`) does the derivation — no new SPC math, no
+  visualizer changes, no `controlplan_app` import from `spc_app` (the
+  standalone SPC app still imports cleanly). Added to the SPC coverage gate in
+  CI and `apps/spc/CLAUDE.md`.
+
+## [0.6.0] - 2026-07-18
+
+Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
+connector engine that turns relational FMEA failure modes into typed Control Plan
+rows (with the AIAG SPC chart-selection rule table and AP/RPN prioritization), a
+Streamlit authoring UI (ingest → review/edit → injection-safe CSV/Excel/PDF
+export), and the enforcement to keep it honest — a 100% line+branch coverage gate
+on the connector + schema, plus the Control Plan app added to the mypy gate.
+Milestone issues #83, #84, #85, #86, #95 closed; all coverage bars green on `dev`.
+
+### Added
+
 - **CI — Control Plan coverage gate (W06-4, #86).** New `Control Plan coverage gate`
   step in `.github/workflows/ci.yml`, mirroring the SPC gate pattern, holds
   `controlplan_app.connector` + `controlplan_app.schema` (the FMEA→Control Plan
