@@ -6,6 +6,18 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **MSA app UI — study entry, results, verdict + export (W08-3, #56).** The Gage
+  R&R page now shows a loop-link note (Control Plan → MSA → SPC) and a
+  plain-English verdict interpretation sentence, and exports the study/results
+  as CSV/Excel/PDF via `quality_core.io`. New `apps/msa/msa_app/exporter.py`
+  (`GageStudyReport`, `export_csv`, `export_results_csv`, `export_excel`,
+  `export_pdf`, `verdict_sentence`) mirrors the SPC/Control Plan exporter
+  pattern; two CSV downloads are offered (the validated study frame, and a flat
+  results table). New standalone `apps/msa/app.py`; the platform shell landing
+  page (`shell/home.py`) now lists an MSA feature card.
+
 ## [0.7.0] - 2026-07-18
 
 Week 07 — Close the loop. Completes the AIAG improvement loop end to end: a Control Plan

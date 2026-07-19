@@ -16,6 +16,14 @@ from typing import BinaryIO
 import pandas as pd
 import streamlit as st
 
+from msa_app.exporter import (
+    GageStudyReport,
+    export_csv,
+    export_excel,
+    export_pdf,
+    export_results_csv,
+    verdict_sentence,
+)
 from msa_app.gage_rr_engine import compute_gage_rr
 from msa_app.schema import IngestError, load_gage_study_csv
 
@@ -106,6 +114,12 @@ def render_gage_study() -> None:
 
     # Display results
     st.header("Gage R&R Results")
+    st.info(
+        "**Loop:** the Control Plan names the measurement method for this "
+        "characteristic; MSA must prove that gage capable **before** its SPC control "
+        "chart can be trusted. A Reject here means the SPC signal may be measurement "
+        "noise, not process change."
+    )
 
     # Metrics columns
     col1, col2, col3, col4 = st.columns(4)
@@ -134,6 +148,7 @@ def render_gage_study() -> None:
             "Reject": "🔴",
         }.get(verdict, "⚪")
         st.metric("AIAG Verdict", f"{verdict_color} {verdict}")
+        st.caption(verdict_sentence(verdict))
 
     # Study design summary
     st.subheader("Study Design")
@@ -161,4 +176,34 @@ def render_gage_study() -> None:
     - Measurement system is inadequate and must be improved.
     """
     st.info(criteria_text)
+
+    # Downloads — pure table/text reports (no chart images) build in ~milliseconds,
+    # so eager per-rerun generation is fine here (cf. SPC's capability report note).
+    report = GageStudyReport(study=frame, results=results, usl=usl, lsl=lsl)
+    st.subheader("Download Report")
+    csv_col, results_csv_col, excel_col, pdf_col = st.columns(4)
+    csv_col.download_button(
+        "Study CSV",
+        data=export_csv(report),
+        file_name="gage_rr_study.csv",
+        mime="text/csv",
+    )
+    results_csv_col.download_button(
+        "Results CSV",
+        data=export_results_csv(report),
+        file_name="gage_rr_results.csv",
+        mime="text/csv",
+    )
+    excel_col.download_button(
+        "Excel (.xlsx)",
+        data=export_excel(report),
+        file_name="gage_rr_study.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    pdf_col.download_button(
+        "PDF (.pdf)",
+        data=export_pdf(report),
+        file_name="gage_rr_study.pdf",
+        mime="application/pdf",
+    )
 
