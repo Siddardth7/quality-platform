@@ -1,10 +1,12 @@
 """Tests for msa_app/gage_rr_engine.py — Gage R&R computation (W08-2).
 
 Drives the compute_gage_rr() function and all internal helpers with:
-- Happy paths (standard AIAG studies).
+- Happy paths (standard AIAG studies), asserted against the AIAG worked examples
+  in .pipeline/spec.md (Example A: 10x3x3 canonical study; Example B: synthetic
+  3x2x2 study, hand-computed end to end).
 - Verdict matrix (coverage of all Accept/Marginal/Reject paths).
 - Edge cases (unbalanced data, NaN/inf, zero tolerance, empty data).
-- d2 constant lookup and formula verification.
+- K1/K2/K3 constant lookup and formula verification.
 - Balance detection.
 """
 
@@ -15,12 +17,14 @@ import io
 import numpy as np
 import pandas as pd
 import pytest
-
 from msa_app.gage_rr_engine import (
+    _K1,
+    _K2,
+    _K3,
     _average_and_range_method,
     _compute_ndc,
     _compute_verdict,
-    _d2_constant,
+    _k_constant,
     compute_gage_rr,
 )
 
@@ -91,55 +95,58 @@ def identical_measurements() -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
-# --- d2 Constant Tests -------------------------------------------------------
+# --- K1/K2/K3 Constant Tests --------------------------------------------------
 
 
-def test_d2_constant_exact_values():
-    """Verify d2 constants match AIAG MSA Appendix B."""
-    assert _d2_constant(2) == 1.128
-    assert _d2_constant(3) == 1.693
-    assert _d2_constant(4) == 2.059
-    assert _d2_constant(5) == 2.326
-    assert _d2_constant(10) == 3.078
+def test_k_constant_exact_values():
+    """Verify K1/K2/K3 constants match AIAG MSA 4th Edition (primary-source verified)."""
+    assert _k_constant(_K1, 2, "trials") == 0.8862
+    assert _k_constant(_K1, 3, "trials") == 0.5908
+    assert _k_constant(_K2, 2, "appraisers") == 0.7071
+    assert _k_constant(_K2, 3, "appraisers") == 0.5231
+    assert _k_constant(_K3, 2, "parts") == 0.7071
+    assert _k_constant(_K3, 3, "parts") == 0.5231
+    assert _k_constant(_K3, 4, "parts") == 0.4467
+    assert _k_constant(_K3, 5, "parts") == 0.4030
+    assert _k_constant(_K3, 6, "parts") == 0.3742
+    assert _k_constant(_K3, 7, "parts") == 0.3534
+    assert _k_constant(_K3, 8, "parts") == 0.3375
+    assert _k_constant(_K3, 9, "parts") == 0.3249
+    assert _k_constant(_K3, 10, "parts") == 0.3146
 
 
-def test_d2_constant_out_of_range():
-    """Verify d2 for m > 10 returns d2(10)."""
-    assert _d2_constant(15) == 3.078
-    assert _d2_constant(100) == 3.078
-
-
-def test_d2_constant_below_minimum():
-    """Verify d2 for m < 2 raises ValueError."""
-    with pytest.raises(ValueError, match="subgroup size >= 2"):
-        _d2_constant(1)
-    with pytest.raises(ValueError, match="subgroup size >= 2"):
-        _d2_constant(0)
+def test_k_constant_off_table_raises():
+    """Verify sizes outside the published K tables raise ValueError (no clamp/extrapolate)."""
+    with pytest.raises(ValueError, match="No AIAG K constant"):
+        _k_constant(_K3, 11, "parts")
+    with pytest.raises(ValueError, match="No AIAG K constant"):
+        _k_constant(_K2, 4, "appraisers")
+    with pytest.raises(ValueError, match="No AIAG K constant"):
+        _k_constant(_K1, 4, "trials")
 
 
 # --- ndc Computation Tests ---------------------------------------------------
 
 
 def test_ndc_computation_standard():
-    """Verify ndc = floor(1.41 × (tolerance / GRR))."""
-    tolerance = 1.0
-    grr = 0.1
-    expected_ndc = int(np.floor(1.41 * (tolerance / grr)))  # 14
-    assert _compute_ndc(grr, tolerance) == expected_ndc
+    """Verify ndc = trunc(1.41 × (PV / GRR)) against AIAG Example B."""
+    pv = 2.0924
+    grr = 0.294184
+    assert _compute_ndc(grr, pv) == 10
 
 
 def test_ndc_clamping_upper():
     """Verify ndc clamped to 100."""
-    tolerance = 10.0
+    pv = 10.0
     grr = 0.01
-    assert _compute_ndc(grr, tolerance) == 100  # Would be 1410 without clamping
+    assert _compute_ndc(grr, pv) == 100  # Would be 1410 without clamping
 
 
-def test_ndc_clamping_lower():
-    """Verify ndc clamped to 0 if GRR >= tolerance."""
-    tolerance = 0.1
+def test_ndc_truncation():
+    """Verify ndc truncates toward zero (not floor/round)."""
+    pv = 0.1
     grr = 0.1
-    assert _compute_ndc(grr, tolerance) == 1  # floor(1.41 * 1) = 1
+    assert _compute_ndc(grr, pv) == 1  # trunc(1.41 * 1) = 1
 
 
 def test_ndc_zero_grr():
@@ -148,8 +155,8 @@ def test_ndc_zero_grr():
     assert _compute_ndc(-0.1, 1.0) == 0
 
 
-def test_ndc_zero_tolerance():
-    """Verify ndc = 0 if tolerance <= 0."""
+def test_ndc_zero_pv():
+    """Verify ndc = 0 if PV <= 0."""
     assert _compute_ndc(0.1, 0) == 0
     assert _compute_ndc(0.1, -0.1) == 0
 
@@ -224,7 +231,8 @@ def test_compute_gage_rr_balanced_study(balanced_10_3_3):
         "pgrr_tolerance",
         "ndc",
         "verdict",
-        "sigma_study",
+        "tv",
+        "pv",
         "mean",
         "n_parts",
         "n_appraisers",
@@ -264,7 +272,7 @@ def test_compute_gage_rr_minimal_study(balanced_3_2_3):
 
 
 def test_compute_gage_rr_no_tolerance():
-    """Verify %GRR_tolerance = None when tolerance is not provided."""
+    """Verify ndc/verdict are still computed (from PV/GRR) when tolerance is not provided."""
     data = pd.DataFrame([
         {"part": "P1", "appraiser": "A", "trial": 1, "measurement": 10.0},
         {"part": "P1", "appraiser": "A", "trial": 2, "measurement": 10.02},
@@ -279,8 +287,57 @@ def test_compute_gage_rr_no_tolerance():
     results = compute_gage_rr(data, tolerance=None)
 
     assert results["pgrr_tolerance"] is None
-    assert results["ndc"] == 0  # ndc not computed without tolerance
+    # ndc is computed from PV/GRR unconditionally — no longer forced to 0 (defect #6).
+    assert results["ndc"] > 0
     assert results["verdict"] in ["Accept", "Marginal", "Reject"]  # Based on study variation
+
+
+# --- Worked Example B (synthetic 3 parts x 2 appraisers x 2 trials) ----------
+# See .pipeline/spec.md "Worked numerical example" section B for hand arithmetic.
+
+_EXAMPLE_B_DATA = pd.DataFrame([
+    {"part": "P1", "appraiser": "A", "trial": 1, "measurement": 2.0},
+    {"part": "P1", "appraiser": "A", "trial": 2, "measurement": 2.2},
+    {"part": "P1", "appraiser": "B", "trial": 1, "measurement": 2.5},
+    {"part": "P1", "appraiser": "B", "trial": 2, "measurement": 2.5},
+    {"part": "P2", "appraiser": "A", "trial": 1, "measurement": 4.0},
+    {"part": "P2", "appraiser": "A", "trial": 2, "measurement": 4.2},
+    {"part": "P2", "appraiser": "B", "trial": 1, "measurement": 4.5},
+    {"part": "P2", "appraiser": "B", "trial": 2, "measurement": 4.5},
+    {"part": "P3", "appraiser": "A", "trial": 1, "measurement": 6.0},
+    {"part": "P3", "appraiser": "A", "trial": 2, "measurement": 6.2},
+    {"part": "P3", "appraiser": "B", "trial": 1, "measurement": 6.5},
+    {"part": "P3", "appraiser": "B", "trial": 2, "measurement": 6.5},
+])
+
+
+def test_compute_gage_rr_example_b_no_tolerance():
+    """End-to-end assertion against the spec's synthetic Example B, no tolerance."""
+    results = compute_gage_rr(_EXAMPLE_B_DATA, tolerance=None)
+
+    assert results["ev"] == pytest.approx(0.088620, rel=1e-3)
+    assert results["av"] == pytest.approx(0.280515, rel=1e-3)
+    assert results["grr"] == pytest.approx(0.294184, rel=1e-3)
+    assert results["pv"] == pytest.approx(2.092400, rel=1e-3)
+    assert results["tv"] == pytest.approx(2.112981, rel=1e-3)
+    assert results["pgrr_study"] == pytest.approx(13.9226, rel=1e-3)
+    assert results["pgrr_tolerance"] is None
+    assert results["ndc"] == 10
+    assert results["verdict"] == "Marginal"
+
+
+def test_compute_gage_rr_example_b_with_tolerance():
+    """Example B with tolerance=8.0 exercises the pgrr_tolerance branch.
+
+    %GRR_tolerance ~= 3.68% (would be Accept alone), but %GRR_study ~= 13.92% is
+    the more conservative of the two (SME Q2 resolution: verdict uses the max of
+    the two %GRR values when both exist), so the verdict is Marginal, not Accept.
+    """
+    results = compute_gage_rr(_EXAMPLE_B_DATA, tolerance=8.0)
+
+    assert results["pgrr_tolerance"] == pytest.approx(3.6773, rel=1e-3)
+    assert results["ndc"] == 10
+    assert results["verdict"] == "Marginal"
 
 
 def test_compute_gage_rr_from_list_of_dicts():
@@ -418,11 +475,13 @@ def test_compute_gage_rr_zero_tolerance():
 
 
 def test_compute_gage_rr_identical_measurements(identical_measurements):
-    """Verify all identical measurements → σ_study = 0 → %GRR = ∞ → Reject."""
+    """Verify all identical measurements → TV = 0 → %GRR_study = ∞ → Reject."""
     results = compute_gage_rr(identical_measurements, tolerance=1.0)
 
-    assert results["sigma_study"] == 0
+    assert results["tv"] == 0
+    assert results["pv"] == 0
     assert np.isinf(results["pgrr_study"]) or results["pgrr_study"] > 1e9
+    assert results["ndc"] == 0
     assert results["verdict"] == "Reject"
 
 
@@ -444,17 +503,61 @@ def test_compute_gage_rr_unbalanced_data():
         compute_gage_rr(data, tolerance=1.0)
 
 
+def test_compute_gage_rr_off_table_trials_raises():
+    """Verify a study with 4 trials/cell (off the K1 table) raises ValueError."""
+    data = pd.DataFrame([
+        {"part": p, "appraiser": a, "trial": t, "measurement": 10.0 + 0.01 * t}
+        for p in ["P1", "P2"]
+        for a in ["A", "B"]
+        for t in [1, 2, 3, 4]
+    ])
+    with pytest.raises(ValueError, match="No AIAG K constant"):
+        compute_gage_rr(data, tolerance=1.0)
+
+
+def test_compute_gage_rr_off_table_appraisers_raises():
+    """Verify a study with 4 appraisers (off the K2 table) raises ValueError."""
+    data = pd.DataFrame([
+        {"part": p, "appraiser": a, "trial": t, "measurement": 10.0 + 0.01 * t}
+        for p in ["P1", "P2"]
+        for a in ["A", "B", "C", "D"]
+        for t in [1, 2]
+    ])
+    with pytest.raises(ValueError, match="No AIAG K constant"):
+        compute_gage_rr(data, tolerance=1.0)
+
+
+def test_compute_gage_rr_off_table_parts_raises():
+    """Verify a study with 11 parts (off the K3 table) raises ValueError."""
+    data = pd.DataFrame([
+        {"part": f"P{p}", "appraiser": a, "trial": t, "measurement": 10.0 + 0.01 * t}
+        for p in range(1, 12)
+        for a in ["A", "B"]
+        for t in [1, 2]
+    ])
+    with pytest.raises(ValueError, match="No AIAG K constant"):
+        compute_gage_rr(data, tolerance=1.0)
+
 
 # --- Internal Function Tests -------------------------------------------------
 
 
 def test_average_and_range_method_basic(balanced_3_2_3):
-    """Verify _average_and_range_method returns three positive floats."""
-    ev, av, sigma_study = _average_and_range_method(balanced_3_2_3)
+    """Verify _average_and_range_method returns three non-negative floats (ev, av, pv)."""
+    ev, av, pv = _average_and_range_method(balanced_3_2_3)
 
     assert isinstance(ev, float) and ev >= 0
     assert isinstance(av, float) and av >= 0
-    assert isinstance(sigma_study, float) and sigma_study > 0
+    assert isinstance(pv, float) and pv > 0
+
+
+def test_average_and_range_method_example_b():
+    """Verify _average_and_range_method against the spec's synthetic Example B."""
+    ev, av, pv = _average_and_range_method(_EXAMPLE_B_DATA)
+
+    assert ev == pytest.approx(0.088620, rel=1e-3)
+    assert av == pytest.approx(0.280515, rel=1e-3)
+    assert pv == pytest.approx(2.092400, rel=1e-3)
 
 
 def test_average_and_range_method_av_clamped_to_zero():
@@ -471,7 +574,7 @@ def test_average_and_range_method_av_clamped_to_zero():
         {"part": "P2", "appraiser": "B", "trial": 2, "measurement": 10.15},
     ])
 
-    ev, av, sigma_study = _average_and_range_method(data)
+    ev, av, pv = _average_and_range_method(data)
 
     # AV should not be negative (clamped in code)
     assert av >= 0

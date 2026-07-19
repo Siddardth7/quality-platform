@@ -20,18 +20,22 @@ __all__ = [
     "compute_gage_rr",
 ]
 
-# d2 Constants for Average-and-Range method (AIAG MSA, Appendix B)
-# Used to convert average range to sigma estimates.
-_D2_CONSTANTS: dict[int, float] = {
-    2: 1.128,
-    3: 1.693,
-    4: 2.059,
-    5: 2.326,
-    6: 2.704,
-    7: 2.847,
-    8: 2.970,
-    9: 3.078,
-    10: 3.078,
+# K1/K2/K3 constants for the Average-and-Range method (AIAG MSA, 4th Edition,
+# Gage R&R report form / Appendix C). Each K = 1/d2*, using the d2* adjustment
+# for the relevant subgroup layout (not plain d2), so the K tables are used
+# verbatim rather than re-deriving them from a d2 lookup.
+_K1: dict[int, float] = {2: 0.8862, 3: 0.5908}  # by number of trials (r)
+_K2: dict[int, float] = {2: 0.7071, 3: 0.5231}  # by number of appraisers (k)
+_K3: dict[int, float] = {  # by number of parts (n)
+    2: 0.7071,
+    3: 0.5231,
+    4: 0.4467,
+    5: 0.4030,
+    6: 0.3742,
+    7: 0.3534,
+    8: 0.3375,
+    9: 0.3249,
+    10: 0.3146,
 }
 
 
@@ -54,7 +58,8 @@ def compute_gage_rr(
         - "pgrr_tolerance": float | None (%GRR vs tolerance; None if tolerance is None)
         - "ndc": int (Number of Distinct Categories)
         - "verdict": str ("Accept", "Marginal", or "Reject")
-        - "sigma_study": float (Study variation estimate)
+        - "tv": float (Total Variation = sqrt(GRR^2 + PV^2))
+        - "pv": float (Part Variation)
         - "mean": float (Overall mean of all measurements)
         - "n_parts": int (Unique parts)
         - "n_appraisers": int (Unique appraisers)
@@ -106,42 +111,48 @@ def compute_gage_rr(
     part_appraiser_counts = df.groupby(["part", "appraiser"]).size()
     min_replicates = part_appraiser_counts.min()
     max_replicates = part_appraiser_counts.max()
-    
+
     if min_replicates < 2:
         raise ValueError("Study must include at least 2 trials per (part, appraiser) pair.")
 
     # Determine balance (all cells must have the same number of replicates)
     is_balanced = bool((part_appraiser_counts == part_appraiser_counts.iloc[0]).all())
     n_trials = int(part_appraiser_counts.iloc[0])  # Assumes at least one (part, appraiser) pair
-    
+
     if not is_balanced:
         raise ValueError(
             f"Data is unbalanced. Average-and-Range method requires equal trials per (part, appraiser) cell. "
             f"Found {min_replicates}–{max_replicates} trials across cells."
         )
 
-    # Compute EV and AV using Average-and-Range method
-    ev, av, sigma_study = _average_and_range_method(df)
+    # Compute EV, AV, and PV using Average-and-Range method
+    ev, av, pv = _average_and_range_method(df)
 
     # GR&R
     grr = float(np.sqrt(ev**2 + av**2))
+
+    # Total variation
+    tv = float(np.sqrt(grr**2 + pv**2))
 
     # Overall mean
     mean = float(df["measurement"].mean())
 
     # %GRR vs study variation
-    pgrr_study = (grr / sigma_study) * 100 if sigma_study > 0 else float("inf")
+    pgrr_study = (grr / tv) * 100 if tv > 0 else float("inf")
 
     # %GRR vs tolerance (if provided)
     pgrr_tolerance = None
     if tolerance is not None:
         pgrr_tolerance = (grr / tolerance) * 100
 
-    # Number of distinct categories
-    ndc_value = _compute_ndc(grr, tolerance) if tolerance is not None else 0
+    # Number of distinct categories (independent of tolerance)
+    ndc_value = _compute_ndc(grr, pv)
 
-    # Verdict
-    verdict = _compute_verdict(ndc_value, pgrr_tolerance, pgrr_study)
+    # Verdict: when both %GRR-tolerance and %GRR-study exist, drive the verdict off
+    # the more conservative (worse) of the two (SME resolution, W08-2 spec). ndc and
+    # each %GRR are still reported individually via the return dict above.
+    verdict_pgrr = max(pgrr_tolerance, pgrr_study) if pgrr_tolerance is not None else pgrr_study
+    verdict = _compute_verdict(ndc_value, None, verdict_pgrr)
 
     return {
         "ev": float(ev),
@@ -151,7 +162,8 @@ def compute_gage_rr(
         "pgrr_tolerance": float(pgrr_tolerance) if pgrr_tolerance is not None else None,
         "ndc": ndc_value,
         "verdict": verdict,
-        "sigma_study": float(sigma_study),
+        "tv": tv,
+        "pv": float(pv),
         "mean": mean,
         "n_parts": n_parts,
         "n_appraisers": n_appraisers,
@@ -161,13 +173,18 @@ def compute_gage_rr(
 
 
 def _average_and_range_method(df: pd.DataFrame) -> tuple[float, float, float]:
-    """Compute EV, AV, and sigma_study using the AIAG Average-and-Range method.
+    """Compute EV, AV, and PV using the AIAG Average-and-Range method.
+
+    All three components (and GRR/TV derived from them) are reported in raw
+    sigma units (K = 1/d2*). The historical 5.15/6-sigma "study variation"
+    multiplier is intentionally omitted: it would multiply EV, AV, PV, GRR,
+    and TV identically, so it cancels out of %GRR = GRR/TV and ndc = 1.41*PV/GRR.
 
     Args:
         df: DataFrame with columns part, appraiser, trial, measurement.
 
     Returns:
-        (ev, av, sigma_study) tuple.
+        (ev, av, pv) tuple.
 
     Raises:
         ValueError: if data is unbalanced or malformed.
@@ -177,75 +194,75 @@ def _average_and_range_method(df: pd.DataFrame) -> tuple[float, float, float]:
 
     # Range within each (part, appraiser) cell
     ranges_within = part_appraiser_groups.apply(lambda x: x.max() - x.min())
-    avg_range_within = ranges_within.mean()
+    avg_range_within = ranges_within.mean()  # Rbar
 
     # Number of trials per (part, appraiser) cell
     n_trials_per_cell = part_appraiser_groups.count().iloc[0]
-    d2_trials = _d2_constant(int(n_trials_per_cell))
+    k1 = _k_constant(_K1, int(n_trials_per_cell), "trials")
 
-    # EV = d2 * avg_range_within per AIAG
-    ev = d2_trials * avg_range_within
+    # EV = Rbar * K1(trials)
+    ev = avg_range_within * k1
 
     # Appraiser averages
     appraiser_averages = df.groupby("appraiser")["measurement"].mean()
-    range_appraisers = appraiser_averages.max() - appraiser_averages.min()
+    range_appraisers = appraiser_averages.max() - appraiser_averages.min()  # Xdiff
 
     n_appraisers = len(appraiser_averages)
-    d2_appraisers = _d2_constant(n_appraisers)
+    k2 = _k_constant(_K2, n_appraisers, "appraisers")
 
-    # AV per AIAG: sqrt((d2 * range_appraisers)^2 - (EV^2 / (n_parts * n_trials)))
+    # AV = sqrt((Xdiff * K2)^2 - EV^2 / (n_parts * n_trials))
     n_parts = df["part"].nunique()
-    av_squared = (d2_appraisers * range_appraisers) ** 2 - (
-        ev**2 / (n_parts * n_trials_per_cell)
-    )
+    av_squared = (range_appraisers * k2) ** 2 - (ev**2 / (n_parts * n_trials_per_cell))
     av = float(np.sqrt(max(av_squared, 0)))  # Clamp to 0 if negative (numerical artifacts)
 
-    # Sigma study from part averages
+    # Part variation from part averages
     part_averages = df.groupby("part")["measurement"].mean()
-    range_parts = part_averages.max() - part_averages.min()
+    range_parts = part_averages.max() - part_averages.min()  # Rp
 
-    # Sigma_study = (d2 * range_parts) / (1.128 * sqrt(n_appraisers * n_trials))
-    # Per AIAG MSA, factor 1.128 = sqrt(8/π)
-    d2_parts = _d2_constant(n_parts)
-    normalization_factor = 1.128 * np.sqrt(n_appraisers * n_trials_per_cell)
-    sigma_study = (d2_parts * range_parts) / normalization_factor if normalization_factor > 0 else 0
+    # PV = Rp * K3(parts)
+    k3 = _k_constant(_K3, n_parts, "parts")
+    pv = range_parts * k3
 
-    return ev, av, sigma_study
+    return ev, av, pv
 
 
-def _d2_constant(m: int) -> float:
-    """Return the d2 constant for the Average-and-Range method.
+def _k_constant(table: dict[int, float], m: int, label: str) -> float:
+    """Look up an AIAG K constant (K = 1/d2*) by subgroup size.
 
     Args:
-        m: Number of measurements in the subgroup (or number of subgroups).
+        table: One of `_K1`, `_K2`, `_K3`.
+        m: Subgroup size (number of trials, appraisers, or parts).
+        label: Human-readable description of `m`, used in the error message.
 
     Returns:
-        d2 constant from AIAG MSA table. For m > 10, returns the m=10 value (3.078).
+        The K constant for `m`.
 
     Raises:
-        ValueError: if m < 2.
+        ValueError: if `m` is not in the table (AIAG's published range-method
+            tables do not define K values outside these sizes; extrapolating
+            or clamping would be unsupported).
     """
-    if m < 2:
-        raise ValueError(f"d2 constant requires subgroup size >= 2, got {m}")
-    return _D2_CONSTANTS.get(m, _D2_CONSTANTS[10])
+    if m not in table:
+        raise ValueError(f"No AIAG K constant for {m} {label} (supported sizes: {sorted(table)}).")
+    return table[m]
 
 
-def _compute_ndc(grr: float, tolerance: float) -> int:
+def _compute_ndc(grr: float, pv: float) -> int:
     """Compute Number of Distinct Categories per AIAG MSA.
 
-    ndc = floor(1.41 * (tolerance / GRR))
+    ndc = trunc(1.41 * (PV / GRR))
 
     Args:
         grr: GR&R value (must be > 0).
-        tolerance: Tolerance = USL - LSL (must be > 0).
+        pv: Part Variation (must be > 0).
 
     Returns:
         ndc as an int, clamped to [0, 100].
     """
-    if grr <= 0 or tolerance <= 0:
+    if grr <= 0 or pv <= 0:
         return 0
-    ndc_raw = 1.41 * (tolerance / grr)
-    ndc_int = int(np.floor(ndc_raw))
+    ndc_raw = 1.41 * (pv / grr)
+    ndc_int = int(ndc_raw)  # truncate toward zero
     return max(0, min(ndc_int, 100))  # Clamp to [0, 100]
 
 
@@ -272,7 +289,7 @@ def _compute_verdict(ndc: int, pgrr_tolerance: float | None, pgrr_study: float) 
     # Use %GRR_tolerance if available, else %GRR_study
     pgrr = pgrr_tolerance if pgrr_tolerance is not None else pgrr_study
 
-    # If %GRR is infinite (e.g., sigma_study = 0), reject
+    # If %GRR is infinite (e.g., TV = 0), reject
     if not np.isfinite(pgrr):
         return "Reject"
 

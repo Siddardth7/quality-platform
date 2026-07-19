@@ -27,35 +27,52 @@ AIAG recommends it as the quickest and most intuitive for studies with balanced 
 
 ---
 
-## RULE 2 — d2 Constants (AIAG MSA, 4th Edition, Appendix B)
+## RULE 2 — K1/K2/K3 Constants (AIAG MSA, 4th Edition, Gage R&R Report Form / Appendix C)
 
-**Decision:** Convert average range to sigma estimates using AIAG's **d2 lookup table**, not a formula.
+**Decision:** Convert average ranges directly to sigma estimates using AIAG's published **K1/K2/K3
+lookup tables** (`K = 1/d2*`), not a plain d2 lookup.
 
-**Source:** AIAG MSA (4th Edition), Appendix B — "Constants for Control Charts." The d2 constant corrects for the relationship between the average range and the population standard deviation, assuming a normal distribution.
+**Source:** AIAG MSA (4th Edition), Gage R&R report form and Appendix C. Verified directly against
+the primary manual (`MSA_Reference_Manual_4th_Edition.md`) on 2026-07-19 (SME: Sid). K1 uses the
+many-subgroup d2* (≈ plain d2); K2 and K3 use the single-subgroup d2*, which differs materially
+from plain d2 — using the K tables verbatim sidesteps that ambiguity and matches AIAG's published
+forms exactly.
 
-**d2 Constants (Subset; see Appendix B for full table):**
+**K1 by number of trials (r):**
 ```
-Subgroup Size (m) | d2 Constant
-  2               | 1.128
-  3               | 1.693
-  4               | 2.059
-  5               | 2.326
-  6               | 2.704
-  7               | 2.847
-  8               | 2.970
-  9               | 3.078
- 10               | 3.078
+r | K1
+2 | 0.8862
+3 | 0.5908
 ```
 
-**Formula (for reference; NOT used, d2 is looked up):**
+**K2 by number of appraisers (k):**
 ```
-d2 = E[R/σ] for a normal distribution
-where R is the range of a subgroup of size m.
+k | K2
+2 | 0.7071
+3 | 0.5231
 ```
 
-**Rationale:** d2 is an empirical constant derived from the properties of the normal distribution. Using the lookup table avoids approximation error and matches the AIAG standard exactly.
+**K3 by number of parts (n):**
+```
+n  | K3
+ 2 | 0.7071
+ 3 | 0.5231
+ 4 | 0.4467
+ 5 | 0.4030
+ 6 | 0.3742
+ 7 | 0.3534
+ 8 | 0.3375
+ 9 | 0.3249
+10 | 0.3146
+```
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_d2_constant()` (lookup from `_D2_CONSTANTS` dict)
+**Rationale:** Each K is an empirical constant (`1/d2*`) derived from the properties of the normal
+distribution for the relevant subgroup layout. Using the published tables avoids re-deriving d2*
+and matches the AIAG standard exactly. Sizes outside these tables are **not** defined by AIAG's
+published range-method tables: `_k_constant()` raises `ValueError` rather than clamping or
+extrapolating.
+
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_K1`/`_K2`/`_K3` dicts, `_k_constant()`
 
 ---
 
@@ -63,7 +80,8 @@ where R is the range of a subgroup of size m.
 
 **Decision:** Compute **Equipment Variation (EV)** as:
 ```
-EV = d2 × (average range within each part-appraiser cell)
+EV = Rbar × K1(trials)
+where Rbar = mean of the within-(part, appraiser)-cell ranges
 ```
 
 **Source:** AIAG MSA (4th Edition), Section 3.2, Equation 3.2.1.
@@ -71,14 +89,12 @@ EV = d2 × (average range within each part-appraiser cell)
 
 **Rationale:**
 - The range within a (part, appraiser) cell captures the "spread" of repeated measurements.
-- d2 converts that range to a sigma (standard deviation) estimate.
+- K1 converts that mean range to a sigma (standard deviation) estimate.
 - This reflects the inherent equipment repeatability, excluding appraiser-to-appraiser differences.
 
-**Example:**
-- Part P01, Appraiser A, Trial 1–3 measurements: 10.05, 10.04, 10.06.
-- Range = 10.06 − 10.04 = 0.02.
-- With n_trials=3, d2(3) = 1.693.
-- EV = 1.693 × 0.02 = 0.03386 (for this cell; repeated for all cells, then averaged).
+**Worked example (AIAG canonical 10×3×3 study):**
+- Rbar = 0.342, trials = 3, K1(3) = 0.5908.
+- EV = 0.342 × 0.5908 = 0.20206 ≈ 0.202 (AIAG-published EV = 0.20188).
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()` (lines computing `ev`)
 
@@ -88,26 +104,24 @@ EV = d2 × (average range within each part-appraiser cell)
 
 **Decision:** Compute **Appraiser Variation (AV)** as:
 ```
-AV = sqrt((d2 × range_of_appraiser_averages)² − (EV² / (n_parts × n_trials)))
+AV = sqrt((Xdiff × K2(appraisers))² − (EV² / (n_parts × n_trials)))
+where Xdiff = range of appraiser grand means
 ```
 
 **Source:** AIAG MSA (4th Edition), Section 3.2, Equation 3.2.2.
 "Reproducibility measures variation due to different appraisers (or operators)."
 
 **Rationale:**
-- The range of appraiser averages captures the appraiser-to-appraiser spread.
-- d2 converts that to a sigma estimate.
+- The range of appraiser averages (Xdiff) captures the appraiser-to-appraiser spread.
+- K2 converts that to a sigma estimate.
 - The subtraction `− (EV² / (n_parts × n_trials))` removes the **repeatability component** already captured in EV.
   This ensures AV reflects **only** the appraiser difference, not equipment noise.
 - If the subtraction yields a negative value (rare, high EV), clamp AV to 0 (numerical artifact).
 
-**Example:**
-- Appraiser A's mean (across all parts & trials): 10.05.
-- Appraiser B's mean: 10.08.
-- Appraiser C's mean: 10.06.
-- Range of appraiser means = 10.08 − 10.05 = 0.03.
-- d2(n_appraisers=3) = 1.693.
-- Numerator = (1.693 × 0.03)² − (EV² / (n_parts × n_trials)) = ... (compute with actual EV).
+**Worked example (AIAG canonical 10×3×3 study):**
+- Xdiff = 0.445, appraisers = 3, K2(3) = 0.5231, EV = 0.202, n_parts = 10, n_trials = 3.
+- AV = sqrt((0.445 × 0.5231)² − 0.202² / 30) = sqrt(0.054186 − 0.001360) ≈ 0.230
+  (AIAG-published AV = 0.22963).
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()` (lines computing `av`)
 
@@ -131,24 +145,36 @@ GR&R = sqrt(EV² + AV²)
 
 ---
 
-## RULE 6 — Study Variation (AIAG MSA, 4th Edition, Section 3.2)
+## RULE 6 — Part Variation / Total Variation (AIAG MSA, 4th Edition, Section 3.2)
 
-**Decision:** Estimate **study variation (σ_study)** as:
+**Decision:** Estimate **Part Variation (PV)** and **Total Variation (TV)** as:
 ```
-σ_study = (d2 × range_of_part_averages) / (1.128 × sqrt(n_appraisers × n_trials))
+PV = Rp × K3(parts)
+where Rp = range of part means
+TV = sqrt(GRR² + PV²)
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.2, Equation 3.2.4.
-"Study variation is 5.15 σ_study (or 6σ_study in some contexts), representing the expected range of measurements across the parts being studied."
+**Source:** AIAG MSA (4th Edition), Section 3.2, Equation 3.2.4, and the Gage R&R report form.
+"Part variation represents the true part-to-part spread; total variation combines measurement
+system variation (GRR) with part variation."
 
-**Factor 1.128 = sqrt(8/π):** This normalizes the range-based estimate to match the pooled standard deviation across replicates.
+**Note (correction, W08-2):** The previous version of this document described a malformed
+`σ_study = (d2 × Rp) / (1.128 × sqrt(n_appraisers × n_trials))` and cited "1.128 = sqrt(8/π)" as
+the reason. That factor and formula do not appear in AIAG MSA and have been removed; AIAG's
+published form is the simple `PV = Rp × K3(n)` above.
+
+**σ-units cancellation note:** EV, AV, PV, GRR, and TV are all reported in bare sigma units
+(K = 1/d2*), with no 5.15/6-sigma "study variation" multiplier applied. That multiplier would
+scale all five components identically, so it cancels exactly out of `%GRR = 100 × GRR / TV` and
+`ndc = 1.41 × PV / GRR` — omitting it is mathematically equivalent and simpler.
 
 **Rationale:**
-- The range of part averages reflects the **true part-to-part variation**.
-- Dividing by the number of measurements per part (appraiser × trials) normalizes it.
-- This σ_study is then used to compute %GRR_study = (GRR / σ_study) × 100.
+- The range of part averages (Rp) reflects the **true part-to-part variation**.
+- K3 converts that to a sigma estimate (PV).
+- TV combines GRR and PV via RSS, giving the total observed variation in the study.
+- TV is then used to compute %GRR_study = (GRR / TV) × 100.
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()` (lines computing `sigma_study`)
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()` (lines computing `pv`), `compute_gage_rr()` (line computing `tv`)
 
 ---
 
@@ -156,7 +182,7 @@ GR&R = sqrt(EV² + AV²)
 
 **Decision:** Compute **%GRR vs Study Variation** as:
 ```
-%GRR_study = (GR&R / σ_study) × 100
+%GRR_study = (GR&R / TV) × 100
 ```
 
 **Source:** AIAG MSA (4th Edition), Section 3.3, "Measurement System Acceptability Criteria."
@@ -167,8 +193,9 @@ GR&R = sqrt(EV² + AV²)
 - **> 30%:** Inadequate; measurement system must be improved.
 
 **Rationale:**
-- %GRR_study indicates how much of the **true product variation** is obscured by measurement noise.
-- If GRR is much smaller than σ_study, the system can discriminate between parts reliably.
+- %GRR_study indicates how much of the **total observed variation** is measurement noise.
+- If GRR is much smaller than TV, the system can discriminate between parts reliably.
+- If `TV <= 0` (degenerate zero-variation study), %GRR_study is `inf`.
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (line computing `pgrr_study`)
 
@@ -204,11 +231,17 @@ where Tolerance = USL − LSL
 
 **Decision:** Compute **Number of Distinct Categories** as:
 ```
-ndc = floor(1.41 × (Tolerance / GR&R))
+ndc = trunc(1.41 × (PV / GR&R))
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.3, Equation 3.3.2.
-"ndc indicates how many distinct measurement categories can be reliably distinguished within the tolerance band."
+**Source:** AIAG MSA (4th Edition), Section 3.3, Equation 3.3.2. Verified directly against the
+primary manual on 2026-07-19 (SME: Sid): `ndc = 1.41 × PV / GRR`.
+"ndc indicates how many distinct measurement categories can be reliably distinguished across the
+observed part variation."
+
+**Note (correction, W08-2):** ndc is driven by **Part Variation (PV)**, not tolerance. It is
+computed unconditionally, whether or not a tolerance is supplied — a study with no tolerance can
+still report a real ndc and reach Accept/Marginal, not just Reject.
 
 **Acceptance Criterion (AIAG):**
 - **ndc ≥ 5:** Adequate (at least 5 distinct levels detectable).
@@ -243,10 +276,16 @@ If ndc >= 5 AND %GRR < 10% → Accept
 Else → Marginal
 ```
 
-**Note on %GRR:** If both `%GRR_tolerance` and `%GRR_study` are available, use `%GRR_tolerance` (more stringent).
-If only `%GRR_study` is available (no tolerance input), base the verdict on `%GRR_study`.
+**Note on %GRR (SME resolution, 2026-07-19, Sid — supersedes prior tolerance-preferred convention):**
+If both `%GRR_tolerance` and `%GRR_study` are available, the verdict is driven by
+`max(%GRR_tolerance, %GRR_study)` — the more conservative (worse) of the two. AIAG reports both
+numbers and does not mandate which single number drives the verdict; using the max avoids a study
+that looks acceptable against tolerance while actually failing against study variation (or vice
+versa). If only `%GRR_study` is available (no tolerance input), base the verdict on `%GRR_study`.
+`ndc` and each individual `%GRR` value are still reported separately regardless of this choice.
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_compute_verdict()`
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (computes the effective
+`verdict_pgrr` passed to `_compute_verdict()`)
 
 ---
 
@@ -295,10 +334,10 @@ If only `%GRR_study` is available (no tolerance input), base the verdict on `%GR
 
 ---
 
-## RULE 13 — Edge Case: All Measurements Identical (σ_study = 0)
+## RULE 13 — Edge Case: All Measurements Identical (TV = 0)
 
 **Decision:** If all part averages are identical (e.g., all measurements = 10.05):
-- σ_study = 0.
+- PV = 0, GRR = 0 (EV = AV = 0), so TV = sqrt(GRR² + PV²) = 0.
 - %GRR_study = ∞ (GRR / 0).
 - Verdict = "Reject" (measurement system cannot discriminate).
 
@@ -348,15 +387,15 @@ If only `%GRR_study` is available (no tolerance input), base the verdict on `%GR
 | Assumption | Implemented In |
 |-----------|---------------|
 | Average-and-Range method | `_average_and_range_method()` |
-| d2 constants | `_D2_CONSTANTS` dict, `_d2_constant()` |
-| EV formula | `_average_and_range_method()`, lines: `ev = d2_trials * avg_range_within` |
+| K1/K2/K3 constants | `_K1`/`_K2`/`_K3` dicts, `_k_constant()` |
+| EV formula | `_average_and_range_method()`, lines: `ev = avg_range_within * k1` |
 | AV formula | `_average_and_range_method()`, lines: `av_squared = ...` |
 | GR&R formula | `compute_gage_rr()`, lines: `grr = sqrt(ev² + av²)` |
-| Study variation | `_average_and_range_method()`, lines: `sigma_study = ...` |
-| %GRR_study | `compute_gage_rr()`, lines: `pgrr_study = (grr / sigma_study) * 100` |
+| Part / Total variation | `_average_and_range_method()`, lines: `pv = range_parts * k3`; `compute_gage_rr()`, lines: `tv = sqrt(grr² + pv²)` |
+| %GRR_study | `compute_gage_rr()`, lines: `pgrr_study = (grr / tv) * 100` |
 | %GRR_tolerance | `compute_gage_rr()`, lines: `pgrr_tolerance = (grr / tolerance) * 100` |
 | ndc | `_compute_ndc()` |
-| Verdict logic | `_compute_verdict()` |
+| Verdict logic | `_compute_verdict()`, `verdict_pgrr = max(pgrr_tolerance, pgrr_study)` in `compute_gage_rr()` |
 | Balance check | `compute_gage_rr()`, lines: `is_balanced = ...` |
 | Minimum study size | `compute_gage_rr()`, validation checks |
 | Edge cases | `compute_gage_rr()`, error handling + `_compute_verdict()` |
