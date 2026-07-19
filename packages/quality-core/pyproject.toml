@@ -1,6 +1,6 @@
 [project]
 name = "quality-core"
-version = "0.5.0"
+version = "0.6.0"
 description = "Shared core for the Quality Platform: schema, IO, theme, and domain primitives."
 readme = "README.md"
 requires-python = ">=3.11"
