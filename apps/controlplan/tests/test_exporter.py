@@ -52,6 +52,7 @@ def test_export_csv_header_matches_export_order():
     assert header == [
         "characteristic", "lsl", "usl", "target", "measurement_method",
         "sample_size", "frequency", "recommended_chart", "reaction_plan",
+        "source_cause_id",
     ]
 
 
@@ -62,6 +63,7 @@ def test_export_csv_empty_dataset_does_not_crash():
     assert header == [
         "characteristic", "lsl", "usl", "target", "measurement_method",
         "sample_size", "frequency", "recommended_chart", "reaction_plan",
+        "source_cause_id",
     ]
 
 
@@ -165,6 +167,7 @@ def test_to_dataframe_directly_covers_empty_and_nonempty_branches():
     assert list(empty_df.columns) == [
         "characteristic", "lsl", "usl", "target", "measurement_method",
         "sample_size", "frequency", "recommended_chart", "reaction_plan",
+        "source_cause_id",
     ]
     assert empty_df.empty
 
