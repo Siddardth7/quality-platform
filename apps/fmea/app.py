@@ -168,6 +168,48 @@ def render_sidebar():  # type: ignore[no-untyped-def]
 
 
 # ---------------------------------------------------------------------------
+# SPC -> FMEA candidate feedback panel (W07-2, #89)
+# ---------------------------------------------------------------------------
+
+# ponytail: state-key string duplicated (not imported) from
+# spc_app.fmea_feedback.FEEDBACK_STATE_KEY — mirrors how
+# controlplan_app/pages/control_plan_config.py duplicates PLAN_STATE_KEY, so
+# standalone FMEA never needs spc_app on sys.path (OQ4).
+_SPC_FEEDBACK_STATE_KEY = "_spc_fmea_feedback"
+
+
+def _render_spc_feedback_panel() -> None:
+    """Read-only candidate panel: an SPC out-of-control signal on a monitored
+    characteristic surfaces its source cause, current occurrence, OOC evidence,
+    and a candidate occurrence suggestion — never applied automatically. Reads
+    the feedback as a plain dict (no ``spc_app`` import), so this is a no-op
+    (and standalone FMEA is unaffected) whenever the key is absent.
+    """
+    feedback = st.session_state.get(_SPC_FEEDBACK_STATE_KEY)
+    if not isinstance(feedback, dict):
+        return
+
+    with st.expander("📈  SPC → FMEA feedback (candidate — not applied)", expanded=True):
+        st.info(str(feedback.get("capa_prompt", "")))
+        st.caption(
+            f"Characteristic: {feedback.get('characteristic')} · "
+            f"Stream: {feedback.get('stream')} · Rule set: {feedback.get('rule_set')}"
+        )
+        cols = st.columns(3)
+        cols[0].metric("Current Occurrence", feedback.get("current_occurrence") or "unknown")
+        cols[1].metric("Candidate Occurrence", feedback.get("suggested_occurrence") or "—")
+        cols[2].metric("Violating Points", feedback.get("violating_points", "—"))
+        rules = feedback.get("rules") or []
+        source_cause = feedback.get("source_cause_description") or (
+            "(unlinked — characteristic not found in the Control Plan source index)"
+        )
+        st.caption(
+            f"Rules triggered: {', '.join(rules) if rules else '—'} · "
+            f"Source cause: {source_cause}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Mountable page body
 # ---------------------------------------------------------------------------
 
@@ -183,6 +225,7 @@ def render_fmea() -> None:
 
     apply_css(dark)
     render_header()
+    _render_spc_feedback_panel()
 
     if raw_df is None:
         st.sidebar.divider()

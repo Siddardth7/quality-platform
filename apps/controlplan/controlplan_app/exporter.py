@@ -40,6 +40,9 @@ from controlplan_app import __version__
 from controlplan_app.schema import ControlPlanDataset
 
 # Column order matches the template/export order named in the spec.
+# `source_cause_id` (OQ1, W07-2 #89) is appended last so the FMEA join key
+# survives a CSV export/reimport round trip — not part of the original AIAG
+# column set, so it goes after it rather than reordering the documented shape.
 _EXPORT_COLUMNS = [
     "characteristic",
     "lsl",
@@ -50,6 +53,7 @@ _EXPORT_COLUMNS = [
     "frequency",
     "recommended_chart",
     "reaction_plan",
+    "source_cause_id",
 ]
 
 _COL_WIDTHS = {

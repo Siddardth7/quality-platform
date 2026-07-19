@@ -36,12 +36,20 @@ has no ``np`` key). Same source already cited by the SPC app
 
 Prioritization (AP-then-RPN) reuses ``quality_core.scoring`` and mirrors the tie-break
 discipline of ``apps/fmea/fmea_app/ap_engine.py:rank_by_ap``.
+
+**W07-2 (#89) OQ1 — persisted join key.** ``build_control_plan`` also stamps each row's
+``source_cause_id`` (``controlplan_app.schema.ControlPlanRow``) with a deterministic id
+for its worst-risk cause (:func:`_source_cause_id`), and :func:`source_index` exposes the
+same lookup (plus the cause's live description/occurrence/component) for the SPC page to
+enrich at runtime. Both share :func:`_iter_named_modes` for the characteristic-naming
+traversal, so their keys cannot diverge — the correctness-critical point (see spec
+"Refactor").
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Iterator, Literal
 
-from quality_core.schema.relational import FailureLink, FailureMode, RelationalFMEA
+from quality_core.schema.relational import Cause, FailureLink, FailureMode, Function, RelationalFMEA
 from quality_core.scoring import AP_ORDER, action_priority, rpn
 
 from controlplan_app.schema import ControlPlanDataset, ControlPlanRow, SPCChart
@@ -123,23 +131,20 @@ def _worst_link(failure_mode: FailureMode) -> tuple[FailureLink, int, str]:
     return best
 
 
-def build_control_plan(fmea: RelationalFMEA) -> ControlPlanDataset:
-    """One ``ControlPlanRow`` per ``FailureMode`` (Q1), sorted highest-risk first.
+def _iter_named_modes(
+    fmea: RelationalFMEA,
+) -> Iterator[tuple[str, Function, FailureMode, FailureLink]]:
+    """Yield ``(characteristic, function, failure_mode, worst_link)`` once per
+    ``FailureMode``, in traversal order.
 
-    Fields with no FMEA source (`sample_size`, `frequency`, `reaction_plan`,
-    `recommended_chart=None`, `lsl`/`usl`/`target=None`) are defaulted per the
-    module docstring's Q3/Q4 decisions.
+    The characteristic-naming + collision-suffix rule (Q2) lives here exactly
+    once, so :func:`build_control_plan` and :func:`source_index` cannot derive
+    diverging characteristic keys for the same FMEA (OQ1's correctness point).
     """
-    entries: list[tuple[str, str, int, str, str]] = []  # characteristic, method, rpn, ap, reaction
     seen_characteristics: set[str] = set()
-
     for function in fmea.functions:
         for failure_mode in function.failure_modes:
-            link, link_rpn, link_ap = _worst_link(failure_mode)
-            effects = {e.id: e for e in failure_mode.effects}
-            controls = {c.id: c for c in failure_mode.controls}
-            worst_effect = effects[link.effect_id]
-            worst_control = controls[link.control_id]
+            link, _link_rpn, _link_ap = _worst_link(failure_mode)
 
             characteristic = f"{function.component} — {failure_mode.description}"
             if characteristic in seen_characteristics:
@@ -153,15 +158,57 @@ def build_control_plan(fmea: RelationalFMEA) -> ControlPlanDataset:
                     suffix += 1
             seen_characteristics.add(characteristic)
 
-            entries.append(
-                (
-                    characteristic,
-                    worst_control.description,
-                    link_rpn,
-                    link_ap,
-                    _reaction_plan(worst_effect.description),
-                )
+            yield characteristic, function, failure_mode, link
+
+
+def _source_cause_id(function: Function, failure_mode: FailureMode, cause: Cause) -> str:
+    """Deterministic, dataset-wide-unique join key for a ``Cause`` (OQ1, #89).
+
+    ``Cause.id`` is already stable but is only guaranteed unique *within* one
+    ``FailureMode`` (``relational.py``'s ``check_ids_and_links``). Composing it
+    with its ``Function``/``FailureMode`` — each unique at their own scope
+    (``RelationalFMEA.check_global_uniqueness`` / ``Function.check_unique_
+    failure_mode_ids``) — gives a dataset-wide-unique, deterministic string
+    without inventing a new ID scheme. One place; both ``build_control_plan``
+    and :func:`source_index` call this so the two never disagree.
+    """
+    return f"{function.id}::{failure_mode.id}::{cause.id}"
+
+
+def build_control_plan(fmea: RelationalFMEA) -> ControlPlanDataset:
+    """One ``ControlPlanRow`` per ``FailureMode`` (Q1), sorted highest-risk first.
+
+    Fields with no FMEA source (`sample_size`, `frequency`, `reaction_plan`,
+    `recommended_chart=None`, `lsl`/`usl`/`target=None`) are defaulted per the
+    module docstring's Q3/Q4 decisions. `source_cause_id` (OQ1, #89) is the one
+    field with a real FMEA-derived value beyond risk/description text — see
+    :func:`_source_cause_id`.
+    """
+    # characteristic, method, rpn, ap, reaction, source_cause_id
+    entries: list[tuple[str, str, int, str, str, str]] = []
+
+    for characteristic, function, failure_mode, link in _iter_named_modes(fmea):
+        effects = {e.id: e for e in failure_mode.effects}
+        causes = {c.id: c for c in failure_mode.causes}
+        controls = {c.id: c for c in failure_mode.controls}
+        worst_effect = effects[link.effect_id]
+        worst_cause = causes[link.cause_id]
+        worst_control = controls[link.control_id]
+        link_rpn = rpn(worst_effect.severity, worst_cause.occurrence, worst_control.detection)
+        link_ap = action_priority(
+            worst_effect.severity, worst_cause.occurrence, worst_control.detection
+        )
+
+        entries.append(
+            (
+                characteristic,
+                worst_control.description,
+                link_rpn,
+                link_ap,
+                _reaction_plan(worst_effect.description),
+                _source_cause_id(function, failure_mode, worst_cause),
             )
+        )
 
     # Sort descending by (AP ordinal, RPN); stable tie-break on characteristic
     # (final tie-break, per "edge cases" — repeated runs stay reproducible).
@@ -178,7 +225,38 @@ def build_control_plan(fmea: RelationalFMEA) -> ControlPlanDataset:
             frequency=_DEFAULT_FREQUENCY,
             recommended_chart=None,
             reaction_plan=reaction_plan,
+            source_cause_id=source_cause_id,
         )
-        for characteristic, measurement_method, _rpn, _ap, reaction_plan in entries
+        for characteristic, measurement_method, _rpn, _ap, reaction_plan, source_cause_id in entries
     ]
     return ControlPlanDataset(rows=rows)
+
+
+def source_index(fmea: RelationalFMEA) -> dict[str, dict[str, object]]:
+    """Map each Control Plan characteristic -> its source-cause identity (OQ1, #89).
+
+    Keys are identical to ``build_control_plan(fmea).rows[*].characteristic``
+    (shared :func:`_iter_named_modes` — see its docstring, and the edge-case test
+    asserting key-set parity). This is the *runtime* companion to
+    ``ControlPlanRow.source_cause_id``: the persisted field only survives as an
+    id string, but the SPC->FMEA feedback loop also wants the cause's live
+    description/occurrence/component for the current session, which only the
+    in-memory ``RelationalFMEA`` has.
+
+    Value: ``{failure_mode_id, cause_id, cause_description, occurrence,
+    component}`` — ``cause_id`` and ``occurrence``/``cause_description`` come
+    from the same worst-risk cause :func:`build_control_plan` used
+    (``_worst_link``).
+    """
+    index: dict[str, dict[str, object]] = {}
+    for characteristic, function, failure_mode, link in _iter_named_modes(fmea):
+        causes = {c.id: c for c in failure_mode.causes}
+        cause = causes[link.cause_id]
+        index[characteristic] = {
+            "failure_mode_id": failure_mode.id,
+            "cause_id": _source_cause_id(function, failure_mode, cause),
+            "cause_description": cause.description,
+            "occurrence": cause.occurrence,
+            "component": function.component,
+        }
+    return index

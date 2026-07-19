@@ -6,6 +6,66 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-18
+
+Week 07 — Close the loop. Completes the AIAG improvement loop end to end: a Control Plan
+characteristic auto-configures the SPC view (spec/tolerance, sample size/frequency,
+recommended chart type) with no manual re-entry (#88); an out-of-control SPC signal emits
+candidate occurrence-rating / CAPA feedback back to the source FMEA cause — human-in-the-loop,
+never auto-committed, anchored to the AIAG FMEA-4 / SAE J1739 occurrence table (#89); and a
+dedicated cross-app integration test proves the full FMEA → Control Plan → SPC → FMEA walk on
+real sample data, with the SPC coverage floor ratcheted to 100% line+branch (#90). Milestone
+issues #88, #89, #90, #91 closed; all coverage bars green on `dev`.
+
+### Added
+
+- **SPC — Control Plan → Control Charts config (W07-1, #88).** The Control
+  Charts page now reads a loaded Control Plan from session state and offers a
+  "Characteristic (from Control Plan)" selector; picking one preselects the
+  chart type from `recommended_chart` (falling back to the manual selectbox
+  when it's `None`/invalid) and shows an info panel with LSL/USL/target,
+  sample size, and frequency. New pure module
+  `apps/spc/spc_app/control_plan_config.py` (`plan_characteristics`,
+  `config_for`, `chart_type_index`) does the derivation — no new SPC math, no
+  visualizer changes, no `controlplan_app` import from `spc_app` (the
+  standalone SPC app still imports cleanly). Added to the SPC coverage gate in
+  CI and `apps/spc/CLAUDE.md`.
+
+- **SPC → FMEA candidate occurrence feedback + loop close (W07-2, #89).** An
+  out-of-control signal on a Control Plan characteristic's chart now emits a
+  **candidate** occurrence-rating / CAPA payload toward the source FMEA
+  cause — never auto-committed. New pure module `apps/spc/spc_app/
+  fmea_feedback.py` (`summarize_violations`, `build_occurrence_feedback`)
+  maps the chart's OOC failing-rate onto the AIAG FMEA-4 (2008) / SAE J1739
+  occurrence rate table (cited in-module; AIAG-VDA 2019 defines no numeric
+  occurrence table, so the rate mapping is anchored to the legacy AIAG-4/J1739
+  standard — see `docs/ASSUMPTIONS_LOG.md` Rule 10). `ControlPlanRow` gained a
+  nullable `source_cause_id` join key (`controlplan_app/schema.py`),
+  populated by a refactored `connector.build_control_plan` /
+  new `connector.source_index`, so the SPC↔FMEA linkage survives Control
+  Plan CSV export/reimport. A new per-characteristic demo SPC stream
+  (`ply_misalignment`) binds a real, out-of-control monitored parameter to
+  the composite-panel FMEA demo's highest-risk characteristic. The FMEA page
+  renders a read-only candidate panel (no `spc_app` import). Closes the full
+  FMEA → Control Plan → SPC → FMEA walk in the unified shell. Added
+  `spc_app.fmea_feedback` to the SPC coverage gate (CI + `apps/spc/CLAUDE.md`).
+
+### Tests
+
+- **Dedicated Week-7 loop integration test (W07-4, #90).** New
+  `apps/spc/tests/test_loop_integration.py` walks the composite-panel FMEA
+  demo through the full Control Plan → SPC → FMEA chain on real sample data
+  (no stubbed boundaries) and asserts the join-key round-trips end to end —
+  the candidate feedback's `source_cause_id` matches the originating Control
+  Plan row's and names the correct FMEA cause — and that the human-in-the-loop
+  invariant holds (`current_occurrence` echoes unchanged, `suggested_occurrence`
+  is a distinct candidate, nothing mutates the FMEA source mapping). Guarded
+  with `pytest.importorskip` so it runs under the full root `uv run pytest`
+  and skips cleanly under the isolated SPC gate. SPC coverage floor ratcheted
+  95% → 100% (`.github/workflows/ci.yml`, `apps/spc/CLAUDE.md`) — all gated
+  SPC modules already sit at 100% line+branch, so the ratchet is earned and
+  safe.
+
 ## [0.6.0] - 2026-07-18
 
 Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a

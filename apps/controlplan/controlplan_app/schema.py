@@ -23,6 +23,14 @@ contract but are out of scope here.
 This schema stays app-local (not promoted into ``quality_core.schema``) until
 W06-2/W07 exercise and stabilise its shape — see the Week-5 deferred-extraction
 precedent MSA also followed.
+
+``source_cause_id`` (W07-2, #89) is a further nullable field: the durable
+SPC->FMEA join key a row carries back to the FMEA cause it was derived from
+(``controlplan_app.connector.build_control_plan``). It has no cross-row
+uniqueness rule (unlike ``characteristic``) — multiple rows may legitimately
+point at the same cause is not expected in practice (one row per failure mode,
+one worst-risk cause each) but is not forbidden, since a manually-added row
+with no source is simply ``None``.
 """
 
 from __future__ import annotations
@@ -70,6 +78,12 @@ class ControlPlanRow(pydantic.BaseModel):
     frequency: Annotated[str, pydantic.Field(min_length=1, max_length=200)]
     recommended_chart: SPCChart | None = None
     reaction_plan: Annotated[str, pydantic.Field(min_length=1, max_length=2000)]
+    #: Nullable join key back to the FMEA cause this row's control derives from
+    #: (OQ1, W07-2 #89) — set by ``controlplan_app.connector.build_control_plan``
+    #: from ``_worst_link``'s cause (see ``connector._source_cause_id``). ``None``
+    #: for a manually-added/edited row with no FMEA source. Persisted (not a
+    #: session-only lookup) so the SPC->FMEA linkage survives CSV export/reimport.
+    source_cause_id: Annotated[str | None, pydantic.Field(default=None, max_length=300)] = None
 
     @pydantic.field_validator(
         "characteristic", "measurement_method", "frequency", "reaction_plan", mode="before"
@@ -78,6 +92,15 @@ class ControlPlanRow(pydantic.BaseModel):
     def reject_blank(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():
             raise ValueError("must not be blank or whitespace-only")
+        return v.strip() if isinstance(v, str) else v
+
+    @pydantic.field_validator("source_cause_id", mode="before")
+    @classmethod
+    def blank_source_cause_id_to_none(cls, v: object) -> object:
+        # A blank cell is the normal "no FMEA source" shape (not an error, unlike
+        # the required string fields above) — coerce it to None rather than reject.
+        if isinstance(v, str) and not v.strip():
+            return None
         return v.strip() if isinstance(v, str) else v
 
     @pydantic.model_validator(mode="after")
@@ -129,7 +152,9 @@ CONTROL_PLAN_SCHEMA = TableSchema(
 #: Optional tolerance/chart columns excluded from ``required_columns`` (nullable —
 #: see the module docstring), so ``quality_core.io.load_table`` never reads or
 #: validates them. Checked separately, below, when present in the upload.
-_OPTIONAL_COLUMNS: tuple[str, ...] = ("lsl", "usl", "target", "recommended_chart")
+_OPTIONAL_COLUMNS: tuple[str, ...] = (
+    "lsl", "usl", "target", "recommended_chart", "source_cause_id",
+)
 
 
 def _reject_bad_optional_values(df: pd.DataFrame) -> None:
