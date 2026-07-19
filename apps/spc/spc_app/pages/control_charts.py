@@ -6,6 +6,12 @@ from typing import Any, Mapping
 import pandas as pd
 import streamlit as st
 
+from spc_app.control_plan_config import (
+    PLAN_STATE_KEY,
+    chart_type_index,
+    config_for,
+    plan_characteristics,
+)
 from spc_app.exporter import (
     ControlChartReport,
     build_control_chart_report_excel,
@@ -116,9 +122,27 @@ def render_control_charts() -> None:
     st.title("Control Charts")
     st.caption("Variables and attributes control charts with Western Electric and Nelson rule overlays.")
 
+    plan_df = st.session_state.get(PLAN_STATE_KEY)
+    cp_config = None
+
     with st.sidebar:
         st.header("Controls")
-        chart_key = st.selectbox("Chart Type", options=list(CHART_OPTIONS.keys()))
+        chart_options = list(CHART_OPTIONS.keys())
+        preselect_index = 0
+        if plan_df is not None and not plan_df.empty:
+            names = plan_characteristics(plan_df)
+            selected = st.selectbox("Characteristic (from Control Plan)", options=["(manual)", *names])
+            if selected != "(manual)":
+                cp_config = config_for(plan_df, selected)
+                preselect_index = chart_type_index(cp_config.chart_key, chart_options)
+        chart_key = st.selectbox("Chart Type", options=chart_options, index=preselect_index)
+        if cp_config is not None:
+            st.info(
+                f"Auto-configured from Control Plan: **{cp_config.characteristic}**\n\n"
+                f"- LSL / USL / Target: {cp_config.lsl} / {cp_config.usl} / {cp_config.target}\n"
+                f"- Sample size: {cp_config.sample_size}\n"
+                f"- Frequency: {cp_config.frequency}"
+            )
         rule_set = st.radio("Rule Set", options=["Western Electric", "Nelson"], horizontal=True)
         source_mode = st.radio("Data Source", options=["Demo", "Upload CSV"], horizontal=True)
         upload = None

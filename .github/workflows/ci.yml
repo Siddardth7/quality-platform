@@ -87,6 +87,7 @@ jobs:
           --cov=spc_app.visualizer
           --cov=spc_app.exporter
           --cov=spc_app.schema
+          --cov=spc_app.control_plan_config
           --cov-report=term-missing
           --cov-fail-under=95
 
