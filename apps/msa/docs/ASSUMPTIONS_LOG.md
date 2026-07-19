@@ -382,6 +382,30 @@ versa). If only `%GRR_study` is available (no tolerance input), base the verdict
 
 ---
 
+## RULE 15 — CSV Export Payload: Both Study and Results (W08-3, SME resolution)
+
+**Decision:** Offer **two** CSV downloads on the Gage R&R page, not one:
+1. **Study CSV** — the validated study frame (`part, appraiser, trial, measurement`),
+   round-trippable input, matching Control Plan's `export_csv(validated)`.
+2. **Results CSV** — a flat, one-row table of the computed metrics (EV, AV, GRR, PV,
+   TV, %GRR study, %GRR tolerance, ndc, verdict, verdict interpretation).
+
+**Source:** Not an AIAG requirement; a platform UX decision (SME resolution, W08-3,
+2026-07-19, Sid — overrides the single-CSV default researched for #56). The Excel/PDF
+exports remain the full results report; the results CSV is a lightweight machine-readable
+companion to it.
+
+**Rationale:** A study CSV alone forces a spreadsheet user to recompute %GRR/ndc/verdict by
+hand to get them into a flat table; a results CSV alone loses the raw measurements needed to
+audit or re-run the study. Both are one call each over the same `GageStudyReport` and the
+same verdict→sentence map, so the marginal cost of the second button is a few lines, not a
+new export path.
+
+**Applied In:** `apps/msa/msa_app/exporter.py` → `export_csv()`, `export_results_csv()`;
+`apps/msa/msa_app/pages/gage_study.py` → the "Download Report" section (two CSV buttons).
+
+---
+
 ## Summary of Files & Code Pointers
 
 | Assumption | Implemented In |
