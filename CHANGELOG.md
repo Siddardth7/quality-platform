@@ -6,7 +6,30 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-18
+
+Week 07 — Close the loop. Completes the AIAG improvement loop end to end: a Control Plan
+characteristic auto-configures the SPC view (spec/tolerance, sample size/frequency,
+recommended chart type) with no manual re-entry (#88); an out-of-control SPC signal emits
+candidate occurrence-rating / CAPA feedback back to the source FMEA cause — human-in-the-loop,
+never auto-committed, anchored to the AIAG FMEA-4 / SAE J1739 occurrence table (#89); and a
+dedicated cross-app integration test proves the full FMEA → Control Plan → SPC → FMEA walk on
+real sample data, with the SPC coverage floor ratcheted to 100% line+branch (#90). Milestone
+issues #88, #89, #90, #91 closed; all coverage bars green on `dev`.
+
 ### Added
+
+- **SPC — Control Plan → Control Charts config (W07-1, #88).** The Control
+  Charts page now reads a loaded Control Plan from session state and offers a
+  "Characteristic (from Control Plan)" selector; picking one preselects the
+  chart type from `recommended_chart` (falling back to the manual selectbox
+  when it's `None`/invalid) and shows an info panel with LSL/USL/target,
+  sample size, and frequency. New pure module
+  `apps/spc/spc_app/control_plan_config.py` (`plan_characteristics`,
+  `config_for`, `chart_type_index`) does the derivation — no new SPC math, no
+  visualizer changes, no `controlplan_app` import from `spc_app` (the
+  standalone SPC app still imports cleanly). Added to the SPC coverage gate in
+  CI and `apps/spc/CLAUDE.md`.
 
 - **SPC → FMEA candidate occurrence feedback + loop close (W07-2, #89).** An
   out-of-control signal on a Control Plan characteristic's chart now emits a
@@ -42,78 +65,6 @@ All notable changes to the Quality Platform are documented here. The format foll
   95% → 100% (`.github/workflows/ci.yml`, `apps/spc/CLAUDE.md`) — all gated
   SPC modules already sit at 100% line+branch, so the ratchet is earned and
   safe.
-
-## [0.6.0] - 2026-07-18
-
-Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
-connector engine that turns relational FMEA failure modes into typed Control Plan
-rows (with the AIAG SPC chart-selection rule table and AP/RPN prioritization), a
-Streamlit authoring UI (ingest → review/edit → injection-safe CSV/Excel/PDF
-export), and the enforcement to keep it honest — a 100% line+branch coverage gate
-on the connector + schema, plus the Control Plan app added to the mypy gate.
-Milestone issues #83, #84, #85, #86, #95 closed; all coverage bars green on `dev`.
-
-### Added
-
-- **SPC — Control Plan → Control Charts config (W07-1, #88).** The Control
-  Charts page now reads a loaded Control Plan from session state and offers a
-  "Characteristic (from Control Plan)" selector; picking one preselects the
-  chart type from `recommended_chart` (falling back to the manual selectbox
-  when it's `None`/invalid) and shows an info panel with LSL/USL/target,
-  sample size, and frequency. New pure module
-  `apps/spc/spc_app/control_plan_config.py` (`plan_characteristics`,
-  `config_for`, `chart_type_index`) does the derivation — no new SPC math, no
-  visualizer changes, no `controlplan_app` import from `spc_app` (the
-  standalone SPC app still imports cleanly). Added to the SPC coverage gate in
-  CI and `apps/spc/CLAUDE.md`.
-
-## [0.6.0] - 2026-07-18
-
-Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
-connector engine that turns relational FMEA failure modes into typed Control Plan
-rows (with the AIAG SPC chart-selection rule table and AP/RPN prioritization), a
-Streamlit authoring UI (ingest → review/edit → injection-safe CSV/Excel/PDF
-export), and the enforcement to keep it honest — a 100% line+branch coverage gate
-on the connector + schema, plus the Control Plan app added to the mypy gate.
-Milestone issues #83, #84, #85, #86, #95 closed; all coverage bars green on `dev`.
-
-### Added
-
-- **SPC — Control Plan → Control Charts config (W07-1, #88).** The Control
-  Charts page now reads a loaded Control Plan from session state and offers a
-  "Characteristic (from Control Plan)" selector; picking one preselects the
-  chart type from `recommended_chart` (falling back to the manual selectbox
-  when it's `None`/invalid) and shows an info panel with LSL/USL/target,
-  sample size, and frequency. New pure module
-  `apps/spc/spc_app/control_plan_config.py` (`plan_characteristics`,
-  `config_for`, `chart_type_index`) does the derivation — no new SPC math, no
-  visualizer changes, no `controlplan_app` import from `spc_app` (the
-  standalone SPC app still imports cleanly). Added to the SPC coverage gate in
-  CI and `apps/spc/CLAUDE.md`.
-
-## [0.6.0] - 2026-07-18
-
-Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
-connector engine that turns relational FMEA failure modes into typed Control Plan
-rows (with the AIAG SPC chart-selection rule table and AP/RPN prioritization), a
-Streamlit authoring UI (ingest → review/edit → injection-safe CSV/Excel/PDF
-export), and the enforcement to keep it honest — a 100% line+branch coverage gate
-on the connector + schema, plus the Control Plan app added to the mypy gate.
-Milestone issues #83, #84, #85, #86, #95 closed; all coverage bars green on `dev`.
-
-### Added
-
-- **SPC — Control Plan → Control Charts config (W07-1, #88).** The Control
-  Charts page now reads a loaded Control Plan from session state and offers a
-  "Characteristic (from Control Plan)" selector; picking one preselects the
-  chart type from `recommended_chart` (falling back to the manual selectbox
-  when it's `None`/invalid) and shows an info panel with LSL/USL/target,
-  sample size, and frequency. New pure module
-  `apps/spc/spc_app/control_plan_config.py` (`plan_characteristics`,
-  `config_for`, `chart_type_index`) does the derivation — no new SPC math, no
-  visualizer changes, no `controlplan_app` import from `spc_app` (the
-  standalone SPC app still imports cleanly). Added to the SPC coverage gate in
-  CI and `apps/spc/CLAUDE.md`.
 
 ## [0.6.0] - 2026-07-18
 
