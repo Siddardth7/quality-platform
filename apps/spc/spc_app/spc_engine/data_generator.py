@@ -9,7 +9,7 @@ _RNG = np.random.default_rng(42)
 
 
 def generate_demo_dataset() -> pd.DataFrame:
-    """Return a deterministic demo dataset covering five SPC process streams."""
+    """Return a deterministic demo dataset covering the SPC process streams."""
     frames = [
         _ply_thickness(),
         _autoclave_temperature(),
@@ -17,6 +17,7 @@ def generate_demo_dataset() -> pd.DataFrame:
         _reject_proportion(),
         _surface_defects(),
         _panel_defects(),
+        _ply_misalignment(),
     ]
     return pd.concat(frames, ignore_index=True)
 
@@ -117,6 +118,35 @@ def _surface_defects() -> pd.DataFrame:
                 "usl": 3.0,
             }
         )
+    return pd.DataFrame(rows)
+
+
+def _ply_misalignment() -> pd.DataFrame:
+    """Ply misalignment angle (degrees) — bound 1:1 (OQ3, W07-2 #89) to the
+    composite-panel FMEA demo's highest-risk characteristic ("Prepreg Ply —
+    Ply misalignment (>+/-2 deg)"), so the SPC->FMEA loop demo charts a real
+    stream for that characteristic instead of a name-mismatched generic one.
+    """
+    rows = []
+    for subgroup in range(1, 21):
+        # ponytail: subgroup 18 is a deliberate mean-shift spike (a poorly
+        # re-templated layup run) — a fixed, reproducible OOC trigger rather
+        # than a random artifact the RNG seed might one day stop producing.
+        shift = 2.4 if subgroup == 18 else 0.0
+        values = _RNG.normal(loc=0.10 + shift, scale=0.22, size=5)
+        for value in values:
+            rows.append(
+                {
+                    "stream": "ply_misalignment",
+                    "parameter": "Ply Misalignment Angle",
+                    "chart_type": "xbar_r",
+                    "subgroup": subgroup,
+                    "value": round(float(value), 4),
+                    "sample_size": 5,
+                    "lsl": -2.0,
+                    "usl": 2.0,
+                }
+            )
     return pd.DataFrame(rows)
 
 

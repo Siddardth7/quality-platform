@@ -37,6 +37,7 @@ uv run pytest --cov
 uv run pytest apps/spc \
   --cov=spc_app.spc_engine --cov=spc_app.simulation --cov=spc_app.visualizer \
   --cov=spc_app.exporter --cov=spc_app.schema --cov=spc_app.control_plan_config \
+  --cov=spc_app.fmea_feedback \
   --cov-fail-under=95
 ```
 
@@ -75,6 +76,8 @@ spc_app/spc_engine/             pure SPC computation (fully unit-tested):
     utils.py                      subgroup_rows
 spc_app/simulation/engine.py    SimulationEngine — mean shift / spike / drift injection
 spc_app/visualizer.py           Plotly builders: control chart, capability histogram, Cpk gauge
+spc_app/control_plan_config.py  Control Plan -> SPC view config (W07-1, #88)
+spc_app/fmea_feedback.py        SPC OOC signal -> candidate FMEA occurrence feedback (W07-2, #89)
 ```
 
 **Data flow (Control Charts):** demo CSV / upload → filter by `stream` → `subgroup_rows`

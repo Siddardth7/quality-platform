@@ -6,6 +6,51 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **SPC → FMEA candidate occurrence feedback + loop close (W07-2, #89).** An
+  out-of-control signal on a Control Plan characteristic's chart now emits a
+  **candidate** occurrence-rating / CAPA payload toward the source FMEA
+  cause — never auto-committed. New pure module `apps/spc/spc_app/
+  fmea_feedback.py` (`summarize_violations`, `build_occurrence_feedback`)
+  maps the chart's OOC failing-rate onto the AIAG FMEA-4 (2008) / SAE J1739
+  occurrence rate table (cited in-module; AIAG-VDA 2019 defines no numeric
+  occurrence table, so the rate mapping is anchored to the legacy AIAG-4/J1739
+  standard — see `docs/ASSUMPTIONS_LOG.md` Rule 10). `ControlPlanRow` gained a
+  nullable `source_cause_id` join key (`controlplan_app/schema.py`),
+  populated by a refactored `connector.build_control_plan` /
+  new `connector.source_index`, so the SPC↔FMEA linkage survives Control
+  Plan CSV export/reimport. A new per-characteristic demo SPC stream
+  (`ply_misalignment`) binds a real, out-of-control monitored parameter to
+  the composite-panel FMEA demo's highest-risk characteristic. The FMEA page
+  renders a read-only candidate panel (no `spc_app` import). Closes the full
+  FMEA → Control Plan → SPC → FMEA walk in the unified shell. Added
+  `spc_app.fmea_feedback` to the SPC coverage gate (CI + `apps/spc/CLAUDE.md`).
+
+## [0.6.0] - 2026-07-18
+
+Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
+connector engine that turns relational FMEA failure modes into typed Control Plan
+rows (with the AIAG SPC chart-selection rule table and AP/RPN prioritization), a
+Streamlit authoring UI (ingest → review/edit → injection-safe CSV/Excel/PDF
+export), and the enforcement to keep it honest — a 100% line+branch coverage gate
+on the connector + schema, plus the Control Plan app added to the mypy gate.
+Milestone issues #83, #84, #85, #86, #95 closed; all coverage bars green on `dev`.
+
+### Added
+
+- **SPC — Control Plan → Control Charts config (W07-1, #88).** The Control
+  Charts page now reads a loaded Control Plan from session state and offers a
+  "Characteristic (from Control Plan)" selector; picking one preselects the
+  chart type from `recommended_chart` (falling back to the manual selectbox
+  when it's `None`/invalid) and shows an info panel with LSL/USL/target,
+  sample size, and frequency. New pure module
+  `apps/spc/spc_app/control_plan_config.py` (`plan_characteristics`,
+  `config_for`, `chart_type_index`) does the derivation — no new SPC math, no
+  visualizer changes, no `controlplan_app` import from `spc_app` (the
+  standalone SPC app still imports cleanly). Added to the SPC coverage gate in
+  CI and `apps/spc/CLAUDE.md`.
+
 ## [0.6.0] - 2026-07-18
 
 Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
