@@ -6,6 +6,16 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-18
+
+Week 06 — Control Plan. Closes the FMEA → Control Plan half of the AIAG loop: a
+connector engine that turns relational FMEA failure modes into typed Control Plan
+rows (with the AIAG SPC chart-selection rule table and AP/RPN prioritization), a
+Streamlit authoring UI (ingest → review/edit → injection-safe CSV/Excel/PDF
+export), and the enforcement to keep it honest — a 100% line+branch coverage gate
+on the connector + schema, plus the Control Plan app added to the mypy gate.
+Milestone issues #83, #84, #85, #86, #95 closed; all coverage bars green on `dev`.
+
 ### Added
 
 - **SPC — Control Plan → Control Charts config (W07-1, #88).** The Control
