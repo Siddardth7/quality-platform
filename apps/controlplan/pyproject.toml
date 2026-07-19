@@ -1,6 +1,6 @@
 [project]
 name = "controlplan-app"
-version = "0.6.0"
+version = "0.7.0"
 description = "Control Plan — Streamlit app (validated ingest scaffold; FMEA mapping and authoring UI land later)."
 readme = "README.md"
 requires-python = ">=3.11"
