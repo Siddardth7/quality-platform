@@ -28,8 +28,8 @@ def render_home() -> None:
     """Draw the platform landing page into the current container."""
     st.title("🏭 Quality Platform")
     st.caption(
-        "One platform, one URL — FMEA risk prioritization and SPC process control "
-        "over a shared manufacturing-quality core."
+        "One platform, one URL — FMEA risk prioritization, MSA gage capability, and "
+        "SPC process control over a shared manufacturing-quality core."
     )
 
     st.markdown(
@@ -37,15 +37,16 @@ def render_home() -> None:
         padding:16px 20px;color:{TEXT_PRIMARY};font-size:0.92rem;line-height:1.6;
         margin-bottom:0.5rem;">
         📐 Use the <strong style="color:{AMBER};">sidebar</strong> to move between the
-        <strong>FMEA Risk Analyzer</strong> and the three <strong>SPC</strong> workflows —
-        Control Charts, Process Capability, and Live Simulation. Each tool keeps its own
-        controls; the platform shares one theme and one navigation surface.
+        <strong>FMEA Risk Analyzer</strong>, <strong>MSA Gage R&amp;R</strong>, and the
+        three <strong>SPC</strong> workflows — Control Charts, Process Capability, and
+        Live Simulation. Each tool keeps its own controls; the platform shares one theme
+        and one navigation surface.
         </div>""",
         unsafe_allow_html=True,
     )
 
     st.subheader("What's inside")
-    cards = st.columns(2)
+    cards = st.columns(3)
     cards[0].markdown(
         _section_card(
             "🛡️ FMEA Risk Analyzer",
@@ -55,6 +56,15 @@ def render_home() -> None:
         unsafe_allow_html=True,
     )
     cards[1].markdown(
+        _section_card(
+            "📏 MSA Gage R&R",
+            "Validate a crossed gage study and compute %GRR, ndc, and an AIAG verdict "
+            "(Average-and-Range method). Loop: the Control Plan names the measurement "
+            "method → MSA proves the gage capable before the SPC chart is trusted.",
+        ),
+        unsafe_allow_html=True,
+    )
+    cards[2].markdown(
         _section_card(
             "📈 SPC Dashboard",
             "Variables and attributes control charts, Cp/Cpk/Pp/Ppk capability analysis, "

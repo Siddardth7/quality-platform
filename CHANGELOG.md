@@ -6,6 +6,25 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **MSA tests + CI coverage gate (W08-4, #57).** New engine reference test asserts
+  `compute_gage_rr` against the AIAG MSA 4th-ed "study case 1" published
+  EV/AV/%GRR/ndc/verdict, loaded from a new fixture
+  `apps/msa/data/aiag_reference_study.csv` (raw 10x3x3 canonical study). New
+  "MSA coverage gate" CI step enforces `--cov-fail-under=100` on
+  `msa_app.gage_rr_engine` + `msa_app.schema` + `msa_app.exporter`, mirroring
+  the SPC and Control Plan gates.
+- **MSA app UI — study entry, results, verdict + export (W08-3, #56).** The Gage
+  R&R page now shows a loop-link note (Control Plan → MSA → SPC) and a
+  plain-English verdict interpretation sentence, and exports the study/results
+  as CSV/Excel/PDF via `quality_core.io`. New `apps/msa/msa_app/exporter.py`
+  (`GageStudyReport`, `export_csv`, `export_results_csv`, `export_excel`,
+  `export_pdf`, `verdict_sentence`) mirrors the SPC/Control Plan exporter
+  pattern; two CSV downloads are offered (the validated study frame, and a flat
+  results table). New standalone `apps/msa/app.py`; the platform shell landing
+  page (`shell/home.py`) now lists an MSA feature card.
+
 ## [0.7.0] - 2026-07-18
 
 Week 07 — Close the loop. Completes the AIAG improvement loop end to end: a Control Plan

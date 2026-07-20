@@ -9,6 +9,8 @@ dependencies = [
     "streamlit>=1.56.0",
     "pandas>=3.0.2",
     "pydantic>=2.0",
+    "openpyxl>=3.1.5",  # msa_app.exporter writes .xlsx via openpyxl
+    "fpdf2>=2.8.7",     # msa_app.exporter renders .pdf via fpdf2
 ]
 
 [tool.uv.sources]

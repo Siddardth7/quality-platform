@@ -965,6 +965,8 @@ name = "msa-app"
 version = "0.7.0"
 source = { virtual = "apps/msa" }
 dependencies = [
+    { name = "fpdf2" },
+    { name = "openpyxl" },
     { name = "pandas" },
     { name = "pydantic" },
     { name = "quality-core" },
@@ -973,6 +975,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "fpdf2", specifier = ">=2.8.7" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.2" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "quality-core", editable = "packages/quality-core" },

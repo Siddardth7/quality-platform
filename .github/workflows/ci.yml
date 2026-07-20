@@ -105,3 +105,16 @@ jobs:
           --cov=controlplan_app.schema
           --cov-report=term-missing
           --cov-fail-under=100
+
+      # MSA coverage gate: the testable MSA surface (Gage R&R engine, validated
+      # ingest schema, report exporter) must stay fully covered so the AIAG math,
+      # rejection paths, and export payloads can't regress silently. The Streamlit
+      # pages/ and app.py are excluded — they need a runtime — mirroring the SPC gate.
+      - name: MSA coverage gate
+        run: >
+          uv run pytest apps/msa
+          --cov=msa_app.gage_rr_engine
+          --cov=msa_app.schema
+          --cov=msa_app.exporter
+          --cov-report=term-missing
+          --cov-fail-under=100
