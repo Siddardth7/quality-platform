@@ -1,9 +1,11 @@
 """Tests for msa_app/gage_rr_engine.py — Gage R&R computation (W08-2).
 
 Drives the compute_gage_rr() function and all internal helpers with:
-- Happy paths (standard AIAG studies), asserted against the AIAG worked examples
-  in .pipeline/spec.md (Example A: 10x3x3 canonical study; Example B: synthetic
-  3x2x2 study, hand-computed end to end).
+- Happy paths (standard AIAG studies): a reference test against the AIAG MSA
+  4th-ed "study case 1" canonical 10x3x3 dataset (raw values from a public
+  reproduction of the manual; published EV/AV/GRR/ndc asserted), plus a
+  synthetic 3x2x2 "Example B" study, hand-computed end to end (see
+  .pipeline/spec.md).
 - Verdict matrix (coverage of all Accept/Marginal/Reject paths).
 - Edge cases (unbalanced data, NaN/inf, zero tolerance, empty data).
 - K1/K2/K3 constant lookup and formula verification.
@@ -13,6 +15,7 @@ Drives the compute_gage_rr() function and all internal helpers with:
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -26,6 +29,11 @@ from msa_app.gage_rr_engine import (
     _compute_verdict,
     _k_constant,
     compute_gage_rr,
+)
+from msa_app.schema import load_gage_study_csv
+
+_AIAG_REFERENCE_STUDY_CSV = (
+    Path(__file__).resolve().parents[1] / "data" / "aiag_reference_study.csv"
 )
 
 # --- Fixtures ----------------------------------------------------------------
@@ -129,7 +137,7 @@ def test_k_constant_off_table_raises():
 
 
 def test_ndc_computation_standard():
-    """Verify ndc = trunc(1.41 × (PV / GRR)) against AIAG Example B."""
+    """Verify ndc = trunc(1.41 × (PV / GRR)) against the synthetic Example B study."""
     pv = 2.0924
     grr = 0.294184
     assert _compute_ndc(grr, pv) == 10
@@ -338,6 +346,29 @@ def test_compute_gage_rr_example_b_with_tolerance():
     assert results["pgrr_tolerance"] == pytest.approx(3.6773, rel=1e-3)
     assert results["ndc"] == 10
     assert results["verdict"] == "Marginal"
+
+
+# --- AIAG MSA 4th-ed "study case 1" reference (canonical 10x3x3 study) -------
+
+
+def test_compute_gage_rr_aiag_reference_study():
+    """End-to-end reference test against the AIAG MSA manual's published numbers.
+
+    Source: AIAG MSA 4th Ed. study case 1; raw table via RTX PPAP toolbox
+    reproduction (`apps/msa/data/aiag_reference_study.csv`, 10 parts x 3
+    appraisers x 3 trials, deviation values). EV/AV/GRR/ndc/verdict asserted
+    below are the manual's own published components for this study, not a
+    snapshot of the current engine output.
+    """
+    data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+    results = compute_gage_rr(data, tolerance=4.42)
+
+    assert results["ev"] == pytest.approx(0.20188, rel=1e-2)
+    assert results["av"] == pytest.approx(0.22963, rel=1e-2)
+    assert results["grr"] == pytest.approx(0.30576, rel=1e-2)
+    assert results["ndc"] == 5
+    assert results["verdict"] == "Marginal"
+    assert results["pgrr_tolerance"] == pytest.approx(6.92, rel=1e-2)
 
 
 def test_compute_gage_rr_from_list_of_dicts():
