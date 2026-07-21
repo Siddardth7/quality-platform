@@ -9,4 +9,4 @@ Keep this in sync with ``apps/controlplan/pyproject.toml`` at release (bump both
 together).
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"

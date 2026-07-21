@@ -6,15 +6,28 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-20
+
+Week 08 — MSA / Gage R&R module. Adds Measurement Systems Analysis as a first-class app: a
+typed gage-study schema and scaffold (#54); a Gage R&R engine computing repeatability (EV),
+reproducibility (AV), %GRR vs study variation and vs tolerance, and ndc by the AIAG
+Average-and-Range method, with an accept/marginal/reject verdict against AIAG thresholds (#55);
+a Streamlit study-entry / results / verdict UI with CSV/Excel/PDF export and the platform-shell
+feature card (#56); and an AIAG-reference regression test plus a 100% line+branch coverage gate
+on the engine, schema, and exporter, mirroring the SPC and Control Plan gates (#57). Milestone
+issues #54, #55, #56, #57 closed; every coverage bar green on `dev` (quality_core.io 100%,
+quality_core.schema 100% line+branch, SPC 100%, MSA engine/schema/exporter 100%).
+
 ### Added
 
-- **MSA tests + CI coverage gate (W08-4, #57).** New engine reference test asserts
-  `compute_gage_rr` against the AIAG MSA 4th-ed "study case 1" published
-  EV/AV/%GRR/ndc/verdict, loaded from a new fixture
-  `apps/msa/data/aiag_reference_study.csv` (raw 10x3x3 canonical study). New
-  "MSA coverage gate" CI step enforces `--cov-fail-under=100` on
-  `msa_app.gage_rr_engine` + `msa_app.schema` + `msa_app.exporter`, mirroring
-  the SPC and Control Plan gates.
+- **Gage R&R engine — Average-and-Range method (W08-2, #55).** New
+  `apps/msa/msa_app/gage_rr_engine.py` (`compute_gage_rr`) computes repeatability
+  (EV) and reproducibility (AV), %GRR against both study variation and tolerance,
+  and the number of distinct categories (ndc), returning an accept / marginal /
+  reject verdict against AIAG thresholds (ndc ≥ 5; %GRR <10% good, 10–30%
+  marginal, >30% reject). Formulas are anchored to the AIAG MSA 4th-edition
+  reference — no invention — with the derivation recorded in the MSA
+  `ASSUMPTIONS_LOG`.
 - **MSA app UI — study entry, results, verdict + export (W08-3, #56).** The Gage
   R&R page now shows a loop-link note (Control Plan → MSA → SPC) and a
   plain-English verdict interpretation sentence, and exports the study/results
@@ -24,6 +37,13 @@ All notable changes to the Quality Platform are documented here. The format foll
   pattern; two CSV downloads are offered (the validated study frame, and a flat
   results table). New standalone `apps/msa/app.py`; the platform shell landing
   page (`shell/home.py`) now lists an MSA feature card.
+- **MSA tests + CI coverage gate (W08-4, #57).** New engine reference test asserts
+  `compute_gage_rr` against the AIAG MSA 4th-ed "study case 1" published
+  EV/AV/%GRR/ndc/verdict, loaded from a new fixture
+  `apps/msa/data/aiag_reference_study.csv` (raw 10x3x3 canonical study). New
+  "MSA coverage gate" CI step enforces `--cov-fail-under=100` on
+  `msa_app.gage_rr_engine` + `msa_app.schema` + `msa_app.exporter`, mirroring
+  the SPC and Control Plan gates.
 
 ## [0.7.0] - 2026-07-18
 
