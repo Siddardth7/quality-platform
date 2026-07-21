@@ -1,0 +1,14 @@
+SECOM Dataset
+Source: UCI Machine Learning Repository (dataset 179).
+URL: https://archive.ics.uci.edu/dataset/179/secom
+DOI: https://doi.org/10.24432/C54305
+Creators: Michael McCann and Adrian Johnston.
+
+Citation:
+McCann, M. & Johnston, A. (2008). SECOM [Dataset]. UCI Machine Learning
+Repository. https://doi.org/10.24432/C54305
+
+License: Creative Commons Attribution 4.0 International (CC BY 4.0).
+This dataset is redistributed unchanged under CC BY 4.0, which permits sharing
+and adaptation for any purpose provided appropriate credit is given.
+Full licence: https://creativecommons.org/licenses/by/4.0/

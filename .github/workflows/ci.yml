@@ -118,3 +118,15 @@ jobs:
           --cov=msa_app.exporter
           --cov-report=term-missing
           --cov-fail-under=100
+
+      # SECOM coverage gate: the SECOM honest ingest (heavy, real missingness
+      # preserved) and signal-selection screen (W09-1) are new testable surface
+      # and must stay fully covered so the missingness/NZV/zero-variance filters
+      # can't regress silently. No pages/ yet (W09-1 ships no UI).
+      - name: SECOM coverage gate
+        run: >
+          uv run pytest apps/secom
+          --cov=secom_app.ingest
+          --cov=secom_app.selection
+          --cov-report=term-missing
+          --cov-fail-under=100
