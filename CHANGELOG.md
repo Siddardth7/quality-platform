@@ -8,6 +8,27 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SECOM dataset ingest + signal selection (W09-1, #65).** New `apps/secom/`
+  app package (mirrors msa/controlplan). `secom_app/ingest.py` (`load_secom`,
+  `secom_missingness`) reads the two vendored raw UCI SECOM files
+  (`data/secom.data`, `data/secom_labels.data`; 1567 runs x 590 sensors, no
+  header) into an aligned, NaN-preserving `SecomDataset` — deliberately not
+  routed through `quality_core.io.load_table`'s per-row validation, which would
+  reject SECOM's honest missing cells; only `IngestError` is reused for
+  structural failures (row-count mismatch, out-of-domain labels).
+  `secom_app/selection.py` (`select_signals`) screens the 590 signals for
+  SPC/capability suitability with three ordered filters — a `MIN_NON_MISSING =
+  100` present-value floor (AIAG SPC capability sample-size guidance), an
+  unconditional zero-variance drop, and a near-zero-variance drop
+  (`caret::nearZeroVar` defaults, flagged as a third-party heuristic, not a
+  quality standard) — returning a full per-signal audit table. Spec limits
+  (USL/LSL) and Cp/Cpk remain out of scope: SECOM ships none, and no limits are
+  fabricated. Every criterion and its source is recorded in
+  `apps/secom/docs/ASSUMPTIONS_LOG.md`. New CI coverage gate
+  (`secom_app.ingest` + `secom_app.selection`, 100% line+branch) mirrors the
+  MSA/SPC gates. No UI yet — later W09 issues wire SECOM into SPC/capability/
+  MSA/yield-Pareto.
+
 - **MSA tests + CI coverage gate (W08-4, #57).** New engine reference test asserts
   `compute_gage_rr` against the AIAG MSA 4th-ed "study case 1" published
   EV/AV/%GRR/ndc/verdict, loaded from a new fixture
