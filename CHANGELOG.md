@@ -8,6 +8,24 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SECOM SPC control charts (W09-2, #66).** New `secom_app/charts.py` runs
+  every `select_signals()`-kept sensor through the *existing* SPC I-MR engine
+  (`apps/spc/spc_app/spc_engine/`: `compute_imr`, `detect_we_violations`,
+  `detect_nelson_violations`), reused read-only via a `sys.path` shim added to
+  `apps/secom/conftest.py` (mirrors the `fmea_app` cross-app precedent) — no
+  control-limit math or rule detection is reimplemented. Handles SECOM's
+  honest missingness by splitting each signal into maximal NaN-free runs
+  before any moving-range math, so a moving range never spans a missing cell;
+  within-run moving ranges pool into one control-limit set per signal.
+  Attaches a per-signal lag-1 autocorrelation diagnostic (`lag1_autocorr`,
+  `autocorr_flag`, threshold `1.96/sqrt(n)`, Bartlett's white-noise bound) —
+  diagnostic only, never a filter or gate. `control_charts_for_selection()`
+  charts every `status=="keep"` signal from a selection audit. RED LINE
+  unchanged: no USL/LSL fabricated, no `compute_capability`, no Cp/Cpk/Pp/Ppk.
+  Every resolution recorded in `apps/secom/docs/ASSUMPTIONS_LOG.md`. SECOM CI
+  coverage gate extended to `secom_app.charts` (100% line+branch). No UI page
+  (later W09 issue).
+
 - **SECOM dataset ingest + signal selection (W09-1, #65).** New `apps/secom/`
   app package (mirrors msa/controlplan). `secom_app/ingest.py` (`load_secom`,
   `secom_missingness`) reads the two vendored raw UCI SECOM files

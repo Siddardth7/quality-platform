@@ -1,5 +1,5 @@
 # Engineering Assumptions Log
-**Project:** SECOM Dataset Ingest + Signal Selection (W09-1)
+**Project:** SECOM Dataset Ingest + Signal Selection (W09-1) + SPC Control Charts (W09-2)
 **Last Updated:** July 21, 2026
 
 This document records every screening decision in the SECOM ingest/selection engine
@@ -132,6 +132,101 @@ percentile-derived vs SME-supplied) belongs to a later capability issue.
 
 ---
 
+## RULE 6 — W09-2 (#66): I-MR is the reused, standard chart type (standard)
+
+**Decision:** Every SECOM sensor is charted with Individuals + Moving Range
+(I-MR, MR window = 2) via the existing, already-tested SPC engine
+(`compute_imr`, `detect_we_violations`/`detect_nelson_violations` in
+`apps/spc/spc_app/spc_engine/`), reused read-only through a `sys.path` shim
+in `apps/secom/conftest.py`. No control-limit math or rule-detection logic is
+re-derived in `secom_app/charts.py`.
+
+**Source:** AIAG SPC Reference Manual, 4th ed. (2005); Montgomery,
+*Introduction to Statistical Quality Control*, individuals-chart chapter.
+SECOM is one reading per production run per sensor — individual measurements,
+no rational subgroup — so I-MR is the standard choice, not a heuristic one.
+
+**Applied In:** `apps/secom/secom_app/charts.py` -> `control_chart_for_signal()`
+
+---
+
+## RULE 7 — W09-2 (#66): lag-1 autocorrelation flag (SME-set, rigorous option)
+
+**Decision:** Each charted signal gets a diagnostic-only lag-1 (Pearson)
+autocorrelation statistic (`lag1_autocorr`) and a boolean flag
+(`autocorr_flag`) attached to its `SignalControlChart`. The flag threshold is
+`1.96 / sqrt(n)` — Bartlett's large-sample approximate 95% white-noise
+confidence bound for a lag-1 autocorrelation estimate — evaluated per signal
+against that signal's own `n_used` (present-value count), so the threshold
+scales with sample size rather than using one fixed cutoff for every signal.
+
+**Source:** Box, Jenkins & Reinsel, *Time Series Analysis: Forecasting and
+Control* (Bartlett's formula for the standard error of an autocorrelation
+estimate under a white-noise null); Montgomery's SPC text discusses the same
+autocorrelation diagnostic when checking the I-MR chart's independence
+assumption (fab sensor streams are frequently autocorrelated from drift/
+thermal cycles, which inflates false special-cause signals if ignored).
+
+**Rationale:** SME resolution (2026-07-21) chose the rigorous option over a
+caption-only caveat: flag every charted signal individually rather than
+leaving the independence-assumption caveat unverified. This is a
+**diagnostic flag only** — it never filters, models/deautocorrelates, or
+gates which signals are charted or how their limits are computed. It is
+computed gap-spanning over the dropna'd series (not run-broken like the
+moving range) because it is not part of the control-limit math that OQ5
+governs.
+
+**Applied In:** `apps/secom/secom_app/charts.py` ->
+`_lag1_autocorrelation()`, `AUTOCORR_Z`, `control_chart_for_signal()`
+
+---
+
+## RULE 8 — W09-2 (#66): moving range broken at gaps, not gap-spanning (SME-set)
+
+**Decision:** Before any moving-range math, a signal's present values are
+split into maximal contiguous (NaN-free) runs (`_present_runs()`). The moving
+range is computed only within a run (reusing `compute_imr`'s own diff logic
+per run via `_pooled_moving_ranges()`), never across a missing cell. A run of
+length 1 contributes no moving range. All within-run moving ranges are pooled
+into a single `mrbar` -> `sigma_hat` -> one set of I-MR control limits per
+signal, so the chart still has one UCL/LCL (only the *moving-range
+computation*, not the limit-combination step, is run-broken). If every run in
+a signal happens to have length 1 (pooled MR empty), `mrbar` and `sigma_hat`
+collapse to 0 and `detect_*` raises — the same degenerate-signal error path
+as a constant series.
+
+**Source:** SME resolution (2026-07-21), the time-faithful option over
+gap-spanning drop-NaN. A moving range spanning a gap would compare two points
+that were not actually adjacent production runs, which is not a meaningful
+moving range for a process-monitoring chart.
+
+**Rationale:** SECOM's NaN cells are honest missingness (RULE 1), preserved
+through ingest and selection; W09-2 must not silently treat two
+non-adjacent-in-time present values as if they were consecutive.
+
+**Applied In:** `apps/secom/secom_app/charts.py` -> `_present_runs()`,
+`_pooled_moving_ranges()`, `control_chart_for_signal()`
+
+---
+
+## NOTE — W09-2: normality still deferred, no gate (applied default, unchanged)
+
+Same stance as the W09-1 note above: the Individuals chart is moderately
+robust to non-normality, the MR chart less so, but SECOM signals are not
+verified normal. `charts.py` does not run or attach a normality flag — this
+mirrors deferring the same call SPC's own Capability page makes explicit
+(`normality_test`), left to a later issue if a normality diagnostic is wanted
+here too. No filter, no gate.
+
+## NOTE — W09-2: still no spec limits / no Cp/Cpk (RED LINE unchanged)
+
+`charts.py` produces I-MR control limits (UCL/LCL derived from the moving
+range) — these are legitimate, data-computed chart limits, not spec limits.
+It never fabricates USL/LSL, never calls `compute_capability`, and never
+computes Cp/Cpk/Pp/Ppk. SECOM still ships no tolerances.
+
+---
+
 ## Summary of Files & Code Pointers
 
 | Assumption | Implemented In |
@@ -142,3 +237,8 @@ percentile-derived vs SME-supplied) belongs to a later capability issue.
 | Near-zero-variance drop | `selection.py` -> `NZV_FREQ_RATIO`, `NZV_PERCENT_UNIQUE` |
 | Filter order / reason precedence | `selection.py` -> `select_signals()` |
 | No spec limits / no Cp/Cpk here | (deferred; not implemented in W09-1) |
+| I-MR via reused SPC engine (standard) | `charts.py` -> `control_chart_for_signal()` |
+| Lag-1 autocorrelation flag (SME-set) | `charts.py` -> `_lag1_autocorrelation()`, `AUTOCORR_Z` |
+| Gap-broken moving range (SME-set) | `charts.py` -> `_present_runs()`, `_pooled_moving_ranges()` |
+| Normality still deferred (no gate) | (deferred; not implemented in W09-2) |
+| No spec limits / no Cp/Cpk here | (deferred; RED LINE unchanged in W09-2) |
