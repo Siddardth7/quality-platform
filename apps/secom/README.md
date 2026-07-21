@@ -29,5 +29,14 @@ Cp/Cpk computation. SECOM ships no tolerances; W09-1 selects *candidate*
 signals only. See `docs/ASSUMPTIONS_LOG.md` for the full rationale and
 standard-vs-heuristic labelling of every screening rule.
 
+- **`secom_app/charts.py`** (W09-2, #66) — `control_chart_for_signal()` /
+  `control_charts_for_selection()` run every `select_signals()`-kept signal
+  through the *existing* SPC I-MR engine (`apps/spc/spc_app/spc_engine/`,
+  reused read-only, no reimplemented control-limit math). Handles SECOM's
+  honest missingness by splitting each signal into gap-free runs before any
+  moving-range math (a moving range never spans a missing cell), and attaches
+  a per-signal lag-1 autocorrelation diagnostic flag (never a filter/gate).
+  Still no spec limits / no Cp/Cpk — see `docs/ASSUMPTIONS_LOG.md`.
+
 **Data provenance:** the two raw UCI files are vendored unchanged under
 `data/`; see `data/LICENSE_SECOM.txt` for citation and license (CC BY 4.0).
