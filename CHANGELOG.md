@@ -8,6 +8,23 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SECOM real capability, Cp/Cpk (W09-3, #67).** New `secom_app/capability.py`
+  adds `capability_for_signal()`, which reuses the *existing* SPC
+  `compute_capability` (`apps/spc/spc_app/spc_engine/capability.py`) unchanged
+  against the W09-2 I-MR control chart's present values and within-process
+  σ̂ = MR̄/d₂ — no Cp/Cpk math is re-derived. Limits are caller-supplied only
+  (`lsl`/`usl`, either may be `None` for one-sided); the module never derives,
+  defaults, or fabricates a limit (both `None` raises `ValueError`; `lsl >=
+  usl` raises `ValueError`). Capability is coupled to the W09-2 stability
+  gate: on a signal with any special-cause `violations`, the indices are
+  still computed but returned with `stable=False` and a `stability_warning`
+  (mirrors `apps/spc/spc_app/pages/process_capability.py:156`) rather than
+  hard-suppressed. `charts.py` stays untouched and pure control-chart; the
+  new code lives in a separate module. `apps/secom/docs/ASSUMPTIONS_LOG.md`
+  RULE 9/RULE 10 record both resolutions with AIAG citations and standard-
+  vs-heuristic labels. SECOM CI coverage gate extended to
+  `secom_app.capability` (100% line+branch). No UI page (later W09 issue).
+
 - **SECOM SPC control charts (W09-2, #66).** New `secom_app/charts.py` runs
   every `select_signals()`-kept sensor through the *existing* SPC I-MR engine
   (`apps/spc/spc_app/spc_engine/`: `compute_imr`, `detect_we_violations`,
