@@ -38,5 +38,12 @@ standard-vs-heuristic labelling of every screening rule.
   a per-signal lag-1 autocorrelation diagnostic flag (never a filter/gate).
   Still no spec limits / no Cp/Cpk — see `docs/ASSUMPTIONS_LOG.md`.
 
+- **`secom_app/capability.py`** (W09-3, #67) — Cp/Cpk/Pp/Ppk against
+  caller-supplied limits, stability-gated: `capability_for_signal()` reuses
+  the existing SPC `compute_capability` (never re-derives Cp/Cpk math) fed
+  the W09-2 control chart's present values and within-process σ̂; still
+  computes indices on an unstable process but flags `stable=False` with a
+  `stability_warning` rather than fabricating a limit or hard-suppressing.
+
 **Data provenance:** the two raw UCI files are vendored unchanged under
 `data/`; see `data/LICENSE_SECOM.txt` for citation and license (CC BY 4.0).

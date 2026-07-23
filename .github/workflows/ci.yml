@@ -120,16 +120,20 @@ jobs:
           --cov-fail-under=100
 
       # SECOM coverage gate: the SECOM honest ingest (heavy, real missingness
-      # preserved) and signal-selection screen (W09-1), plus the I-MR control
-      # chart integration (W09-2, reuses the SPC engine) are new testable
-      # surface and must stay fully covered so the missingness/NZV/zero-variance
-      # filters and the gap-broken moving-range/autocorrelation logic can't
-      # regress silently. No pages/ yet (W09-1/W09-2 ship no UI).
+      # preserved) and signal-selection screen (W09-1), the I-MR control
+      # chart integration (W09-2, reuses the SPC engine), and the
+      # caller-supplied-limits capability wrapper (W09-3, reuses
+      # compute_capability) are new testable surface and must stay fully
+      # covered so the missingness/NZV/zero-variance filters, the gap-broken
+      # moving-range/autocorrelation logic, and the stability-gated
+      # capability coupling can't regress silently. No pages/ yet (W09-1/
+      # W09-2/W09-3 ship no UI).
       - name: SECOM coverage gate
         run: >
           uv run pytest apps/secom
           --cov=secom_app.ingest
           --cov=secom_app.selection
           --cov=secom_app.charts
+          --cov=secom_app.capability
           --cov-report=term-missing
           --cov-fail-under=100

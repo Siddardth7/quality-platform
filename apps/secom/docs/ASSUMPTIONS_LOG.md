@@ -1,6 +1,7 @@
 # Engineering Assumptions Log
 **Project:** SECOM Dataset Ingest + Signal Selection (W09-1) + SPC Control Charts (W09-2)
-**Last Updated:** July 21, 2026
++ Capability (W09-3)
+**Last Updated:** July 23, 2026
 
 This document records every screening decision in the SECOM ingest/selection engine
 and its source, with an explicit **standard vs heuristic** label — SECOM signal
@@ -218,12 +219,78 @@ mirrors deferring the same call SPC's own Capability page makes explicit
 (`normality_test`), left to a later issue if a normality diagnostic is wanted
 here too. No filter, no gate.
 
-## NOTE — W09-2: still no spec limits / no Cp/Cpk (RED LINE unchanged)
+## NOTE — W09-2: still no spec limits / no Cp/Cpk (RED LINE, lifted in W09-3 below)
 
 `charts.py` produces I-MR control limits (UCL/LCL derived from the moving
 range) — these are legitimate, data-computed chart limits, not spec limits.
 It never fabricates USL/LSL, never calls `compute_capability`, and never
-computes Cp/Cpk/Pp/Ppk. SECOM still ships no tolerances.
+computes Cp/Cpk/Pp/Ppk. SECOM still ships no tolerances. **Update (W09-3,
+#67): this red line is lifted, but only via caller-supplied limits — see
+RULE 9.** `charts.py` itself is untouched and remains pure control-chart;
+the new capability code lives in a separate module (`capability.py`).
+
+---
+
+## RULE 9 — W09-3 (#67): capability = caller-supplied limits, no fabrication (standard math, no-fabrication policy is SME-set)
+
+**Decision:** `capability_for_signal(features, signal, lsl, usl, ruleset)` in
+`secom_app/capability.py` takes `lsl`/`usl` as explicit caller-supplied
+arguments (either may be `None` for a one-sided characteristic). The module
+never derives, defaults, or fabricates a limit — e.g. it does NOT compute a
+percentile/mean±k·sigma "tolerance" from the data. Both `None` raises
+`ValueError` (no capability without at least one limit); both given with
+`lsl >= usl` also raises.
+
+**Source:** AIAG SPC Reference Manual, 4th ed. (2005) — Cp/Cpk/Pp/Ppk
+formulas are reused unchanged from `apps/spc/spc_app/spc_engine/capability.py`
+(`compute_capability`), which already handles `lsl`/`usl == None` correctly
+(one-sided / two-sided / neither -> index `None`). **Flagged: the
+no-fabrication *policy* (reject a derived-limit shortcut) is an SME
+resolution for this platform, not itself an AIAG-published rule — AIAG
+defines the Cp/Cpk math, not where a limit must come from.** SME resolution
+(2026-07-23) confirmed caller-supplied limits over any percentile/nominal-
+derived alternative, because deriving a "tolerance" from the process's own
+data would inflate Cpk toward whatever the process already does and is not
+a real capability claim.
+
+**Rationale:** Continues RULE 3/NOTE "No spec limits ship with SECOM" — the
+limits-source decision (engineering spec vs SME-supplied) still belongs to a
+later UI/limits issue; this module only computes once a limit is supplied,
+it never invents one.
+
+**Applied In:** `apps/secom/secom_app/capability.py` -> `capability_for_signal()`
+
+---
+
+## RULE 10 — W09-3 (#67): capability coupled to the W09-2 stability gate — compute + flag, not suppress (standard requirement, SME-set response)
+
+**Decision:** `capability_for_signal()` always computes Cp/Cpk/Pp/Ppk (via
+`compute_capability`, fed `chart.imr["values"]` and the within-process
+`chart.imr["sigma_hat"]` = MR̄/d₂ from the W09-2 I-MR chart). If the signal's
+control chart has any special-cause `violations` (Western Electric or
+Nelson, per the `ruleset` argument), the result carries `stable=False` and a
+non-`None` `stability_warning` naming the violation count and ruleset and
+stating the indices are not a valid capability claim until the process is
+stabilized. The indices are never hard-suppressed (returned `None`) for
+instability — an in-control signal produces `stable=True`,
+`stability_warning=None`.
+
+**Source:** AIAG SPC Reference Manual, 4th ed. (2005) — capability indices
+are only meaningful on a process in statistical control; this is the AIAG
+requirement already implemented as the precedent
+`apps/spc/spc_app/pages/process_capability.py:156` ("if oos_signals:" ->
+prominent warning, values still shown). **Flagged: "compute + flag" vs. hard-
+suppress is an SME resolution matching that existing precedent — AIAG states
+the stability *requirement*, not which of the two enforcement mechanics a
+tool must pick.** SME resolution (2026-07-23) chose compute + flag, per DoD
+#67 "no Cpk on an out-of-control process without a warning" (a warning, not
+a withhold).
+
+**Rationale:** Mirrors the platform's existing SPC Capability page exactly,
+so a SECOM signal and an SPC stream get identically-shaped stability
+guidance rather than two divergent behaviors for the same AIAG requirement.
+
+**Applied In:** `apps/secom/secom_app/capability.py` -> `capability_for_signal()`
 
 ---
 
@@ -241,4 +308,6 @@ computes Cp/Cpk/Pp/Ppk. SECOM still ships no tolerances.
 | Lag-1 autocorrelation flag (SME-set) | `charts.py` -> `_lag1_autocorrelation()`, `AUTOCORR_Z` |
 | Gap-broken moving range (SME-set) | `charts.py` -> `_present_runs()`, `_pooled_moving_ranges()` |
 | Normality still deferred (no gate) | (deferred; not implemented in W09-2) |
-| No spec limits / no Cp/Cpk here | (deferred; RED LINE unchanged in W09-2) |
+| No spec limits / no Cp/Cpk here | RED LINE lifted in W09-3 via caller-supplied limits only (RULE 9) |
+| Caller-supplied limits, no fabrication (standard math, SME policy) | `capability.py` -> `capability_for_signal()` |
+| Compute + flag stability coupling (SME resolution) | `capability.py` -> `capability_for_signal()` |
