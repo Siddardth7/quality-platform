@@ -22,6 +22,7 @@ these paths, so living docs are never moved once created. Each entry is one line
 | Doc | What / why |
 |---|---|
 | [`COVERAGE_BASELINE_2026-07-09.md`](COVERAGE_BASELINE_2026-07-09.md) | Per-surface line+branch coverage at the branch-gate flip (#41); the one gap closed. |
+| [`../apps/secom/docs/CASE_STUDY.md`](../apps/secom/docs/CASE_STUDY.md) | Short, honest SECOM case-study write-up (W09 series) — what was analyzed, verified numbers, and limitations. |
 
 > New point-in-time docs (audits, scorecards, trials, designs) are **date-stamped** and land here as
 > they're produced. Per-app deep docs live under `apps/fmea/docs/` and `apps/spc/docs/`.
