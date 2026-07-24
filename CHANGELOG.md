@@ -8,6 +8,21 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SECOM DOE screening analysis (W11-1, #72).** New
+  `apps/secom/secom_app/doe_screening.py` adds `screen_signals()`, an
+  observational univariate effect screen of pass/fail on the
+  `select_signals()`-kept candidate signals — Cohen's d effect size and
+  Welch's two-sample t-test per signal (`scipy.stats.ttest_ind`,
+  `equal_var=False`), with Benjamini-Hochberg FDR-adjusted significance
+  (`scipy.stats.false_discovery_control`, q < 0.05, a screening convention
+  not a quality-standard threshold). Explicitly labelled a screening
+  ANALYSIS of association — SECOM's factor levels are observational, never
+  set or randomized, so this is NOT a designed experiment and NOT causal.
+  Adds `scipy>=1.17.1`/`numpy>=2.4.4` to `apps/secom/pyproject.toml`
+  (already in the workspace lock via `spc-app`). Engine-only, no Streamlit
+  page. `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 14 documents the method
+  and standard-vs-convention labelling.
+
 - **SECOM case-study writeup (W09-6, #70).** New
   `apps/secom/docs/CASE_STUDY.md`, a short, honest condensation of the W09-1..5
   series (ingest/selection -> SPC charts -> capability -> MSA applicability ->

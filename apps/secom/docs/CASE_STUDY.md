@@ -41,6 +41,11 @@ Five views, each reusing an existing engine rather than re-deriving math:
   [`../secom_app/yield_dppm.py`](../secom_app/yield_dppm.py) compute wafer-level
   yield and DPPM, and rank kept signals by how often their control-chart
   violations coincide with failed wafers — an association, not root-cause, Pareto.
+- **DOE screening analysis (W11-1).** `screen_signals()` in
+  [`../secom_app/doe_screening.py`](../secom_app/doe_screening.py) runs a
+  univariate effect screen (Welch's t + Cohen's d, BH-FDR significance) of
+  pass/fail on each kept signal — an observational association screen, not a
+  designed experiment.
 
 ## What the numbers are
 
@@ -78,6 +83,11 @@ defects-and-opportunities count, so only a units-based metric is defensible (see
     kept signals were most often flagged out-of-control on failed wafers. It does
     not prove any signal caused any failure — SECOM's label is a single
     wafer-level verdict that attributes failure to nothing.
+  - **The DOE screening analysis is not a designed experiment.** Factor
+    (sensor) levels are passively recorded, never set or randomized, so no
+    fractional-factorial/Plackett-Burman design is possible on this data —
+    `screen_signals()` reports observational effect sizes and FDR-adjusted
+    significance, not a causal factor screen.
 - **What no view here claims:** control charts flag statistical signals, not
   defects; yield/DPPM are definitional arithmetic with no acceptance threshold
   implied; nothing in this series is a validated root-cause analysis or a

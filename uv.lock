@@ -1927,17 +1927,21 @@ name = "secom-app"
 version = "0.7.0"
 source = { virtual = "apps/secom" }
 dependencies = [
+    { name = "numpy" },
     { name = "pandas" },
     { name = "pydantic" },
     { name = "quality-core" },
+    { name = "scipy" },
     { name = "streamlit" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "numpy", specifier = ">=2.4.4" },
     { name = "pandas", specifier = ">=3.0.2" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "quality-core", editable = "packages/quality-core" },
+    { name = "scipy", specifier = ">=1.17.1" },
     { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
