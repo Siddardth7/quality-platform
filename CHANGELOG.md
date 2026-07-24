@@ -8,6 +8,28 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SECOM yield/DPPM + failing-signal Pareto (W09-5, #69).** New
+  `secom_app/yield_dppm.py` adds `yield_summary()` (pass/fail counts ->
+  yield fraction/pct and DPPM) and `failing_signal_pareto()`, an
+  association/screening Pareto that reuses the *existing* W09-2 SPC
+  violation detection (`control_charts_for_selection`, no anomaly rule
+  re-derived) to rank kept signals by the number of special-cause violation
+  events landing on failed wafers (SME resolution: events, not distinct
+  failed-wafer count; zero-contributor signals dropped from the table).
+  DPPM is explicitly labelled **defective units per million, not DPMO**
+  (SECOM carries one pass/fail verdict per wafer, no defects-and-
+  opportunities count) — no acceptance threshold is invented. The Pareto is
+  explicitly labelled association/screening, not root-cause attribution
+  (SECOM's label attributes no failure to any signal). Also ships a thin,
+  non-gated Streamlit page, `secom_app/pages/yield_dppm.py`
+  (`render_yield_dppm()`), rendering yield, DPPM, and the Pareto table/chart
+  — the SME added this scope over the series' engine-only default because
+  the issue itself asked for a "view." `apps/secom/docs/ASSUMPTIONS_LOG.md`
+  RULE 12 (yield/DPPM, DPPM-not-DPMO) and RULE 13 (association Pareto
+  construction, labelled a defensible heuristic) record both decisions.
+  SECOM CI coverage gate extended to `secom_app.yield_dppm` (100%
+  line+branch); `secom_app.pages` stays outside the gate, matching SPC/MSA.
+
 - **SECOM MSA applicability guard (W09-4, #68).** SECOM has no
   `part`/`appraiser`/`trial` structure and none can be legitimately
   constructed (different sensors measure different characteristics, not
