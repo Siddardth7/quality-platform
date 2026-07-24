@@ -6,6 +6,8 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-24
+
 ### Added
 
 - **SECOM case-study writeup (W09-6, #70).** New
@@ -120,7 +122,6 @@ All notable changes to the Quality Platform are documented here. The format foll
   (`secom_app.ingest` + `secom_app.selection`, 100% line+branch) mirrors the
   MSA/SPC gates. No UI yet — later W09 issues wire SECOM into SPC/capability/
   MSA/yield-Pareto.
-
 
 ## [0.8.0] - 2026-07-20
 
