@@ -6,6 +6,8 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-24
+
 ### Added
 
 - **SECOM DOE screening analysis (W11-1, #72).** New
