@@ -8,6 +8,29 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SECOM MSA applicability guard (W09-4, #68).** SECOM has no
+  `part`/`appraiser`/`trial` structure and none can be legitimately
+  constructed (different sensors measure different characteristics, not
+  repeat appraisals of one measurand; successive wafers are different parts,
+  not re-measurements of the same part) — the honest deliverable is a
+  standards-anchored "MSA does not apply" document plus an executable
+  refusal guard, not a fabricated Gage R&R. New
+  `apps/secom/docs/MSA_APPLICABILITY.md` records the AIAG MSA 4th ed.
+  Section 3.1/3.2 justification, cross-referencing the SME-verified
+  `apps/msa/docs/ASSUMPTIONS_LOG.md` RULE 1/RULE 11/RULE 12 (no new AIAG
+  section numbers, tables, or thresholds introduced). New
+  `secom_app/msa.py` adds `gage_rr_applicability()` /
+  `assert_gage_rr_applicable()`, which detect missing
+  `part`/`appraiser`/`trial` columns and return/raise a standards-anchored
+  verdict — no Gage R&R math (EV/AV/%GRR/ndc/verdict) is reimplemented;
+  a real study still runs through the existing `apps/msa` app
+  (`compute_gage_rr`). `apps/secom/conftest.py` gains an `apps/msa`
+  `sys.path` shim (mirroring the existing `apps/spc` block) so the test
+  suite can import the real AIAG engine and prove it also rejects
+  SECOM-shaped frames. `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
+  the finding. SECOM CI coverage gate extended to `secom_app.msa` (100%
+  line+branch).
+
 - **SECOM real capability, Cp/Cpk (W09-3, #67).** New `secom_app/capability.py`
   adds `capability_for_signal()`, which reuses the *existing* SPC
   `compute_capability` (`apps/spc/spc_app/spc_engine/capability.py`) unchanged
