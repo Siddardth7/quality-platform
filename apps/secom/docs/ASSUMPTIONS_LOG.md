@@ -1,6 +1,6 @@
 # Engineering Assumptions Log
 **Project:** SECOM Dataset Ingest + Signal Selection (W09-1) + SPC Control Charts (W09-2)
-+ Capability (W09-3)
++ Capability (W09-3) + MSA Applicability (W09-4)
 **Last Updated:** July 23, 2026
 
 This document records every screening decision in the SECOM ingest/selection engine
@@ -294,6 +294,47 @@ guidance rather than two divergent behaviors for the same AIAG requirement.
 
 ---
 
+## RULE 11 — W09-4 (#68): MSA not applicable to SECOM (standard)
+
+**Decision:** MSA / Gage R&R does not apply to SECOM. SECOM carries no
+`part`/`appraiser`/`trial` structure and none can be legitimately constructed
+from it (different sensors measure different characteristics, not repeat
+appraisals of one measurand; successive wafers are different parts, not
+re-measurements of the same part). Rather than fabricate a crossed-study
+structure or skip the issue silently, this platform ships a standards-
+anchored non-applicability document plus an executable refusal guard:
+`gage_rr_applicability()` / `assert_gage_rr_applicable()` in
+`secom_app/msa.py` detect the missing dimensions and raise/return a verdict
+pointing at the documentation. No Gage R&R math (EV/AV/%GRR/ndc/verdict) is
+added to SECOM — a real study is run through the existing `apps/msa` app.
+
+**Source:** AIAG MSA (4th Edition) Section 3.1 (designed crossed study: n
+parts x k appraisers x r>=2 trials; recommended study size) and Section 3.2
+(Average-and-Range method assumptions — repeatability estimated within a
+(part, appraiser) cell, reproducibility estimated across appraisers). Already
+SME-verified in-repo against the primary manual: `apps/msa/docs/ASSUMPTIONS_LOG.md`
+RULE 1 (Average-and-Range method), RULE 11 (balanced crossed data), RULE 12
+(minimum study size) — verified 2026-07-19 (SME: Sid). This entry cites those
+in-repo, verified rules rather than introducing new AIAG section numbers,
+tables, or thresholds — the finding here is structural (SECOM lacks the axes
+a Gage R&R needs), not a new numeric criterion. **Labelled standard**: the
+AIAG structural requirement (a Gage R&R needs a crossed part x appraiser x
+trial design) is not a platform heuristic — it is what makes a Gage R&R a
+Gage R&R.
+
+**Rationale:** `apps/secom/secom_app/ingest.py:52` (`SecomDataset`) carries
+exactly `features`/`labels`/`timestamps` — one reading per wafer per sensor,
+no re-measurement axis and no appraiser axis. Treating different sensors as
+appraisers or successive wafers as trials would be exactly the kind of
+invention this issue forbids; the honest answer is refusal, not a fabricated
+computation. Full argument: `apps/secom/docs/MSA_APPLICABILITY.md`.
+
+**Applied In:** `apps/secom/secom_app/msa.py` ->
+`gage_rr_applicability()`, `assert_gage_rr_applicable()`;
+`apps/secom/docs/MSA_APPLICABILITY.md`
+
+---
+
 ## Summary of Files & Code Pointers
 
 | Assumption | Implemented In |
@@ -311,3 +352,4 @@ guidance rather than two divergent behaviors for the same AIAG requirement.
 | No spec limits / no Cp/Cpk here | RED LINE lifted in W09-3 via caller-supplied limits only (RULE 9) |
 | Caller-supplied limits, no fabrication (standard math, SME policy) | `capability.py` -> `capability_for_signal()` |
 | Compute + flag stability coupling (SME resolution) | `capability.py` -> `capability_for_signal()` |
+| MSA not applicable to SECOM (standard) | `msa.py` -> `gage_rr_applicability()`, `assert_gage_rr_applicable()` |

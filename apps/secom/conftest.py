@@ -13,6 +13,11 @@ the SPC app dir also goes onto ``sys.path`` here — mirroring the precedent in
 rpn_engine``). The secom dir is inserted first so ``import app`` still
 resolves to secom's own ``app.py``; only the unambiguous ``spc_app`` package
 needs resolving from the second entry.
+
+W09-4 (#68): a reuse-proof test in ``tests/test_msa.py`` needs
+``from msa_app.gage_rr_engine import compute_gage_rr`` to show the *real*
+AIAG engine also rejects SECOM-shaped frames, so the MSA app dir goes onto
+``sys.path`` too, mirroring the ``spc_app`` block above.
 """
 
 from __future__ import annotations
@@ -27,3 +32,7 @@ if _APP_DIR not in sys.path:
 _SPC_APP_DIR = str(Path(__file__).parent.parent / "spc")
 if _SPC_APP_DIR not in sys.path:
     sys.path.insert(1, _SPC_APP_DIR)
+
+_MSA_APP_DIR = str(Path(__file__).parent.parent / "msa")
+if _MSA_APP_DIR not in sys.path:
+    sys.path.insert(2, _MSA_APP_DIR)

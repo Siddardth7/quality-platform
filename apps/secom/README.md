@@ -45,5 +45,12 @@ standard-vs-heuristic labelling of every screening rule.
   computes indices on an unstable process but flags `stable=False` with a
   `stability_warning` rather than fabricating a limit or hard-suppressing.
 
+- **`secom_app/msa.py`** (W09-4, #68) — SECOM has no `part`/`appraiser`/
+  `trial` structure and none can be legitimately constructed, so this module
+  refuses rather than fabricates: `gage_rr_applicability()` /
+  `assert_gage_rr_applicable()` return/raise a standards-anchored verdict
+  pointing at `docs/MSA_APPLICABILITY.md`. No Gage R&R math is added; a real
+  study runs through the existing `apps/msa` app (`compute_gage_rr`).
+
 **Data provenance:** the two raw UCI files are vendored unchanged under
 `data/`; see `data/LICENSE_SECOM.txt` for citation and license (CC BY 4.0).
