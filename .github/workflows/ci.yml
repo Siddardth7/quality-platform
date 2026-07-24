@@ -124,15 +124,18 @@ jobs:
       # chart integration (W09-2, reuses the SPC engine), the
       # caller-supplied-limits capability wrapper (W09-3, reuses
       # compute_capability), the MSA applicability refusal guard (W09-4,
-      # reuses no math — refuses only), and the yield/DPPM + association
-      # Pareto engine (W09-5, reuses W09-2's SPC violation detection) are
-      # new testable surface and must stay fully covered so the
-      # missingness/NZV/zero-variance filters, the gap-broken
-      # moving-range/autocorrelation logic, the stability-gated capability
-      # coupling, the MSA-applicability refusal, and the yield/DPPM +
-      # violation-to-failed-wafer mapping can't regress silently.
+      # reuses no math — refuses only), the yield/DPPM + association
+      # Pareto engine (W09-5, reuses W09-2's SPC violation detection), and
+      # the observational DOE screening analysis (W11-1, reuses
+      # scipy.stats for Welch's t / BH-FDR) are new testable surface and
+      # must stay fully covered so the missingness/NZV/zero-variance
+      # filters, the gap-broken moving-range/autocorrelation logic, the
+      # stability-gated capability coupling, the MSA-applicability refusal,
+      # the yield/DPPM + violation-to-failed-wafer mapping, and the
+      # Cohen's-d/Welch-t/BH-FDR screening math can't regress silently.
       # `secom_app.pages` (W09-5 Streamlit view) is intentionally excluded —
-      # it's a thin, non-gated renderer, same as SPC/MSA pages/.
+      # it's a thin, non-gated renderer, same as SPC/MSA pages/. W11-1 ships
+      # engine-only (no page).
       - name: SECOM coverage gate
         run: >
           uv run pytest apps/secom
@@ -142,5 +145,6 @@ jobs:
           --cov=secom_app.capability
           --cov=secom_app.msa
           --cov=secom_app.yield_dppm
+          --cov=secom_app.doe_screening
           --cov-report=term-missing
           --cov-fail-under=100

@@ -63,6 +63,13 @@ standard-vs-heuristic labelling of every screening rule.
   non-gated Streamlit view of this engine's output, mirroring
   `msa_app/pages/gage_study.py`.
 
+- **`secom_app/doe_screening.py`** (W11-1, #72) — `screen_signals()` runs an
+  observational univariate effect screen (Welch's t + Cohen's d, BH-FDR
+  significance, all reused via `scipy.stats` — no hand-rolled statistics) of
+  pass/fail on `select_signals()`-kept signals; explicitly labelled a
+  screening ANALYSIS of association, not a designed experiment (SECOM's
+  factor levels are never set or randomized). Engine-only, no page.
+
 **Data provenance:** the two raw UCI files are vendored unchanged under
 `data/`; see `data/LICENSE_SECOM.txt` for citation and license (CC BY 4.0).
 
