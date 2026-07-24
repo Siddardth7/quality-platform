@@ -6,6 +6,123 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-24
+
+### Added
+
+- **SECOM case-study writeup (W09-6, #70).** New
+  `apps/secom/docs/CASE_STUDY.md`, a short, honest condensation of the W09-1..5
+  series (ingest/selection -> SPC charts -> capability -> MSA applicability ->
+  yield/DPPM/Pareto), citing only test-locked headline numbers (1567 x 590
+  shape, 1463/104 pass/fail split, 93.363% yield, 66,368.86 DPPM) with a
+  mandatory Limitations section covering honest missingness (NaN-preserved,
+  never imputed) and SECOM's observational nature (no designed measurement
+  study: MSA does not apply, capability limits are caller-supplied, the
+  failing-signal Pareto is association not causation). Pure docs — no code,
+  no new coverage surface; one-line pointers added from `apps/secom/README.md`
+  and `docs/README.md`.
+
+- **SECOM yield/DPPM + failing-signal Pareto (W09-5, #69).** New
+  `secom_app/yield_dppm.py` adds `yield_summary()` (pass/fail counts ->
+  yield fraction/pct and DPPM) and `failing_signal_pareto()`, an
+  association/screening Pareto that reuses the *existing* W09-2 SPC
+  violation detection (`control_charts_for_selection`, no anomaly rule
+  re-derived) to rank kept signals by the number of special-cause violation
+  events landing on failed wafers (SME resolution: events, not distinct
+  failed-wafer count; zero-contributor signals dropped from the table).
+  DPPM is explicitly labelled **defective units per million, not DPMO**
+  (SECOM carries one pass/fail verdict per wafer, no defects-and-
+  opportunities count) — no acceptance threshold is invented. The Pareto is
+  explicitly labelled association/screening, not root-cause attribution
+  (SECOM's label attributes no failure to any signal). Also ships a thin,
+  non-gated Streamlit page, `secom_app/pages/yield_dppm.py`
+  (`render_yield_dppm()`), rendering yield, DPPM, and the Pareto table/chart
+  — the SME added this scope over the series' engine-only default because
+  the issue itself asked for a "view." `apps/secom/docs/ASSUMPTIONS_LOG.md`
+  RULE 12 (yield/DPPM, DPPM-not-DPMO) and RULE 13 (association Pareto
+  construction, labelled a defensible heuristic) record both decisions.
+  SECOM CI coverage gate extended to `secom_app.yield_dppm` (100%
+  line+branch); `secom_app.pages` stays outside the gate, matching SPC/MSA.
+
+- **SECOM MSA applicability guard (W09-4, #68).** SECOM has no
+  `part`/`appraiser`/`trial` structure and none can be legitimately
+  constructed (different sensors measure different characteristics, not
+  repeat appraisals of one measurand; successive wafers are different parts,
+  not re-measurements of the same part) — the honest deliverable is a
+  standards-anchored "MSA does not apply" document plus an executable
+  refusal guard, not a fabricated Gage R&R. New
+  `apps/secom/docs/MSA_APPLICABILITY.md` records the AIAG MSA 4th ed.
+  Section 3.1/3.2 justification, cross-referencing the SME-verified
+  `apps/msa/docs/ASSUMPTIONS_LOG.md` RULE 1/RULE 11/RULE 12 (no new AIAG
+  section numbers, tables, or thresholds introduced). New
+  `secom_app/msa.py` adds `gage_rr_applicability()` /
+  `assert_gage_rr_applicable()`, which detect missing
+  `part`/`appraiser`/`trial` columns and return/raise a standards-anchored
+  verdict — no Gage R&R math (EV/AV/%GRR/ndc/verdict) is reimplemented;
+  a real study still runs through the existing `apps/msa` app
+  (`compute_gage_rr`). `apps/secom/conftest.py` gains an `apps/msa`
+  `sys.path` shim (mirroring the existing `apps/spc` block) so the test
+  suite can import the real AIAG engine and prove it also rejects
+  SECOM-shaped frames. `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
+  the finding. SECOM CI coverage gate extended to `secom_app.msa` (100%
+  line+branch).
+
+- **SECOM real capability, Cp/Cpk (W09-3, #67).** New `secom_app/capability.py`
+  adds `capability_for_signal()`, which reuses the *existing* SPC
+  `compute_capability` (`apps/spc/spc_app/spc_engine/capability.py`) unchanged
+  against the W09-2 I-MR control chart's present values and within-process
+  σ̂ = MR̄/d₂ — no Cp/Cpk math is re-derived. Limits are caller-supplied only
+  (`lsl`/`usl`, either may be `None` for one-sided); the module never derives,
+  defaults, or fabricates a limit (both `None` raises `ValueError`; `lsl >=
+  usl` raises `ValueError`). Capability is coupled to the W09-2 stability
+  gate: on a signal with any special-cause `violations`, the indices are
+  still computed but returned with `stable=False` and a `stability_warning`
+  (mirrors `apps/spc/spc_app/pages/process_capability.py:156`) rather than
+  hard-suppressed. `charts.py` stays untouched and pure control-chart; the
+  new code lives in a separate module. `apps/secom/docs/ASSUMPTIONS_LOG.md`
+  RULE 9/RULE 10 record both resolutions with AIAG citations and standard-
+  vs-heuristic labels. SECOM CI coverage gate extended to
+  `secom_app.capability` (100% line+branch). No UI page (later W09 issue).
+
+- **SECOM SPC control charts (W09-2, #66).** New `secom_app/charts.py` runs
+  every `select_signals()`-kept sensor through the *existing* SPC I-MR engine
+  (`apps/spc/spc_app/spc_engine/`: `compute_imr`, `detect_we_violations`,
+  `detect_nelson_violations`), reused read-only via a `sys.path` shim added to
+  `apps/secom/conftest.py` (mirrors the `fmea_app` cross-app precedent) — no
+  control-limit math or rule detection is reimplemented. Handles SECOM's
+  honest missingness by splitting each signal into maximal NaN-free runs
+  before any moving-range math, so a moving range never spans a missing cell;
+  within-run moving ranges pool into one control-limit set per signal.
+  Attaches a per-signal lag-1 autocorrelation diagnostic (`lag1_autocorr`,
+  `autocorr_flag`, threshold `1.96/sqrt(n)`, Bartlett's white-noise bound) —
+  diagnostic only, never a filter or gate. `control_charts_for_selection()`
+  charts every `status=="keep"` signal from a selection audit. RED LINE
+  unchanged: no USL/LSL fabricated, no `compute_capability`, no Cp/Cpk/Pp/Ppk.
+  Every resolution recorded in `apps/secom/docs/ASSUMPTIONS_LOG.md`. SECOM CI
+  coverage gate extended to `secom_app.charts` (100% line+branch). No UI page
+  (later W09 issue).
+
+- **SECOM dataset ingest + signal selection (W09-1, #65).** New `apps/secom/`
+  app package (mirrors msa/controlplan). `secom_app/ingest.py` (`load_secom`,
+  `secom_missingness`) reads the two vendored raw UCI SECOM files
+  (`data/secom.data`, `data/secom_labels.data`; 1567 runs x 590 sensors, no
+  header) into an aligned, NaN-preserving `SecomDataset` — deliberately not
+  routed through `quality_core.io.load_table`'s per-row validation, which would
+  reject SECOM's honest missing cells; only `IngestError` is reused for
+  structural failures (row-count mismatch, out-of-domain labels).
+  `secom_app/selection.py` (`select_signals`) screens the 590 signals for
+  SPC/capability suitability with three ordered filters — a `MIN_NON_MISSING =
+  100` present-value floor (AIAG SPC capability sample-size guidance), an
+  unconditional zero-variance drop, and a near-zero-variance drop
+  (`caret::nearZeroVar` defaults, flagged as a third-party heuristic, not a
+  quality standard) — returning a full per-signal audit table. Spec limits
+  (USL/LSL) and Cp/Cpk remain out of scope: SECOM ships none, and no limits are
+  fabricated. Every criterion and its source is recorded in
+  `apps/secom/docs/ASSUMPTIONS_LOG.md`. New CI coverage gate
+  (`secom_app.ingest` + `secom_app.selection`, 100% line+branch) mirrors the
+  MSA/SPC gates. No UI yet — later W09 issues wire SECOM into SPC/capability/
+  MSA/yield-Pareto.
+
 ## [0.8.0] - 2026-07-20
 
 Week 08 — MSA / Gage R&R module. Adds Measurement Systems Analysis as a first-class app: a
@@ -44,6 +161,7 @@ quality_core.schema 100% line+branch, SPC 100%, MSA engine/schema/exporter 100%)
   "MSA coverage gate" CI step enforces `--cov-fail-under=100` on
   `msa_app.gage_rr_engine` + `msa_app.schema` + `msa_app.exporter`, mirroring
   the SPC and Control Plan gates.
+
 
 ## [0.7.0] - 2026-07-18
 

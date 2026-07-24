@@ -10,4 +10,4 @@ Keep this in sync with ``apps/fmea/pyproject.toml`` at release (bump both
 together); ``tests/test_version.py`` guards against drift.
 """
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"

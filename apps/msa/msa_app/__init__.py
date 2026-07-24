@@ -8,4 +8,4 @@ cannot resolve it — hence a plain constant here.
 Keep this in sync with ``apps/msa/pyproject.toml`` at release (bump both together).
 """
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"

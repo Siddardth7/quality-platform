@@ -1,6 +1,6 @@
 [project]
 name = "msa-app"
-version = "0.8.0"
+version = "0.9.0"
 description = "Measurement System Analysis — Streamlit app (gage-study ingest; Gage R&R math lands later)."
 readme = "README.md"
 requires-python = ">=3.11"
