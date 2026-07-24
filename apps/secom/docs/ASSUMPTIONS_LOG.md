@@ -1,6 +1,6 @@
 # Engineering Assumptions Log
 **Project:** SECOM Dataset Ingest + Signal Selection (W09-1) + SPC Control Charts (W09-2)
-+ Capability (W09-3) + MSA Applicability (W09-4)
++ Capability (W09-3) + MSA Applicability (W09-4) + Yield/DPPM + Failing-Signal Pareto (W09-5)
 **Last Updated:** July 23, 2026
 
 This document records every screening decision in the SECOM ingest/selection engine
@@ -335,6 +335,73 @@ computation. Full argument: `apps/secom/docs/MSA_APPLICABILITY.md`.
 
 ---
 
+## RULE 12 — W09-5 (#69): yield/DPPM definitions, DPPM-not-DPMO (definitional arithmetic, honestly-labelled convention)
+
+**Decision:** `yield_summary(labels)` computes `yield_fraction = n_pass / n_total`,
+`yield_pct = yield_fraction * 100`, and `dppm = (n_fail / n_total) * 1_000_000` —
+pure definitional arithmetic, not a published threshold table. No acceptance
+cutoff is invented or implied (no "yield must exceed X"). The result is
+labelled **DPPM — defective units per million**, industry-standard
+semiconductor/Six-Sigma yield vocabulary (honestly labelled convention, not
+an AIAG-published table), and explicitly **not DPMO** (defects per million
+*opportunities*): SECOM carries exactly one pass/fail verdict per wafer
+(unit level), with no defects-and-opportunities count, so a DPMO number
+cannot be legitimately computed from this dataset. `yield_summary` raises
+`ValueError` on an empty label series (undefined at n=0) or a label outside
+`{PASS, FAIL}` (mirrors `ingest.load_secom`'s own domain guard).
+
+**Source:** Semiconductor/Six-Sigma yield vocabulary (industry convention);
+`PASS, FAIL = -1, 1` reused from `ingest.py:46` (never hardcoded).
+
+**Rationale:** Continues the platform's honesty discipline — a reader must
+never mistake this unit-level PPM number for a DPMO opportunity-count metric
+SECOM cannot support.
+
+**Applied In:** `apps/secom/secom_app/yield_dppm.py` -> `YieldSummary`,
+`yield_summary()`
+
+---
+
+## RULE 13 — W09-5 (#69): association/screening Pareto construction (defensible heuristic, NOT root cause)
+
+**Decision:** `failing_signal_pareto(dataset, audit, ruleset)` ranks kept
+signals (`audit["status"]=="keep"`) by the **number of SPC special-cause
+violation events landing on failed wafers** (OQ1a: events, not distinct
+failed-wafer count — a signal firing 3 rules on one failed wafer counts 3).
+Signals with zero fail-associated violations are **omitted** from the table
+(OQ1b, standard Pareto practice), not kept as zero rows. Ranked descending by
+count, ties broken by signal name ascending; `pct`/`cumulative_pct` columns
+added. No SPC or Pareto math is re-derived — this reuses W09-2's
+`control_charts_for_selection` (`charts.py`) violation detection unchanged;
+the only new logic is mapping each violation back to its wafer row and
+intersecting with the FAIL-labelled subset (`ingest.FAIL`, never hardcoded).
+
+**Violation-index correctness note:** `SignalControlChart.violations[i]["index"]`
+is positional into the *present, run-concatenated* charted values for that
+signal (`charts.py:146-148`), not a row label into `dataset.features`. The
+mapping uses `dataset.features.index[dataset.features[signal].notna()]` to
+recover the original wafer row per violation — indexing `violations[i]["index"]`
+directly into `dataset.features` would mis-attribute any signal with interior
+NaNs.
+
+**Source:** SME resolution (2026-07-23), OQ1 in `.pipeline/spec.md`: SECOM's
+label is a single wafer-level pass/fail verdict, so a signal cannot be a
+proven root cause — the honest construction is an association/screening
+Pareto ("among failed wafers, which kept signals were most often
+out-of-control"), explicitly rejecting (a) re-deriving control limits from
+the fail-subset only (statistically weak, ~104 points) and (b) ranking by
+total violations ignoring labels (not "of failing signals" at all). **Flagged:
+this Pareto construction is a defensible heuristic for this platform, not an
+AIAG-published standard** — AIAG defines SPC special-cause rules, not "how to
+rank signals against a failed-unit label."
+
+**Rationale:** Surfaces an actionable screening signal ("investigate this
+sensor first") without overclaiming causation the data cannot support.
+
+**Applied In:** `apps/secom/secom_app/yield_dppm.py` -> `failing_signal_pareto()`
+
+---
+
 ## Summary of Files & Code Pointers
 
 | Assumption | Implemented In |
@@ -353,3 +420,5 @@ computation. Full argument: `apps/secom/docs/MSA_APPLICABILITY.md`.
 | Caller-supplied limits, no fabrication (standard math, SME policy) | `capability.py` -> `capability_for_signal()` |
 | Compute + flag stability coupling (SME resolution) | `capability.py` -> `capability_for_signal()` |
 | MSA not applicable to SECOM (standard) | `msa.py` -> `gage_rr_applicability()`, `assert_gage_rr_applicable()` |
+| Yield/DPPM definitions, DPPM-not-DPMO (convention) | `yield_dppm.py` -> `yield_summary()` |
+| Association Pareto construction (defensible heuristic) | `yield_dppm.py` -> `failing_signal_pareto()` |

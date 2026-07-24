@@ -52,5 +52,16 @@ standard-vs-heuristic labelling of every screening rule.
   pointing at `docs/MSA_APPLICABILITY.md`. No Gage R&R math is added; a real
   study runs through the existing `apps/msa` app (`compute_gage_rr`).
 
+- **`secom_app/yield_dppm.py`** (W09-5, #69) — `yield_summary()` computes
+  wafer-level yield and DPPM (defective **units** per million — explicitly
+  not DPMO, which SECOM's single pass/fail-per-wafer label cannot support).
+  `failing_signal_pareto()` reuses the *existing* W09-2 SPC violation
+  detection (`control_charts_for_selection`, no anomaly rule re-derived) to
+  rank kept signals by how many special-cause violation events land on
+  failed wafers — an association/screening Pareto, not a root-cause claim.
+  `secom_app/pages/yield_dppm.py` (`render_yield_dppm()`) is a thin,
+  non-gated Streamlit view of this engine's output, mirroring
+  `msa_app/pages/gage_study.py`.
+
 **Data provenance:** the two raw UCI files are vendored unchanged under
 `data/`; see `data/LICENSE_SECOM.txt` for citation and license (CC BY 4.0).
