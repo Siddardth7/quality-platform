@@ -8,6 +8,18 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SECOM case-study writeup (W09-6, #70).** New
+  `apps/secom/docs/CASE_STUDY.md`, a short, honest condensation of the W09-1..5
+  series (ingest/selection -> SPC charts -> capability -> MSA applicability ->
+  yield/DPPM/Pareto), citing only test-locked headline numbers (1567 x 590
+  shape, 1463/104 pass/fail split, 93.363% yield, 66,368.86 DPPM) with a
+  mandatory Limitations section covering honest missingness (NaN-preserved,
+  never imputed) and SECOM's observational nature (no designed measurement
+  study: MSA does not apply, capability limits are caller-supplied, the
+  failing-signal Pareto is association not causation). Pure docs — no code,
+  no new coverage surface; one-line pointers added from `apps/secom/README.md`
+  and `docs/README.md`.
+
 - **SECOM yield/DPPM + failing-signal Pareto (W09-5, #69).** New
   `secom_app/yield_dppm.py` adds `yield_summary()` (pass/fail counts ->
   yield fraction/pct and DPPM) and `failing_signal_pareto()`, an
