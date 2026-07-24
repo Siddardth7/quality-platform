@@ -402,6 +402,53 @@ sensor first") without overclaiming causation the data cannot support.
 
 ---
 
+## RULE 14 — W11-1 (#72): observational DOE screening analysis — Welch's t + Cohen's d, BH-FDR significance (standard statistical methods, screening convention, NOT a designed experiment)
+
+**Decision:** `screen_signals(dataset, audit, alpha)` runs a per-signal
+univariate effect screen on the "keep" candidates from `select_signals()`
+(Q3: no new selection invented — same access as `yield_dppm.py:121`). On
+present values only, split independently by `PASS`/`FAIL` label (never
+imputed): `effect` is **Cohen's d** — `(mean_fail - mean_pass) / pooled_sd`,
+sign preserved as the direction of association; `p_value` is **Welch's
+two-sample t-test** (`scipy.stats.ttest_ind(..., equal_var=False)`), chosen
+because the FAIL (~104) and PASS (~1463) groups are very unequal in size and
+variance (Q1). `q_value` is the **Benjamini-Hochberg FDR**-adjusted p-value
+(`scipy.stats.false_discovery_control(..., method="bh")`) across the tested
+candidate set; `significant = q_value < ALPHA` where `ALPHA = 0.05` (Q2).
+**`ALPHA` is a screening convention, NOT a quality-standard threshold** —
+there is no AIAG/published quality-standard table for this analysis, the
+same posture as `selection.py`'s NZV heuristic. A candidate with fewer than
+`MIN_GROUP_N=2` present values in either group, or zero pooled variance
+(constant *within* one label group), gets `effect`/`p_value`/`q_value` = NaN
+and `significant=False`, and is excluded from the BH-FDR input so it can't
+dilute the correction.
+
+**This is a screening ANALYSIS, NOT a designed experiment (SME red line):**
+SECOM's factor (sensor) levels are observationally recorded, never set or
+randomized — no fractional-factorial/Plackett-Burman design is possible on
+this data. No factor level is fabricated; no causal claim is made anywhere
+in `doe_screening.py` or its docstrings. Same honesty posture as RULE 13's
+association Pareto.
+
+**Source:** Cohen's d — Cohen, J. (1988), *Statistical Power Analysis for
+the Behavioral Sciences*. Welch's t-test — Welch, B.L. (1947), "The
+generalization of 'Student's' problem when several different population
+variances are involved," *Biometrika*. Benjamini-Hochberg FDR — Benjamini,
+Y. & Hochberg, Y. (1995), "Controlling the False Discovery Rate," *JRSS-B*.
+All three are standard statistical methods reused via `scipy.stats`, **NOT
+AIAG-published quality-standard tables** — no threshold here is
+AIAG-anchored (unlike `selection.py`'s `MIN_NON_MISSING`).
+
+**Rationale:** Surfaces which kept signals are most strongly associated
+with wafer failure, honestly labelled as association not causation, without
+hand-rolling t-distribution or FDR math (`scipy.stats` is already vetted and
+in the workspace lock via `spc-app`).
+
+**Applied In:** `apps/secom/secom_app/doe_screening.py` -> `ScreeningResult`,
+`screen_signals()`
+
+---
+
 ## Summary of Files & Code Pointers
 
 | Assumption | Implemented In |
@@ -422,3 +469,4 @@ sensor first") without overclaiming causation the data cannot support.
 | MSA not applicable to SECOM (standard) | `msa.py` -> `gage_rr_applicability()`, `assert_gage_rr_applicable()` |
 | Yield/DPPM definitions, DPPM-not-DPMO (convention) | `yield_dppm.py` -> `yield_summary()` |
 | Association Pareto construction (defensible heuristic) | `yield_dppm.py` -> `failing_signal_pareto()` |
+| Welch t + Cohen's d effect screen, BH-FDR significance (standard methods, screening convention) | `doe_screening.py` -> `screen_signals()` |
