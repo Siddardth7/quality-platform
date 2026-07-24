@@ -65,3 +65,6 @@ standard-vs-heuristic labelling of every screening rule.
 
 **Data provenance:** the two raw UCI files are vendored unchanged under
 `data/`; see `data/LICENSE_SECOM.txt` for citation and license (CC BY 4.0).
+
+**Case study:** see `docs/CASE_STUDY.md` for a short, honest write-up of what
+the series above shows and its limitations.
