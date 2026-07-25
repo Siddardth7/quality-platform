@@ -35,3 +35,7 @@ XBAR_S_CONSTANTS = {
 IMR_E2 = 2.660
 IMR_D4 = 3.267
 IMR_D2 = 1.128
+
+# Phase I baseline minimums (see docs/ASSUMPTIONS_LOG.md RULE 11).
+MIN_BASELINE_SUBGROUPS = 25  # NIST SEMATECH e-Handbook Sec 6.3.2.1 (Shewhart: >=25 samples of size 4)
+MIN_BASELINE_INDIVIDUALS = 100  # Montgomery, Introduction to SQC, Ch. 6 (secondary, not NIST-quotable)
