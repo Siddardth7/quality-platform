@@ -8,6 +8,20 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Phase I/II control-limit freezing (W10-1, #141).** New
+  `apps/spc/spc_app/spc_engine/phase.py` adds `freeze_xbar_r/_s/_imr`, which screen a
+  Phase I baseline (documented-cause exclusion via `ExcludedPoint`, non-empty `cause`
+  required) and reuse the existing `compute_xbar_r/_s/_imr` on the retained points to
+  produce a `FrozenLimits` TypedDict — an all-primitives, JSON-serializable audit record
+  (no storage layer). A soft guardrail (`baseline_adequate` / `baseline_note`, never
+  raises) flags baselines below `MIN_BASELINE_SUBGROUPS = 25` (NIST §6.3.2.1) or
+  `MIN_BASELINE_INDIVIDUALS = 100` (Montgomery, secondary). `compute_xbar_r/_s/_imr` in
+  `control_charts.py` gain an optional `frozen=` argument so Phase II data is plotted
+  against fixed limits instead of recomputing them; a guard rejects a `frozen` struct
+  whose chart type or subgroup size doesn't match the new data. New constants
+  `MIN_BASELINE_SUBGROUPS`/`MIN_BASELINE_INDIVIDUALS` in `constants.py`, documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 11.
+
 - **SECOM DOE screening analysis (W11-1, #72).** New
   `apps/secom/secom_app/doe_screening.py` adds `screen_signals()`, an
   observational univariate effect screen of pass/fail on the

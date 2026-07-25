@@ -206,9 +206,61 @@ supporting SPC evidence for the analyst's control-based rating.
 
 ---
 
+## RULE 11 — Phase I/II Control-Limit Freezing (baseline minimums + frozen limits)
+
+**Decision:** Split control charting into a Phase I (retrospective baseline) and Phase II
+(fixed, "frozen" limits applied to future data) workflow:
+
+- **Phase I baseline minimums (soft guardrail):** `MIN_BASELINE_SUBGROUPS = 25` for X-bar/R
+  and X-bar/S; `MIN_BASELINE_INDIVIDUALS = 100` for I-MR. Falling below the floor sets
+  `baseline_adequate = False` and a non-empty `baseline_note` in the returned `FrozenLimits`
+  struct — it never raises. A thin baseline is weak evidence, not an invalid one, mirroring
+  the Capability stability gate (Rule 7: warn, still render).
+- **Exclusion requires a documented cause.** Removing an assignable-cause point from the
+  baseline (`ExcludedPoint`) requires a non-empty `cause` string, and indices must be unique
+  and in range; limits are then recomputed on the retained points — the Phase I
+  signal -> documented cause -> remove -> recompute loop.
+- **σ is still within-subgroup dispersion**, never pooled/global SD: `sigma_hat` in the
+  frozen struct is Rbar/d2, Sbar/c4, or MRbar/d2, exactly as computed by the existing
+  `compute_xbar_r/_s/_imr` (Rules 1–3) on the retained baseline — freezing reuses those
+  functions rather than reimplementing limit math.
+- **Phase II applies frozen limits, doesn't recompute them.** `compute_xbar_r/_s/_imr` accept
+  an optional `frozen: FrozenLimits` argument; when supplied, the plotted statistics
+  (subgroup means, ranges/std devs/moving ranges) still come from the new data, but the
+  center line, dispersion center, sigma, and control limits come from the frozen struct.
+  Limits must not float with new data. A guard rejects a frozen struct whose `chart_type` or
+  subgroup size `n` doesn't match the new data.
+- **`FrozenLimits` is the persistence contract.** It is an all-primitives `TypedDict`
+  (JSON-serializable via `json.dumps`) — that serializability is the audit/persistence
+  contract for this feature. No disk/DB storage layer exists or is added.
+- **Dates are ISO-8601 strings**, not `date` objects, so the struct stays JSON-clean.
+  `frozen_at` auto-fills `datetime.now(UTC).isoformat()` when the caller omits it, since the
+  engine has no authority over the Phase I calendar dates supplied by the caller.
+
+**Source:**
+- `MIN_BASELINE_SUBGROUPS = 25` — **NIST/SEMATECH e-Handbook §6.3.2.1**
+  (`itl.nist.gov/div898/handbook/pmc/section3/pmc321.htm`): Shewhart's guidance is "a sequence
+  of not less than twenty-five samples of size four that are in control." Primary source,
+  quotable.
+- `MIN_BASELINE_INDIVIDUALS = 100` — **Montgomery, *Introduction to Statistical Quality
+  Control*, Ch. 6** (secondary / common-practice figure). No primary NIST quote for "~100
+  individuals" was found this session — flagged as Montgomery-sourced, not NIST-quotable.
+- Phase I (retrospective/iterative) vs Phase II (fixed limits) — Montgomery Ch. 5–6; the
+  Phase I/Phase II terminology also appears explicitly in NIST §6.5.4.3 (multivariate); NIST's
+  univariate sections call Phase I "retrospective."
+
+**Applied In:** `spc_app/spc_engine/phase.py` (`freeze_xbar_r`, `freeze_xbar_s`, `freeze_imr`,
+`FrozenLimits`, `ExcludedPoint`) → `spc_app/spc_engine/control_charts.py::compute_xbar_r/_s/_imr`
+(`frozen=` parameter) → `spc_app/spc_engine/constants.py` (`MIN_BASELINE_SUBGROUPS`,
+`MIN_BASELINE_INDIVIDUALS`).
+
+---
+
 *Sources referenced in this log:*
 - *AIAG SPC Reference Manual, 4th Edition (2005) — control-chart constants, attribute charts, capability indices*
 - *Western Electric — Statistical Quality Control Handbook (1956)*
 - *L. S. Nelson — Journal of Quality Technology 16(4), 1984 — tests for special causes*
 - *Shapiro, S. S. & Wilk, M. B. (1965) — An analysis of variance test for normality*
 - *AIAG FMEA-4, 4th Ed. (2008) / SAE J1739 — Occurrence ranking table (rate bands, see Rule 10)*
+- *NIST/SEMATECH e-Handbook of Statistical Methods, §6.3.2.1 & §6.5.4.3 — Phase I baseline size, Phase I/II terminology*
+- *Montgomery, D. C. — Introduction to Statistical Quality Control, Ch. 5–6 — I-MR baseline size (secondary), Phase I/II framework*
