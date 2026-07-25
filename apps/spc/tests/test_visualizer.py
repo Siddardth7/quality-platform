@@ -1,10 +1,12 @@
 import plotly.graph_objects as go
 import pytest
 
+from spc_app.spc_engine.control_charts import compute_ewma
 from spc_app.visualizer import (
     build_capability_histogram,
     build_control_chart,
     build_cpk_gauge,
+    build_ewma_chart,
 )
 
 POINTS = [10.0, 11.0, 9.0, 12.0, 10.5, 9.5]
@@ -58,3 +60,26 @@ def test_build_cpk_gauge_none_does_not_raise():
 def test_build_cpk_gauge_none_has_one_indicator():
     fig = build_cpk_gauge(None)
     assert len(fig.data) == 1
+
+
+def test_build_ewma_chart_signal_free_returns_four_traces():
+    result = compute_ewma([10.0] * 10, mu0=10.0, sigma=1.0)
+    fig = build_ewma_chart(result)
+    assert isinstance(fig, go.Figure)
+    # z, UCL, LCL, CL
+    assert len(fig.data) == 4
+
+
+def test_build_ewma_chart_with_signals_adds_a_trace():
+    values = ([10.0] * 5) + ([13.0] * 10)
+    result = compute_ewma(values, mu0=10.0, sigma=1.0, lam=0.2, L=3.0)
+    assert result["signals"] != []
+    fig = build_ewma_chart(result)
+    # z, UCL, LCL, CL, violations
+    assert len(fig.data) == 5
+
+
+def test_build_ewma_chart_x_axis_title_is_observation():
+    result = compute_ewma([10.0] * 5, mu0=10.0, sigma=1.0)
+    fig = build_ewma_chart(result)
+    assert fig.layout.xaxis.title.text == "Observation"

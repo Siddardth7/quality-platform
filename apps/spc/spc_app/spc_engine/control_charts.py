@@ -6,7 +6,16 @@ from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 
-from spc_app.spc_engine.constants import IMR_D2, IMR_D4, IMR_E2, XBAR_R_CONSTANTS, XBAR_S_CONSTANTS
+from spc_app.spc_engine.constants import (
+    EWMA_DEFAULT_L,
+    EWMA_DEFAULT_LAMBDA,
+    EWMA_L_BY_LAMBDA,
+    IMR_D2,
+    IMR_D4,
+    IMR_E2,
+    XBAR_R_CONSTANTS,
+    XBAR_S_CONSTANTS,
+)
 
 if TYPE_CHECKING:
     # Avoid a runtime import cycle: phase.py imports compute_* from this module.
@@ -72,6 +81,20 @@ class UResult(TypedDict):
     ubar: float
     ucl: list[float]
     lcl: list[float]
+
+
+class EWMAResult(TypedDict):
+    values: list[float]
+    z: list[float]
+    ucl: list[float]
+    lcl: list[float]
+    signals: list[int]
+    mu0: float
+    sigma: float
+    lam: float
+    L: float
+    pairing_adequate: bool
+    pairing_note: str
 
 
 def compute_xbar_r(
@@ -260,6 +283,45 @@ def compute_u(
     }
 
 
+def compute_ewma(
+    values: list[float],
+    mu0: float,
+    sigma: float,
+    lam: float = EWMA_DEFAULT_LAMBDA,
+    L: float = EWMA_DEFAULT_L,
+) -> EWMAResult:
+    values_array = np.asarray(values, dtype=float)
+    _validate_ewma_params(values_array, sigma, lam, L)
+
+    z = np.empty(values_array.size)
+    z[0] = lam * values_array[0] + (1.0 - lam) * mu0
+    for i in range(1, values_array.size):
+        z[i] = lam * values_array[i] + (1.0 - lam) * z[i - 1]
+
+    i_index = np.arange(1, values_array.size + 1)
+    variance = (lam / (2.0 - lam)) * (1.0 - (1.0 - lam) ** (2 * i_index))
+    half_width = L * sigma * np.sqrt(variance)
+    ucl = mu0 + half_width
+    lcl = mu0 - half_width
+
+    signals = [int(i) for i in range(values_array.size) if z[i] > ucl[i] or z[i] < lcl[i]]
+    pairing_adequate, pairing_note = _check_ewma_pairing(lam, L)
+
+    return {
+        "values": values_array.tolist(),
+        "z": z.tolist(),
+        "ucl": ucl.tolist(),
+        "lcl": lcl.tolist(),
+        "signals": signals,
+        "mu0": float(mu0),
+        "sigma": float(sigma),
+        "lam": float(lam),
+        "L": float(L),
+        "pairing_adequate": pairing_adequate,
+        "pairing_note": pairing_note,
+    }
+
+
 def _validate_subgroups(subgroups: list[list[float]]) -> np.ndarray:
     subgroup_array = np.asarray(subgroups, dtype=float)
     if subgroup_array.ndim != 2 or subgroup_array.shape[0] == 0:
@@ -272,3 +334,26 @@ def _validate_attribute_inputs(counts: np.ndarray, sizes: np.ndarray) -> None:
         raise ValueError("Attribute chart inputs must be matching 1D arrays.")
     if np.any(sizes <= 0):
         raise ValueError("Attribute chart sample sizes must be positive.")
+
+
+def _validate_ewma_params(values_array: np.ndarray, sigma: float, lam: float, L: float) -> None:
+    if values_array.ndim != 1 or values_array.size == 0:
+        raise ValueError("EWMA chart requires a non-empty 1D array of values.")
+    if sigma <= 0:
+        raise ValueError("EWMA chart requires sigma > 0.")
+    if lam <= 0 or lam > 1:
+        raise ValueError("EWMA chart requires 0 < lam <= 1.")
+    if L <= 0:
+        raise ValueError("EWMA chart requires L > 0.")
+
+
+def _check_ewma_pairing(lam: float, L: float) -> tuple[bool, str]:
+    for key, paired_l in EWMA_L_BY_LAMBDA.items():
+        if abs(lam - key) <= 1e-9:
+            if abs(L - paired_l) > 0.01:
+                return False, (
+                    f"L={L} paired with λ={lam}; Lucas & Saccucci recommends "
+                    f"L={paired_l} (ARL0≈370–500)."
+                )
+            return True, ""
+    return True, ""

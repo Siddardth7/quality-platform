@@ -8,6 +8,20 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **EWMA control chart (W10-2, #142).** New `compute_ewma` in
+  `apps/spc/spc_app/spc_engine/control_charts.py` computes the exponentially weighted moving
+  average on individuals from an independent Phase I `(mu0, sigma)` pair, with exact
+  time-varying limits (not the asymptotic approximation) that widen from point 1 toward the
+  asymptote. `EWMAResult` carries a soft-warn `pairing_adequate`/`pairing_note` pair (never
+  raises) flagging a λ/L combination that deviates from the tabulated Lucas & Saccucci (1990)
+  pairing by more than 0.01, mirroring W10-1's `baseline_adequate`/`baseline_note`. New
+  constants `EWMA_DEFAULT_LAMBDA = 0.20`, `EWMA_DEFAULT_L = 2.860`, and `EWMA_L_BY_LAMBDA` in
+  `constants.py`. `build_ewma_chart` in `visualizer.py` delegates to the existing
+  `build_control_chart` (now with an additive `x_axis_title` param, default `"Subgroup"`)
+  passing `x_axis_title="Observation"` and per-point limits/signal markers — no new plotting
+  code. Documented in `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 12, including the
+  Lucas & Saccucci-via-Montgomery paywall flag.
+
 - **Phase I/II control-limit freezing (W10-1, #141).** New
   `apps/spc/spc_app/spc_engine/phase.py` adds `freeze_xbar_r/_s/_imr`, which screen a
   Phase I baseline (documented-cause exclusion via `ExcludedPoint`, non-empty `cause`
