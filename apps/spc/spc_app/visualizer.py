@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from quality_core.theme import AMBER, DANGER, PLOTLY_LAYOUT, TEXT_SECONDARY, VIOLET
 
 if TYPE_CHECKING:
-    from spc_app.spc_engine.control_charts import EWMAResult
+    from spc_app.spc_engine.control_charts import CUSUMResult, EWMAResult
 
 
 def build_control_chart(
@@ -109,6 +109,74 @@ def build_ewma_chart(
         y_axis_title=y_axis_title,
         x_axis_title="Observation",
     )
+
+
+def build_cusum_chart(
+    result: CUSUMResult,
+    title: str = "CUSUM Control Chart",
+    y_axis_title: str = "Cumulative Sum",
+) -> go.Figure:
+    x_values = list(range(1, len(result["values"]) + 1))
+    c_plus = result["c_plus"]
+    c_minus_negated = [-value for value in result["c_minus"]]
+    h = result["h"]
+
+    figure = go.Figure()
+    figure.add_trace(
+        go.Scatter(
+            x=x_values,
+            y=c_plus,
+            mode="lines+markers",
+            name="C+",
+            line={"color": AMBER, "width": 2},
+            marker={"size": 8, "color": AMBER},
+        )
+    )
+    figure.add_trace(
+        go.Scatter(
+            x=x_values,
+            y=c_minus_negated,
+            mode="lines+markers",
+            name="C-",
+            line={"color": VIOLET, "width": 2},
+            marker={"size": 8, "color": VIOLET},
+        )
+    )
+    figure.add_trace(_limit_trace(x_values, [h] * len(x_values), "+h"))
+    figure.add_trace(_limit_trace(x_values, [-h] * len(x_values), "−h"))
+
+    if result["signals"]:
+        signal_x = []
+        signal_y = []
+        for i in result["signals"]:
+            signal_x.append(x_values[i])
+            signal_y.append(c_plus[i] if c_plus[i] > h else -result["c_minus"][i])
+
+        figure.add_trace(
+            go.Scatter(
+                x=signal_x,
+                y=signal_y,
+                mode="markers",
+                name="Violations",
+                marker={
+                    "size": 13,
+                    "color": "rgba(0,0,0,0)",
+                    "line": {"color": DANGER, "width": 2},
+                    "symbol": "circle-open",
+                },
+            )
+        )
+
+    figure.update_layout(
+        title=title,
+        xaxis_title="Observation",
+        yaxis_title=y_axis_title,
+        legend={"orientation": "h", "y": 1.08, "x": 0,
+                "bgcolor": "rgba(0,0,0,0)", "font": {"color": TEXT_SECONDARY}},
+        **{k: v for k, v in PLOTLY_LAYOUT.items() if k not in ("legend", "margin")},
+        margin={"l": 40, "r": 20, "t": 60, "b": 40},
+    )
+    return figure
 
 
 def build_capability_histogram(

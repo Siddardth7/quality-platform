@@ -1,11 +1,12 @@
 import plotly.graph_objects as go
 import pytest
 
-from spc_app.spc_engine.control_charts import compute_ewma
+from spc_app.spc_engine.control_charts import compute_cusum, compute_ewma
 from spc_app.visualizer import (
     build_capability_histogram,
     build_control_chart,
     build_cpk_gauge,
+    build_cusum_chart,
     build_ewma_chart,
 )
 
@@ -82,4 +83,41 @@ def test_build_ewma_chart_with_signals_adds_a_trace():
 def test_build_ewma_chart_x_axis_title_is_observation():
     result = compute_ewma([10.0] * 5, mu0=10.0, sigma=1.0)
     fig = build_ewma_chart(result)
+    assert fig.layout.xaxis.title.text == "Observation"
+
+
+# ---------------------------------------------------------------------------
+# 15-18: build_cusum_chart trace count / label contract
+# ---------------------------------------------------------------------------
+
+
+def test_build_cusum_chart_signal_free_returns_four_traces():
+    result = compute_cusum([10.0] * 10, mu0=10.0, sigma=1.0)
+    fig = build_cusum_chart(result)
+    assert isinstance(fig, go.Figure)
+    # C+, -C-, +h, -h
+    assert len(fig.data) == 4
+
+
+def test_build_cusum_chart_with_upper_arm_signal_adds_a_trace():
+    values = ([10.0] * 5) + ([11.0] * 15)
+    result = compute_cusum(values, mu0=10.0, sigma=1.0, k=0.5, h=5.0)
+    assert result["signals"] != []
+    fig = build_cusum_chart(result)
+    # C+, -C-, +h, -h, violations
+    assert len(fig.data) == 5
+
+
+def test_build_cusum_chart_with_lower_arm_signal_adds_a_trace():
+    values = ([10.0] * 5) + ([9.0] * 15)
+    result = compute_cusum(values, mu0=10.0, sigma=1.0, k=0.5, h=5.0)
+    assert result["signals"] != []
+    fig = build_cusum_chart(result)
+    # C+, -C-, +h, -h, violations
+    assert len(fig.data) == 5
+
+
+def test_build_cusum_chart_x_axis_title_is_observation():
+    result = compute_cusum([10.0] * 5, mu0=10.0, sigma=1.0)
+    fig = build_cusum_chart(result)
     assert fig.layout.xaxis.title.text == "Observation"

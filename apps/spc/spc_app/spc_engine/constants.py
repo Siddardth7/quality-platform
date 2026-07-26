@@ -53,3 +53,8 @@ EWMA_L_BY_LAMBDA = {
     0.25: 2.898,
     0.40: 3.054,
 }
+
+# CUSUM chart defaults (see docs/ASSUMPTIONS_LOG.md RULE 13).
+CUSUM_DEFAULT_K = 0.5   # reference value = δσ/2 for a 1σ target shift — NIST §6.3.2.3
+CUSUM_DEFAULT_H = 5.0   # decision interval in σ units; h≈4 or 5 — NIST §6.3.2.3; Montgomery §9.1
+CUSUM_FIR_FRACTION = 0.5  # FIR/head-start = h/2 (50%) — Lucas & Crosier (1982)
