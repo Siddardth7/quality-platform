@@ -301,6 +301,49 @@ Phase I estimate — never derived from the z-series itself):
 
 ---
 
+## RULE 13 — CUSUM Chart (k, h, FIR head-start)
+
+**Decision:** Tabular two-sided CUSUM on standardized individuals; `k=0.5` (=δ/2, 1σ target
+shift), `h=5` decision interval in σ units, `C+`/`C−` positive-accumulator convention, optional
+FIR seed `h/2` on both arms, run-length counters estimate shift onset. **No WE/Nelson run-rule
+gating on CUSUM points** — the accumulators are autocorrelated by construction, so only `h`
+crossings signal; run-rule gating for CUSUM is deferred to W10-5.
+
+- **Recursion (standardized first):** `z_i = (x_i − μ0)/σ`; `C+_i = max(0, z_i − k + C+_{i-1})`,
+  `C−_i = max(0, −z_i − k + C−_{i-1})`, seeded at `C+_0 = max(0, z_0 − k + seed)`,
+  `C−_0 = max(0, −z_0 − k + seed)` where `seed = h/2` if FIR is enabled, else `0`. The `max(0, …)`
+  reset barrier is mandatory on both arms every step.
+- **`C−` is a positive accumulator**, not a running negative sum — `max(0, −z − k + …)`. A sign
+  flip here would silently disable the lower-arm test. The visualizer negates `C−` for display
+  only (Montgomery Fig. 9.2 two-sided style, C+ up / −C− down, decision lines at both `+h` and
+  `−h`); the stored series in `CUSUMResult` always stays the positive accumulator.
+- **FIR (fast initial response):** an optional 50% head-start (`h/2`) applied to both arms at
+  `i=0`, decaying back toward 0 on on-target data within a few points — it shortens detection of a
+  shift present at start-up without permanently inflating the accumulator when the process is
+  on-target.
+- **Run-length counters** (`n_plus`/`n_minus`) count consecutive periods since the corresponding
+  arm last rose above 0, resetting to 0 whenever the arm resets — used to estimate shift onset.
+
+**Source (with the primary-vs-secondary flags from the research section):**
+- **`k=δσ/2`, the recursions, and `h≈4 or 5`** — **NIST/SEMATECH e-Handbook §6.3.2.3, primary,
+  quotable.** <https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm> Verified verbatim
+  2026-07-25.
+- **`ARL0≈465 / ARL1(1σ)≈10.4` at `h=5`, `ARL0≈168` at `h=4`** — **Montgomery, *Introduction to
+  SQC*, §9.1 (Table 9.10) / Lucas (1976), secondary — explicitly NOT in NIST §6.3.2.3.** NIST
+  states only that CUSUM outperforms Shewhart for shifts ≤2σ; it publishes no numeric ARL table
+  for these `(k, h)` pairs. Do not present these ARL figures as NIST values (same flag class as
+  Rule 11's individuals-baseline figure and Rule 12's λ/L pairings).
+- **FIR = `h/2` (50% head-start)** — **Lucas, J. M. & Crosier, R. B. (1982), *Technometrics*
+  24(3)**, "Fast Initial Response for CUSUM Quality Control Schemes." Primary source is
+  paywalled — checked against the reproduction in Montgomery §9.1.4, not cell-verified against
+  the 1982 original (same treatment as Rule 12's Lucas & Saccucci citation).
+
+**Applied In:** `spc_app/spc_engine/constants.py` (`CUSUM_DEFAULT_K`, `CUSUM_DEFAULT_H`,
+`CUSUM_FIR_FRACTION`); `spc_app/spc_engine/control_charts.py::compute_cusum` (`CUSUMResult`);
+`spc_app/visualizer.py::build_cusum_chart`.
+
+---
+
 *Sources referenced in this log:*
 - *AIAG SPC Reference Manual, 4th Edition (2005) — control-chart constants, attribute charts, capability indices*
 - *Western Electric — Statistical Quality Control Handbook (1956)*
@@ -313,3 +356,8 @@ Phase I estimate — never derived from the z-series itself):
   size (secondary), Phase I/II framework, EWMA exact variance*
 - *Lucas, J. M. & Saccucci, M. S. (1990) — Technometrics 32(1) — EWMA λ/L design, as reproduced in
   Montgomery Table 9.11 (secondary, paywalled primary)*
+- *NIST/SEMATECH e-Handbook of Statistical Methods, §6.3.2.3 — CUSUM recursion, k, h rule-of-thumb*
+- *Montgomery, D. C. — Introduction to Statistical Quality Control, §9.1 (Table 9.10), §9.1.4 —
+  CUSUM ARL figures (secondary) and FIR reproduction*
+- *Lucas, J. M. & Crosier, R. B. (1982) — Technometrics 24(3) — Fast Initial Response for CUSUM
+  Quality Control Schemes (secondary, paywalled primary)*

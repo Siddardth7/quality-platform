@@ -8,6 +8,22 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **CUSUM control chart (W10-3, #143).** New `compute_cusum` in
+  `apps/spc/spc_app/spc_engine/control_charts.py` computes the tabular two-sided CUSUM on
+  standardized individuals: `C+`/`C−` positive-accumulator recursions with a mandatory
+  `max(0, …)` reset barrier on both arms, an optional FIR head-start (`h/2`) seeded on both
+  arms, and `n_plus`/`n_minus` run-length counters estimating shift onset. `CUSUMResult`
+  echoes `k`/`h`/`fir` alongside the series. New constants `CUSUM_DEFAULT_K = 0.5`,
+  `CUSUM_DEFAULT_H = 5.0`, `CUSUM_FIR_FRACTION = 0.5` in `constants.py`. `build_cusum_chart`
+  in `visualizer.py` is a standalone `go.Figure` (two accumulators, no symmetric CL, so it
+  does not delegate to `build_control_chart`): `C+` plotted upward, `C−` negated for display
+  only (Montgomery Fig. 9.2 two-sided style — the stored `c_minus` stays a positive
+  accumulator), decision-interval lines at both `+h` and `−h`. No WE/Nelson run-rule gating
+  on CUSUM points (autocorrelated; deferred to W10-5). Documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 13, including the explicit flag that the issue's
+  quoted ARL figures trace to Montgomery §9.1/Lucas (1976), not NIST §6.3.2.3, and the
+  Lucas & Crosier (1982) FIR citation (paywalled primary, checked against Montgomery §9.1.4).
+
 - **EWMA control chart (W10-2, #142).** New `compute_ewma` in
   `apps/spc/spc_app/spc_engine/control_charts.py` computes the exponentially weighted moving
   average on individuals from an independent Phase I `(mu0, sigma)` pair, with exact

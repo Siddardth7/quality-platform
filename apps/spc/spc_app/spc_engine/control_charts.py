@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING, TypedDict
 import numpy as np
 
 from spc_app.spc_engine.constants import (
+    CUSUM_DEFAULT_H,
+    CUSUM_DEFAULT_K,
+    CUSUM_FIR_FRACTION,
     EWMA_DEFAULT_L,
     EWMA_DEFAULT_LAMBDA,
     EWMA_L_BY_LAMBDA,
@@ -95,6 +98,21 @@ class EWMAResult(TypedDict):
     L: float
     pairing_adequate: bool
     pairing_note: str
+
+
+class CUSUMResult(TypedDict):
+    values: list[float]
+    z: list[float]
+    c_plus: list[float]
+    c_minus: list[float]
+    signals: list[int]
+    n_plus: list[int]
+    n_minus: list[int]
+    mu0: float
+    sigma: float
+    k: float
+    h: float
+    fir: bool
 
 
 def compute_xbar_r(
@@ -322,6 +340,55 @@ def compute_ewma(
     }
 
 
+def compute_cusum(
+    values: list[float],
+    mu0: float,
+    sigma: float,
+    k: float = CUSUM_DEFAULT_K,
+    h: float = CUSUM_DEFAULT_H,
+    fir: bool = False,
+) -> CUSUMResult:
+    values_array = np.asarray(values, dtype=float)
+    _validate_cusum_params(values_array, sigma, k, h)
+
+    z = (values_array - mu0) / sigma
+    seed = (CUSUM_FIR_FRACTION * h) if fir else 0.0
+
+    n = values_array.size
+    c_plus = np.empty(n)
+    c_minus = np.empty(n)
+    c_plus[0] = max(0.0, z[0] - k + seed)
+    c_minus[0] = max(0.0, -z[0] - k + seed)
+    for i in range(1, n):
+        c_plus[i] = max(0.0, z[i] - k + c_plus[i - 1])
+        c_minus[i] = max(0.0, -z[i] - k + c_minus[i - 1])
+
+    signals = sorted({i for i in range(n) if c_plus[i] > h or c_minus[i] > h})
+
+    n_plus = [0] * n
+    n_minus = [0] * n
+    for i in range(n):
+        prior_plus = n_plus[i - 1] if i > 0 else 0
+        prior_minus = n_minus[i - 1] if i > 0 else 0
+        n_plus[i] = prior_plus + 1 if c_plus[i] > 0 else 0
+        n_minus[i] = prior_minus + 1 if c_minus[i] > 0 else 0
+
+    return {
+        "values": values_array.tolist(),
+        "z": z.tolist(),
+        "c_plus": c_plus.tolist(),
+        "c_minus": c_minus.tolist(),
+        "signals": signals,
+        "n_plus": n_plus,
+        "n_minus": n_minus,
+        "mu0": float(mu0),
+        "sigma": float(sigma),
+        "k": float(k),
+        "h": float(h),
+        "fir": fir,
+    }
+
+
 def _validate_subgroups(subgroups: list[list[float]]) -> np.ndarray:
     subgroup_array = np.asarray(subgroups, dtype=float)
     if subgroup_array.ndim != 2 or subgroup_array.shape[0] == 0:
@@ -345,6 +412,17 @@ def _validate_ewma_params(values_array: np.ndarray, sigma: float, lam: float, L:
         raise ValueError("EWMA chart requires 0 < lam <= 1.")
     if L <= 0:
         raise ValueError("EWMA chart requires L > 0.")
+
+
+def _validate_cusum_params(values_array: np.ndarray, sigma: float, k: float, h: float) -> None:
+    if values_array.ndim != 1 or values_array.size == 0:
+        raise ValueError("CUSUM chart requires a non-empty 1D array of values.")
+    if sigma <= 0:
+        raise ValueError("CUSUM chart requires sigma > 0.")
+    if k <= 0:
+        raise ValueError("CUSUM chart requires k > 0.")
+    if h <= 0:
+        raise ValueError("CUSUM chart requires h > 0.")
 
 
 def _check_ewma_pairing(lam: float, L: float) -> tuple[bool, str]:
