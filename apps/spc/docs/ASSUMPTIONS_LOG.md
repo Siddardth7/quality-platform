@@ -1,7 +1,7 @@
 # Engineering Assumptions Log
 **Project:** SPC Manufacturing Quality Dashboard
 **Author:** Siddardth | M.S. Aerospace Engineering, UIUC
-**Last Updated:** June 15, 2026
+**Last Updated:** July 26, 2026
 
 This document records every non-obvious engineering decision — and every published
 constant or threshold — used in the SPC app. Each entry explains what was chosen, why,
@@ -206,9 +206,307 @@ supporting SPC evidence for the analyst's control-based rating.
 
 ---
 
+## RULE 11 — Phase I/II Control-Limit Freezing (baseline minimums + frozen limits)
+
+**Decision:** Split control charting into a Phase I (retrospective baseline) and Phase II
+(fixed, "frozen" limits applied to future data) workflow:
+
+- **Phase I baseline minimums (soft guardrail):** `MIN_BASELINE_SUBGROUPS = 25` for X-bar/R
+  and X-bar/S; `MIN_BASELINE_INDIVIDUALS = 100` for I-MR. Falling below the floor sets
+  `baseline_adequate = False` and a non-empty `baseline_note` in the returned `FrozenLimits`
+  struct — it never raises. A thin baseline is weak evidence, not an invalid one, mirroring
+  the Capability stability gate (Rule 7: warn, still render).
+- **Exclusion requires a documented cause.** Removing an assignable-cause point from the
+  baseline (`ExcludedPoint`) requires a non-empty `cause` string, and indices must be unique
+  and in range; limits are then recomputed on the retained points — the Phase I
+  signal -> documented cause -> remove -> recompute loop.
+- **σ is still within-subgroup dispersion**, never pooled/global SD: `sigma_hat` in the
+  frozen struct is Rbar/d2, Sbar/c4, or MRbar/d2, exactly as computed by the existing
+  `compute_xbar_r/_s/_imr` (Rules 1–3) on the retained baseline — freezing reuses those
+  functions rather than reimplementing limit math.
+- **Phase II applies frozen limits, doesn't recompute them.** `compute_xbar_r/_s/_imr` accept
+  an optional `frozen: FrozenLimits` argument; when supplied, the plotted statistics
+  (subgroup means, ranges/std devs/moving ranges) still come from the new data, but the
+  center line, dispersion center, sigma, and control limits come from the frozen struct.
+  Limits must not float with new data. A guard rejects a frozen struct whose `chart_type` or
+  subgroup size `n` doesn't match the new data.
+- **`FrozenLimits` is the persistence contract.** It is an all-primitives `TypedDict`
+  (JSON-serializable via `json.dumps`) — that serializability is the audit/persistence
+  contract for this feature. No disk/DB storage layer exists or is added.
+- **Dates are ISO-8601 strings**, not `date` objects, so the struct stays JSON-clean.
+  `frozen_at` auto-fills `datetime.now(UTC).isoformat()` when the caller omits it, since the
+  engine has no authority over the Phase I calendar dates supplied by the caller.
+
+**Source:**
+- `MIN_BASELINE_SUBGROUPS = 25` — **NIST/SEMATECH e-Handbook §6.3.2.1**
+  (`itl.nist.gov/div898/handbook/pmc/section3/pmc321.htm`): Shewhart's guidance is "a sequence
+  of not less than twenty-five samples of size four that are in control." Primary source,
+  quotable.
+- `MIN_BASELINE_INDIVIDUALS = 100` — **Montgomery, *Introduction to Statistical Quality
+  Control*, Ch. 6** (secondary / common-practice figure). No primary NIST quote for "~100
+  individuals" was found this session — flagged as Montgomery-sourced, not NIST-quotable.
+- Phase I (retrospective/iterative) vs Phase II (fixed limits) — Montgomery Ch. 5–6; the
+  Phase I/Phase II terminology also appears explicitly in NIST §6.5.4.3 (multivariate); NIST's
+  univariate sections call Phase I "retrospective."
+
+**Applied In:** `spc_app/spc_engine/phase.py` (`freeze_xbar_r`, `freeze_xbar_s`, `freeze_imr`,
+`FrozenLimits`, `ExcludedPoint`) → `spc_app/spc_engine/control_charts.py::compute_xbar_r/_s/_imr`
+(`frozen=` parameter) → `spc_app/spc_engine/constants.py` (`MIN_BASELINE_SUBGROUPS`,
+`MIN_BASELINE_INDIVIDUALS`).
+
+---
+
+## RULE 12 — EWMA Chart (λ, L, time-varying limits)
+
+**Decision:** `compute_ewma(values, mu0, sigma, lam, L)` implements the exponentially weighted
+moving average chart on individuals, with `mu0`/`sigma` supplied as plain floats (an independent
+Phase I estimate — never derived from the z-series itself):
+
+- **Recursion:** `z_0 = λ·x_1 + (1−λ)·μ0`, `z_i = λ·x_i + (1−λ)·z_{i−1}`, with `z_0 = μ0` (the
+  Phase I target), not `x_1`. `λ` defaults to `EWMA_DEFAULT_LAMBDA = 0.20` (range 0.05–0.40 in the
+  tabulated pairings; usual practitioner range 0.2–0.3).
+- **Exact time-varying variance**, not the asymptotic approximation: `Var(z_i) =
+  σ²·(λ/(2−λ))·[1−(1−λ)^(2i)]`, so `UCL_i = μ0 + L·σ·sqrt(Var(z_i)/σ²)` and `LCL_i` symmetric —
+  limits are deliberately tighter near point 1 and widen toward the asymptote `σ²·λ/(2−λ)`.
+- **`EWMA_DEFAULT_L = 2.860`** is the L paired with λ=0.20 for ARL0 ≈ 370–500. `EWMA_L_BY_LAMBDA`
+  documents five Lucas & Saccucci (1990) λ/L pairings for the same ARL0 target.
+- **λ/L pairing is a soft-warn field, not a hard gate.** `EWMAResult` carries `pairing_adequate`
+  and `pairing_note`: if the caller's `lam` matches a tabulated key (`abs(lam-key) <= 1e-9`) and the
+  supplied `L` differs from the paired value by more than 0.01, `pairing_adequate=False` with an
+  explanatory note (mirrors Rule 11's `baseline_adequate`/`baseline_note` pattern — never raises).
+  An untabulated `lam` cannot be judged, so it defaults to `pairing_adequate=True`,
+  `pairing_note=""` rather than a false warning. A practitioner may legitimately tune λ/L outside
+  the table; this only flags the common L=3-with-small-λ mistake the issue called out.
+- **Run-rules do not apply to EWMA** — the z-series is autocorrelated by construction (each point
+  depends on all prior points), so only limit crossings signal here. Western Electric / Nelson rule
+  gating on EWMA is out of scope (tracked separately as W10-5).
+
+**Source:**
+- **Recursion + λ default** — **NIST/SEMATECH e-Handbook §6.3.2.4** (primary, quoted verbatim:
+  `EWMA_t = λY_t + (1−λ)EWMA_{t−1}`, `EWMA_0` = the Phase I target mean, "λ is usually set between
+  0.2 and 0.3"). <https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc324.htm>
+- **Asymptotic variance** `σ²·λ/(2−λ)` — NIST §6.3.2.4 (primary).
+- **Exact time-varying variance** `[1−(1−λ)^(2i)]` term — **Montgomery, *Introduction to
+  Statistical Quality Control*, §9.2, eq. 9.25** (secondary; NIST states only the asymptotic form).
+  Standard, universally reproduced.
+- **λ/L pairings (`EWMA_L_BY_LAMBDA`, ARL0 ≈ 370–500)** — **Lucas & Saccucci (1990), *Technometrics*
+  32(1), Table 3**, as reproduced in **Montgomery Table 9.11**. ⚠️ Primary source is paywalled —
+  these five numeric pairings are checked against the Montgomery reproduction and the issue body,
+  not the original Technometrics table cell-by-cell (same "secondary, not primary-quotable" flag
+  Rule 11 used for the Montgomery individuals-baseline floor).
+
+**Applied In:** `spc_app/spc_engine/control_charts.py::compute_ewma` (`EWMAResult`),
+`spc_app/spc_engine/constants.py` (`EWMA_DEFAULT_LAMBDA`, `EWMA_DEFAULT_L`, `EWMA_L_BY_LAMBDA`),
+`spc_app/visualizer.py::build_ewma_chart`.
+
+---
+
+## RULE 13 — CUSUM Chart (k, h, FIR head-start)
+
+**Decision:** Tabular two-sided CUSUM on standardized individuals; `k=0.5` (=δ/2, 1σ target
+shift), `h=5` decision interval in σ units, `C+`/`C−` positive-accumulator convention, optional
+FIR seed `h/2` on both arms, run-length counters estimate shift onset. **No WE/Nelson run-rule
+gating on CUSUM points** — the accumulators are autocorrelated by construction, so only `h`
+crossings signal; run-rule gating for CUSUM is deferred to W10-5.
+
+- **Recursion (standardized first):** `z_i = (x_i − μ0)/σ`; `C+_i = max(0, z_i − k + C+_{i-1})`,
+  `C−_i = max(0, −z_i − k + C−_{i-1})`, seeded at `C+_0 = max(0, z_0 − k + seed)`,
+  `C−_0 = max(0, −z_0 − k + seed)` where `seed = h/2` if FIR is enabled, else `0`. The `max(0, …)`
+  reset barrier is mandatory on both arms every step.
+- **`C−` is a positive accumulator**, not a running negative sum — `max(0, −z − k + …)`. A sign
+  flip here would silently disable the lower-arm test. The visualizer negates `C−` for display
+  only (Montgomery Fig. 9.2 two-sided style, C+ up / −C− down, decision lines at both `+h` and
+  `−h`); the stored series in `CUSUMResult` always stays the positive accumulator.
+- **FIR (fast initial response):** an optional 50% head-start (`h/2`) applied to both arms at
+  `i=0`, decaying back toward 0 on on-target data within a few points — it shortens detection of a
+  shift present at start-up without permanently inflating the accumulator when the process is
+  on-target.
+- **Run-length counters** (`n_plus`/`n_minus`) count consecutive periods since the corresponding
+  arm last rose above 0, resetting to 0 whenever the arm resets — used to estimate shift onset.
+
+**Source (with the primary-vs-secondary flags from the research section):**
+- **`k=δσ/2`, the recursions, and `h≈4 or 5`** — **NIST/SEMATECH e-Handbook §6.3.2.3, primary,
+  quotable.** <https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm> Verified verbatim
+  2026-07-25.
+- **`ARL0≈465 / ARL1(1σ)≈10.4` at `h=5`, `ARL0≈168` at `h=4`** — **Montgomery, *Introduction to
+  SQC*, §9.1 (Table 9.10) / Lucas (1976), secondary — explicitly NOT in NIST §6.3.2.3.** NIST
+  states only that CUSUM outperforms Shewhart for shifts ≤2σ; it publishes no numeric ARL table
+  for these `(k, h)` pairs. Do not present these ARL figures as NIST values (same flag class as
+  Rule 11's individuals-baseline figure and Rule 12's λ/L pairings).
+- **FIR = `h/2` (50% head-start)** — **Lucas, J. M. & Crosier, R. B. (1982), *Technometrics*
+  24(3)**, "Fast Initial Response for CUSUM Quality Control Schemes." Primary source is
+  paywalled — checked against the reproduction in Montgomery §9.1.4, not cell-verified against
+  the 1982 original (same treatment as Rule 12's Lucas & Saccucci citation).
+
+**Applied In:** `spc_app/spc_engine/constants.py` (`CUSUM_DEFAULT_K`, `CUSUM_DEFAULT_H`,
+`CUSUM_FIR_FRACTION`); `spc_app/spc_engine/control_charts.py::compute_cusum` (`CUSUMResult`);
+`spc_app/visualizer.py::build_cusum_chart`.
+
+---
+
+## RULE 14 — Non-normal capability (Box-Cox / Yeo-Johnson) + Cp/Cpk confidence intervals
+
+**Decision:** `compute_capability_study(data, lsl, usl, *, alpha=CAPABILITY_ALPHA,
+allow_yeojohnson=True)` extends the existing normal-path `compute_capability` (unchanged
+signature/keys, plus new CI fields) with a full non-normal capability study:
+
+- **Gate:** Shapiro-Wilk (`normality_test`) on the pooled sample. Normal → normal-theory
+  Cp/Cpk/Pp/Ppk + CIs, no transform.
+- **Transform (non-normal, Decision 2):** positive data → Box-Cox MLE-λ (`scipy.stats.boxcox`,
+  `alpha=` for the likelihood CI); non-positive data → Yeo-Johnson by default
+  (`allow_yeojohnson=True`), or an opt-in documented shift `c = 1 − min(x)` then Box-Cox on
+  `x+c` when `allow_yeojohnson=False`. Box-Cox is never called on ≤0 data.
+- **Rounded-λ snap:** the nearest of `BOXCOX_LAMBDA_CANDIDATES` is substituted for the MLE λ
+  only if it falls inside the likelihood CI (`scipy.special.boxcox` re-transform); otherwise the
+  MLE λ is kept. Yeo-Johnson never snaps (no tabulated conventional λ set for it here).
+- **Spec limits transform identically** to the data (same λ, same shift). For λ<0 the
+  transform is not monotone in the naive-swap sense some references describe; the correct,
+  general-purpose guard is `lsl_t, usl_t = sorted((t(lsl), t(usl)))` — an ordering-preservation
+  guard, not a literal "if λ<0, swap" branch, and it is correct for any λ sign.
+- **Re-test after transform:** if still non-normal, fall back to a **fitted-distribution
+  percentile method** (ISO 22514-2) on the *original* (untransformed) data rather than
+  reporting a Box-Cox capability index on data that failed its own normality check.
+  Candidate families `{lognorm, weibull_min, gamma, johnsonsu}` are fit by MLE
+  (`scipy.stats.<dist>.fit`), each candidate wrapped in try/except (a failed fit is skipped);
+  the finite-AIC minimum (`AIC = 2k − 2·loglik`) is selected. If every candidate fails, an
+  empirical `np.quantile` last resort is used and `fitted_dist=None`. Percentiles come from the
+  selected distribution's `ppf(0.00135)`/`ppf(0.99865)` (mimicking ±3σ coverage per NIST
+  §6.1.6); `Cpk` mirrors the two-sided-vs-one-sided `None` handling of `_centered_capability`
+  but uses the fitted median and the two percentiles as its two one-sided denominators. Pp/Ppk
+  are `None` for this method (no separate within/overall percentile split exists).
+- **Within-σ (Decision 1):** estimated in the SAME space as the capability computation (raw for
+  the normal path, transformed for Box-Cox/Yeo-Johnson) by **reusing** the existing
+  `compute_imr`/`compute_xbar_r` estimators — individuals → moving-range `MR̄/IMR_D2`;
+  2D subgroups → `R̄/d₂(n)` (`compute_xbar_r`'s own 2≤n≤10 guard is reused, not reimplemented).
+  Overall σ is always the transformed-or-raw sample SD (`ddof=1`). This preserves the
+  Cp/Cpk-within vs Pp/Ppk-overall split after a transform.
+- **Confidence intervals:** `compute_capability` gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
+  `cpk_lower`. Cp uses the exact χ² CI (`cp·sqrt(chi2.ppf(α/2, n−1)/(n−1))` to
+  `cp·sqrt(chi2.ppf(1−α/2, n−1)/(n−1))`); Cpk uses the Bissell (1990) large-sample normal
+  approximation (`se = sqrt(1/(9n) + Cpk²/(2(n−1)))`, two-sided `Cpk ± z_{1−α/2}·se`, one-sided
+  lower bound `Cpk − z_{1−α}·se`). These CIs apply to the normal and Box-Cox/Yeo-Johnson-normal
+  paths. The fitted-percentile path instead gets a **deterministic bootstrap** CI: fixed
+  `BOOTSTRAP_SEED = 12345`, fixed `BOOTSTRAP_RESAMPLES = 2000`,
+  `scipy.stats.bootstrap(method="percentile")` — the statistic refits the candidate families
+  per resample; a resample where every fit fails uses the empirical fallback statistic. A CI
+  whose point estimate is `None` (one-sided spec) is skipped (`*_ci = None` on that side).
+  Fixing the seed and resample count is mandatory for bit-reproducible, auditable CIs — this is
+  an engineering choice, not a statistical one.
+- **Small-n caveat:** the Bissell/bootstrap CIs assume a large sample (n≈30–50). `n<30` never
+  raises; the study's `note` field carries a caveat instead (soft-warn, mirrors Rule 11/12's
+  `*_adequate`/`*_note` pattern).
+- **Degenerate input:** constant data (zero variance) raises `ValueError` — no capability
+  index, transform, or normality test is meaningful on a single-valued sample.
+
+**Source:**
+- **Box-Cox formula `x(λ)=(x^λ−1)/λ, λ≠0; ln x, λ=0`, MLE-λ ("λ that maximizes the
+  log-likelihood")** — **NIST/SEMATECH e-Handbook §6.5.2 "What to do when data are
+  non-normal"** — PRIMARY, quotable. Verified 2026-07-25.
+  <https://www.itl.nist.gov/div898/handbook/pmc/section5/pmc52.htm>
+- **Percentile index `Ĉ_Np = (USL−LSL)/(p_0.99865 − p_0.00135)`, "mimics ±3σ coverage"** —
+  **NIST/SEMATECH e-Handbook §6.1.6 "What is Process Capability?"** — PRIMARY, quotable.
+  Verified 2026-07-25. <https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm>
+- **Cp χ² exact CI + Cpk large-sample normal-approximation CI** — **Montgomery, *Introduction
+  to Statistical Quality Control*, Ch. 8 — SECONDARY.** Not present in NIST's capability
+  sections; standard textbook derivation, universally reproduced.
+- **Cpk CI variance `1/(9n) + Ĉpk²/(2(n−1))`** — **Bissell, A. F. (1990), "How Reliable Is Your
+  Capability Index?", *The Statistician* 39(3) — PAYWALLED primary.** Verified via the
+  Montgomery reproduction and the issue body only, not the original journal article.
+- **Box & Cox (1964), "An Analysis of Transformations," *Journal of the Royal Statistical
+  Society, Series B* 26(2) — PAYWALLED primary.** NIST §6.5.2 is the quotable stand-in used
+  above; the original transformation paper was not directly consulted.
+- **Fitted-distribution percentile capability method** — **ISO 22514-2 — PAYWALLED, cited, not
+  quoted.** The min-AIC family-selection rule over `{lognorm, weibull_min, gamma, johnsonsu}` is
+  our own operationalization of "fit the best distribution" (AIC per **Akaike, H. (1974)**), an
+  engineering choice, not a verbatim ISO procedure — flagged as such.
+- **Bootstrap percentile-method CI** — **Efron, B. & Tibshirani, R. J. (1993), *An Introduction
+  to the Bootstrap* — secondary/paywalled book**, the percentile-method mechanism reproduced by
+  `scipy.stats.bootstrap(method="percentile")`. The fixed seed/resample count is an engineering
+  reproducibility choice, not part of the cited method itself.
+
+**Applied In:** `spc_app/spc_engine/capability.py` (`compute_capability` CI fields,
+`CapabilityStudy`, `compute_capability_study`, `_within_sigma`, `_fit_percentile_capability`,
+`_percentile_cpk`, `_bootstrap_percentile_ci`, `_cp_chi2_ci`, `_cpk_bissell_ci`);
+`spc_app/spc_engine/constants.py` (`CAPABILITY_ALPHA`, `BOXCOX_LAMBDA_CANDIDATES`,
+`NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`, `PERCENTILE_FIT_CANDIDATES`, `BOOTSTRAP_SEED`,
+`BOOTSTRAP_RESAMPLES`).
+
+**Assumption note — `force_method` user override (W10-5, #145):** `compute_capability_study`
+accepts `force_method="normal"` to skip the Shapiro-Wilk gate and compute normal-theory
+Cp/Cpk/CIs on raw data regardless of the actual normality result. This is a deliberate
+user override, not an engine claim that the data is normal — the returned `note` always
+records "user-forced," and the responsibility for that assumption's validity is the
+analyst's, mirroring how Rule 7's stability gate still renders (marked indicative) rather
+than blocking. `force_method="boxcox"`/`"percentile"` are the same override pattern for
+the other two paths (no normality assumption at stake for those — they force a specific
+already-validated methodology rather than skip a check).
+
+---
+
+## RULE 15 — Run-Rule Gating (WE/Nelson Restricted to Shewhart Charts)
+
+**Decision:** Western Electric (Rules 1–4) and Nelson (Rules 5–8) run-rules are valid only
+on Shewhart charts — X̄-R, X̄-S, I-MR, p, c, u — where successive plotted points are
+independent. They are **statistically invalid on EWMA and CUSUM**, whose plotted
+statistics (the EWMA z-series; the CUSUM C+/C− accumulators) are autocorrelated by
+construction: each point is a function of all prior points, so run-length-based patterns
+(a trend, an alternation, a run on one side) are expected to occur far more often than the
+independent-point run-rule tables assume, causing systematic false alarms if WE/Nelson were
+applied to them. EWMA/CUSUM charts signal exclusively on their own limit / decision-interval
+crossings (`EWMAResult.signals`, `CUSUMResult.signals`), which is the correct and complete
+detection mechanism for those charts.
+
+This is enforced at a single chokepoint rather than per-caller: `rule_detection.
+detect_violations(chart_type, points, cl, sigma, rule_set)` returns `[]` immediately for any
+`chart_type` outside `SHEWHART_CHART_TYPES = {"Xbar-R","Xbar-S","I-MR","p","c","u"}` (and for
+`sigma<=0`), otherwise dispatches to the existing `detect_we_violations`/
+`detect_nelson_violations` unchanged. Both page-level callers — the Control Charts page's
+per-branch rule overlay and the Process Capability page's `assess_control_chart` stability
+gate — now route through this one function, so no caller can (accidentally or otherwise) run
+WE/Nelson on an EWMA/CUSUM chart.
+
+**Source:** Western Electric *Statistical Quality Control Handbook* (1956) and L. S. Nelson,
+*Journal of Quality Technology* 16(4) (1984) — same citations as RULE 8, which define the
+rules being restricted here. The autocorrelation rationale is Montgomery, *Introduction to
+Statistical Quality Control*, §9 (EWMA §9.2 / CUSUM §9.1) — both z-series and C+/C−
+accumulators are explicitly serially correlated by their recursive definitions, already
+noted (without the gating enforcement) in RULE 12/13. No new external citation is
+introduced by this rule.
+
+**Applied In:** `spc_app/spc_engine/rule_detection.py` (`SHEWHART_CHART_TYPES`,
+`detect_violations`) → `spc_app/pages/control_charts.py::detect_rule_violations` →
+`spc_app/pages/process_capability.py::assess_control_chart`.
+
+---
+
 *Sources referenced in this log:*
 - *AIAG SPC Reference Manual, 4th Edition (2005) — control-chart constants, attribute charts, capability indices*
 - *Western Electric — Statistical Quality Control Handbook (1956)*
 - *L. S. Nelson — Journal of Quality Technology 16(4), 1984 — tests for special causes*
 - *Shapiro, S. S. & Wilk, M. B. (1965) — An analysis of variance test for normality*
 - *AIAG FMEA-4, 4th Ed. (2008) / SAE J1739 — Occurrence ranking table (rate bands, see Rule 10)*
+- *NIST/SEMATECH e-Handbook of Statistical Methods, §6.3.2.1, §6.3.2.4 & §6.5.4.3 — Phase I baseline
+  size, EWMA recursion/variance, Phase I/II terminology*
+- *Montgomery, D. C. — Introduction to Statistical Quality Control, Ch. 5–6, §9.2 — I-MR baseline
+  size (secondary), Phase I/II framework, EWMA exact variance*
+- *Lucas, J. M. & Saccucci, M. S. (1990) — Technometrics 32(1) — EWMA λ/L design, as reproduced in
+  Montgomery Table 9.11 (secondary, paywalled primary)*
+- *NIST/SEMATECH e-Handbook of Statistical Methods, §6.3.2.3 — CUSUM recursion, k, h rule-of-thumb*
+- *Montgomery, D. C. — Introduction to Statistical Quality Control, §9.1 (Table 9.10), §9.1.4 —
+  CUSUM ARL figures (secondary) and FIR reproduction*
+- *Lucas, J. M. & Crosier, R. B. (1982) — Technometrics 24(3) — Fast Initial Response for CUSUM
+  Quality Control Schemes (secondary, paywalled primary)*
+- *NIST/SEMATECH e-Handbook of Statistical Methods, §6.5.2 & §6.1.6 — Box-Cox transformation /
+  MLE-λ, percentile-based process capability index (primary, quotable)*
+- *Montgomery, D. C. — Introduction to Statistical Quality Control, Ch. 8 — Cp χ² CI, Cpk
+  large-sample CI (secondary)*
+- *Bissell, A. F. (1990) — The Statistician 39(3) — Cpk confidence interval variance (secondary,
+  paywalled primary)*
+- *Box, G. E. P. & Cox, D. R. (1964) — Journal of the Royal Statistical Society, Series B 26(2) —
+  the Box-Cox transformation (secondary, paywalled primary; NIST §6.5.2 the quotable stand-in)*
+- *ISO 22514-2 — Statistical methods in process management: Capability and performance — Part 2 —
+  fitted-distribution percentile capability (paywalled, cited not quoted)*
+- *Akaike, H. (1974) — IEEE Transactions on Automatic Control 19(6) — Akaike Information
+  Criterion, used here for min-AIC candidate-family selection (engineering choice)*
+- *Efron, B. & Tibshirani, R. J. (1993) — An Introduction to the Bootstrap — bootstrap
+  percentile-method confidence intervals (secondary, paywalled book)*

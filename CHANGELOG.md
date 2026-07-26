@@ -6,6 +6,103 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **SPC UI wiring for Week-10 features + run-rule gating (W10-5, #145).** EWMA and CUSUM
+  are now reachable from the Control Charts page (standards-default λ/L and k/h/FIR
+  pre-filled from `constants.py`; `mu0`/`sigma` come from an independent I-MR baseline
+  fit, never the z-series/accumulators themselves), alongside a Phase I (establish &
+  freeze) / Phase II (monitor against frozen limits) toggle for X̄-R/X̄-S/I-MR built on
+  W10-1's `phase.py`. **Load-bearing correctness fix:** a single gated chokepoint,
+  `rule_detection.detect_violations(chart_type, ...)`, now routes every WE/Nelson caller
+  (both the Control Charts page and the Capability page's stability gate) — it returns
+  `[]` for any non-Shewhart `chart_type` (EWMA/CUSUM) or non-positive sigma, so run-rules
+  statistically invalid on autocorrelated EWMA/CUSUM series can no longer fire, from any
+  caller. The Capability page gained a `force_method` sidebar override
+  (`compute_capability_study(..., force_method="auto"|"normal"|"boxcox"|"percentile")`)
+  letting an analyst force normal-theory, Box-Cox/Yeo-Johnson, or fitted-percentile
+  capability regardless of the Shapiro-Wilk result, with the histogram overlay now
+  matching the selected method: the fitted-percentile winner's `.pdf` in raw space, or
+  the exact back-transformed Box-Cox/Yeo-Johnson normal density via change-of-variables
+  (`f_X(x) = φ((t(x)-μ_t)/σ_t)/σ_t · |t'(x)|`). The capability exporter gained Method / λ
+  / Cp & Cpk 95% CI / Cpk lower bound / fitted-distribution rows. Documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 15 (WE/Nelson restricted to Shewhart charts;
+  Montgomery §9 autocorrelation rationale) plus an assumption note on the `force_method`
+  override.
+
+
+- **Non-normal capability via Box-Cox + Cp/Cpk confidence intervals (W10-4, #144).** New
+  `compute_capability_study` in `apps/spc/spc_app/spc_engine/capability.py` orchestrates a full
+  capability study on individuals or 2D subgroups: Shapiro-Wilk gate → Box-Cox (positive data)
+  or Yeo-Johnson (`allow_yeojohnson=True` default; opt-in documented shift `c=1−min(x)` +
+  Box-Cox otherwise) when non-normal → re-test the transformed data → normal-theory Cp/Cpk/CIs
+  in the transformed space, or a fitted-distribution percentile fallback (ISO 22514-2,
+  `{lognorm, weibull_min, gamma, johnsonsu}` selected by minimum AIC, empirical `np.quantile`
+  last resort if every candidate fit fails) when it stays non-normal. Within-σ reuses the
+  existing `compute_imr`/`compute_xbar_r` estimators in the same (raw or transformed) space as
+  the capability computation, preserving the Cp/Cpk-within vs Pp/Ppk-overall split; λ<0 is
+  handled by a `sorted()` ordering guard on the transformed spec limits, never a literal swap.
+  `compute_capability` (existing signature/keys untouched) gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
+  `cpk_lower` — a χ² exact CI for Cp and a Bissell (1990) large-sample CI for Cpk. The
+  fitted-percentile path instead gets a **deterministic bootstrap** CI (fixed
+  `BOOTSTRAP_SEED = 12345`, `BOOTSTRAP_RESAMPLES = 2000`, `scipy.stats.bootstrap(method=
+  "percentile")`) for bit-reproducible audit trails. New constants `CAPABILITY_ALPHA`,
+  `BOXCOX_LAMBDA_CANDIDATES`, `NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`,
+  `PERCENTILE_FIT_CANDIDATES`, `BOOTSTRAP_SEED`, `BOOTSTRAP_RESAMPLES` in `constants.py`.
+  Documented in `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 14, with NIST §6.5.2/§6.1.6 as the
+  primary/quotable Box-Cox and percentile-index sources, and Montgomery Ch. 8 / Bissell (1990) /
+  ISO 22514-2 / Box & Cox (1964) / Efron & Tibshirani (1993) flagged secondary/paywalled where
+  applicable.
+
+
+- **CUSUM control chart (W10-3, #143).** New `compute_cusum` in
+  `apps/spc/spc_app/spc_engine/control_charts.py` computes the tabular two-sided CUSUM on
+  standardized individuals: `C+`/`C−` positive-accumulator recursions with a mandatory
+  `max(0, …)` reset barrier on both arms, an optional FIR head-start (`h/2`) seeded on both
+  arms, and `n_plus`/`n_minus` run-length counters estimating shift onset. `CUSUMResult`
+  echoes `k`/`h`/`fir` alongside the series. New constants `CUSUM_DEFAULT_K = 0.5`,
+  `CUSUM_DEFAULT_H = 5.0`, `CUSUM_FIR_FRACTION = 0.5` in `constants.py`. `build_cusum_chart`
+  in `visualizer.py` is a standalone `go.Figure` (two accumulators, no symmetric CL, so it
+  does not delegate to `build_control_chart`): `C+` plotted upward, `C−` negated for display
+  only (Montgomery Fig. 9.2 two-sided style — the stored `c_minus` stays a positive
+  accumulator), decision-interval lines at both `+h` and `−h`. No WE/Nelson run-rule gating
+  on CUSUM points (autocorrelated; deferred to W10-5). Documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 13, including the explicit flag that the issue's
+  quoted ARL figures trace to Montgomery §9.1/Lucas (1976), not NIST §6.3.2.3, and the
+  Lucas & Crosier (1982) FIR citation (paywalled primary, checked against Montgomery §9.1.4).
+
+
+- **EWMA control chart (W10-2, #142).** New `compute_ewma` in
+  `apps/spc/spc_app/spc_engine/control_charts.py` computes the exponentially weighted moving
+  average on individuals from an independent Phase I `(mu0, sigma)` pair, with exact
+  time-varying limits (not the asymptotic approximation) that widen from point 1 toward the
+  asymptote. `EWMAResult` carries a soft-warn `pairing_adequate`/`pairing_note` pair (never
+  raises) flagging a λ/L combination that deviates from the tabulated Lucas & Saccucci (1990)
+  pairing by more than 0.01, mirroring W10-1's `baseline_adequate`/`baseline_note`. New
+  constants `EWMA_DEFAULT_LAMBDA = 0.20`, `EWMA_DEFAULT_L = 2.860`, and `EWMA_L_BY_LAMBDA` in
+  `constants.py`. `build_ewma_chart` in `visualizer.py` delegates to the existing
+  `build_control_chart` (now with an additive `x_axis_title` param, default `"Subgroup"`)
+  passing `x_axis_title="Observation"` and per-point limits/signal markers — no new plotting
+  code. Documented in `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 12, including the
+  Lucas & Saccucci-via-Montgomery paywall flag.
+
+
+- **Phase I/II control-limit freezing (W10-1, #141).** New
+  `apps/spc/spc_app/spc_engine/phase.py` adds `freeze_xbar_r/_s/_imr`, which screen a
+  Phase I baseline (documented-cause exclusion via `ExcludedPoint`, non-empty `cause`
+  required) and reuse the existing `compute_xbar_r/_s/_imr` on the retained points to
+  produce a `FrozenLimits` TypedDict — an all-primitives, JSON-serializable audit record
+  (no storage layer). A soft guardrail (`baseline_adequate` / `baseline_note`, never
+  raises) flags baselines below `MIN_BASELINE_SUBGROUPS = 25` (NIST §6.3.2.1) or
+  `MIN_BASELINE_INDIVIDUALS = 100` (Montgomery, secondary). `compute_xbar_r/_s/_imr` in
+  `control_charts.py` gain an optional `frozen=` argument so Phase II data is plotted
+  against fixed limits instead of recomputing them; a guard rejects a `frozen` struct
+  whose chart type or subgroup size doesn't match the new data. New constants
+  `MIN_BASELINE_SUBGROUPS`/`MIN_BASELINE_INDIVIDUALS` in `constants.py`, documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 11.
+
+
+
 ## [0.11.0] - 2026-07-24
 
 ### Added

@@ -7,8 +7,10 @@ Rules: run stages in order, never skip, confirm each handoff file exists before 
 NEVER merge or push to a protected branch (`test`, `dev`, `main`). The SME (Sid) is the final gate.
 
 0. **Prep.** Clear `.pipeline/` of stale files (`rm -rf .pipeline && mkdir .pipeline`). `git fetch`;
-   ensure a clean tree; base new work on `origin/dev`: `git switch -c feat/<slug> origin/dev`
+   ensure a clean tree; base new work on `origin/test` — the PR target: `git switch -c feat/<slug> origin/test`
    (derive `<slug>` from the issue number or feature name, e.g. `feat/w06-2-controlplan-engine`).
+   Base on `origin/test`, NOT `origin/dev`: dev carries a release lead that causes ~14-file phantom
+   conflicts in the PR against `test`.
 1. **Research.** Delegate to the `research` subagent with the full request (include the GitHub issue
    body if an issue number was given — fetch it with `gh issue view`). Wait for `.pipeline/spec.md`.
    If it has OPEN QUESTIONS, STOP and show them to the SME.

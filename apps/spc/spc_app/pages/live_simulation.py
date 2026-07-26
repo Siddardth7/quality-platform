@@ -7,7 +7,7 @@ import streamlit as st
 
 from spc_app.simulation.engine import PROCESS_CONFIGS, SimulationEngine
 from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r
-from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
+from spc_app.spc_engine.rule_detection import detect_violations
 from spc_app.visualizer import build_control_chart
 
 
@@ -23,12 +23,9 @@ def get_engine(process_stream: str, subgroup_size: int) -> SimulationEngine:
     return engine
 
 
-def detect_rule_violations(points, cl, sigma, rule_set):
-    if sigma <= 0:
-        return []
-    if rule_set == "Nelson":
-        return detect_nelson_violations(points, cl=cl, sigma=sigma)
-    return detect_we_violations(points, cl=cl, sigma=sigma)
+def detect_rule_violations(chart_type, points, cl, sigma, rule_set):
+    # Route through the engine gate so WE/Nelson only run on Shewhart charts (RULE 15).
+    return detect_violations(chart_type, points, cl, sigma, rule_set)
 
 
 def current_chart(engine: SimulationEngine, rule_set: str):
@@ -43,7 +40,7 @@ def current_chart(engine: SimulationEngine, rule_set: str):
         if len(points) < 2:
             return None, [], 0.0, 0.0
         result = compute_imr(points)
-        violations = detect_rule_violations(points, result["xbar"], result["sigma_hat"], rule_set)
+        violations = detect_rule_violations("I-MR", points, result["xbar"], result["sigma_hat"], rule_set)
         figure = build_control_chart(
             points=points,
             cl=result["xbar"],
@@ -58,7 +55,7 @@ def current_chart(engine: SimulationEngine, rule_set: str):
     subgroup_means = [sum(group) / len(group) for group in engine.history][-50:]
     result = compute_xbar_r(engine.history[-50:])
     sigma = result["sigma_hat"] / (engine.subgroup_size ** 0.5)
-    violations = detect_rule_violations(subgroup_means, result["xbarbar"], sigma, rule_set)
+    violations = detect_rule_violations("Xbar-R", subgroup_means, result["xbarbar"], sigma, rule_set)
     figure = build_control_chart(
         points=subgroup_means,
         cl=result["xbarbar"],

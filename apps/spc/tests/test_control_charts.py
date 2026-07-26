@@ -10,6 +10,7 @@ from spc_app.spc_engine.control_charts import (
     compute_xbar_r,
     compute_xbar_s,
 )
+from spc_app.spc_engine.phase import freeze_imr, freeze_xbar_r, freeze_xbar_s
 
 XBAR_R_SAMPLE = [
     [10, 11, 12, 13, 14],
@@ -260,3 +261,114 @@ def test_compute_p_mismatched_lengths_raises():
 def test_compute_p_nonpositive_sample_size_raises():
     with pytest.raises(ValueError):
         compute_p([1], [0])
+
+
+# ---------------------------------------------------------------------------
+# Phase II `frozen=` cases (W10-1, #141) — obligations 12-16
+# ---------------------------------------------------------------------------
+
+XBAR_R_PHASE_II_DATA = [
+    [20, 21, 22, 23, 24],
+    [19, 18, 17, 16, 15],
+]
+
+XBAR_S_PHASE_II_DATA = [
+    list(range(20, 32)),
+    list(range(30, 18, -1)),
+]
+
+IMR_PHASE_II_DATA = [50, 55, 48, 60, 52, 47]
+
+
+def test_compute_xbar_r_frozen_returns_limits_identical_to_frozen():
+    frozen = freeze_xbar_r(XBAR_R_SAMPLE)
+    result = compute_xbar_r(XBAR_R_PHASE_II_DATA, frozen=frozen)
+    assert result["xbarbar"] == pytest.approx(frozen["center_line"])
+    assert result["rbar"] == pytest.approx(frozen["dispersion_center"])
+    assert result["ucl_x"] == pytest.approx(frozen["ucl_x"])
+    assert result["lcl_x"] == pytest.approx(frozen["lcl_x"])
+    assert result["ucl_r"] == pytest.approx(frozen["ucl_disp"])
+    assert result["lcl_r"] == pytest.approx(frozen["lcl_disp"])
+    assert result["sigma_hat"] == pytest.approx(frozen["sigma_hat"])
+
+
+def test_compute_xbar_r_frozen_plots_new_subgroup_means_and_ranges():
+    frozen = freeze_xbar_r(XBAR_R_SAMPLE)
+    result = compute_xbar_r(XBAR_R_PHASE_II_DATA, frozen=frozen)
+    assert result["subgroup_means"] == pytest.approx([22.0, 17.0])
+    assert result["ranges"] == pytest.approx([4.0, 4.0])
+    assert result["subgroup_means"] != pytest.approx(
+        compute_xbar_r(XBAR_R_SAMPLE)["subgroup_means"]
+    )
+
+
+def test_compute_xbar_s_frozen_returns_limits_identical_to_frozen():
+    frozen = freeze_xbar_s(XBAR_S_SAMPLE)
+    result = compute_xbar_s(XBAR_S_PHASE_II_DATA, frozen=frozen)
+    assert result["xbarbar"] == pytest.approx(frozen["center_line"])
+    assert result["sbar"] == pytest.approx(frozen["dispersion_center"])
+    assert result["ucl_x"] == pytest.approx(frozen["ucl_x"])
+    assert result["lcl_x"] == pytest.approx(frozen["lcl_x"])
+    assert result["ucl_s"] == pytest.approx(frozen["ucl_disp"])
+    assert result["lcl_s"] == pytest.approx(frozen["lcl_disp"])
+    assert result["sigma_hat"] == pytest.approx(frozen["sigma_hat"])
+
+
+def test_compute_xbar_s_frozen_plots_new_subgroup_means_and_std_devs():
+    frozen = freeze_xbar_s(XBAR_S_SAMPLE)
+    result = compute_xbar_s(XBAR_S_PHASE_II_DATA, frozen=frozen)
+    baseline_means = compute_xbar_s(XBAR_S_SAMPLE)["subgroup_means"]
+    assert result["subgroup_means"] != pytest.approx(baseline_means)
+
+
+def test_compute_imr_frozen_returns_limits_identical_to_frozen():
+    frozen = freeze_imr(IMR_SAMPLE)
+    result = compute_imr(IMR_PHASE_II_DATA, frozen=frozen)
+    assert result["xbar"] == pytest.approx(frozen["center_line"])
+    assert result["mrbar"] == pytest.approx(frozen["dispersion_center"])
+    assert result["ucl_x"] == pytest.approx(frozen["ucl_x"])
+    assert result["lcl_x"] == pytest.approx(frozen["lcl_x"])
+    assert result["ucl_mr"] == pytest.approx(frozen["ucl_disp"])
+    assert result["lcl_mr"] == pytest.approx(frozen["lcl_disp"])
+    assert result["sigma_hat"] == pytest.approx(frozen["sigma_hat"])
+
+
+def test_compute_imr_frozen_plots_new_values_and_moving_ranges():
+    frozen = freeze_imr(IMR_SAMPLE)
+    result = compute_imr(IMR_PHASE_II_DATA, frozen=frozen)
+    assert result["values"] == pytest.approx(IMR_PHASE_II_DATA)
+    assert result["moving_ranges"] == pytest.approx([5.0, 7.0, 12.0, 8.0, 5.0])
+    baseline_moving_ranges = compute_imr(IMR_SAMPLE)["moving_ranges"]
+    assert result["moving_ranges"] != pytest.approx(baseline_moving_ranges)
+
+
+def test_compute_xbar_r_frozen_chart_type_mismatch_raises():
+    imr_frozen = freeze_imr(IMR_SAMPLE)
+    with pytest.raises(ValueError):
+        compute_xbar_r(XBAR_R_PHASE_II_DATA, frozen=imr_frozen)  # type: ignore[arg-type]
+
+
+def test_compute_xbar_r_frozen_n_mismatch_raises():
+    frozen = freeze_xbar_r(XBAR_R_SAMPLE)  # n=5
+    new_data_n3 = [[1, 2, 3], [4, 5, 6]]
+    with pytest.raises(ValueError):
+        compute_xbar_r(new_data_n3, frozen=frozen)
+
+
+def test_compute_xbar_s_frozen_chart_type_mismatch_raises():
+    xbar_r_frozen = freeze_xbar_r(XBAR_R_SAMPLE)
+    with pytest.raises(ValueError):
+        compute_xbar_s(XBAR_S_PHASE_II_DATA, frozen=xbar_r_frozen)  # type: ignore[arg-type]
+
+
+def test_compute_xbar_s_frozen_n_mismatch_raises():
+    frozen = freeze_xbar_s(XBAR_S_SAMPLE)  # n=12
+    new_data_n2 = [[1, 2], [3, 4]]
+    with pytest.raises(ValueError):
+        compute_xbar_s(new_data_n2, frozen=frozen)
+
+
+def test_compute_imr_frozen_chart_type_mismatch_raises():
+    xbar_r_frozen = freeze_xbar_r(XBAR_R_SAMPLE)
+    with pytest.raises(ValueError):
+        compute_imr(IMR_PHASE_II_DATA, frozen=xbar_r_frozen)  # type: ignore[arg-type]
