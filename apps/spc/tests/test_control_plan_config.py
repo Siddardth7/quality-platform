@@ -142,7 +142,8 @@ def test_chart_type_index_key_not_in_options_defaults_to_zero():
     assert chart_type_index("Xbar-R", ["p", "c", "u"]) == 0
 
 
-def test_chart_options_keys_match_valid_chart_keys_as_a_set():
-    # Belt-and-suspenders: the two 6-key chart-key sets stay in sync (order need
-    # not match -- chart_type_index resolves against whatever list it is given).
-    assert set(CHART_OPTIONS) == set(_VALID_CHART_KEYS)
+def test_valid_chart_keys_are_a_subset_of_chart_options():
+    # Belt-and-suspenders: every Control-Plan-drivable chart key (Shewhart only --
+    # EWMA/CUSUM need manually-tuned lambda/k/h, not derivable from a Control Plan
+    # row) is still a selectable Control Charts page option.
+    assert set(_VALID_CHART_KEYS) <= set(CHART_OPTIONS)

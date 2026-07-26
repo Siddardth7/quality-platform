@@ -564,3 +564,106 @@ def test_compute_capability_study_no_small_n_note_when_n_at_least_30():
     study = compute_capability_study(CI_DATA, lsl=CI_LSL, usl=CI_USL, alpha=STUDY_ALPHA)
     assert study["n"] >= 30
     assert "n<30" not in study["note"]
+
+
+# ---------------------------------------------------------------------------
+# W10-5 (#145): force_method override (SME Q1) — 4 values x conditions.
+# ---------------------------------------------------------------------------
+
+NORMAL_DATA = np.random.default_rng(0).normal(10.0, 0.5, size=40)
+
+
+def test_force_method_auto_is_unchanged_default_behaviour():
+    # "auto" (the implicit default) is byte-for-byte the pre-existing gate logic.
+    explicit = compute_capability_study(NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, force_method="auto")
+    implicit = compute_capability_study(NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA)
+    assert explicit == implicit
+    assert explicit["method"] == "normal"
+
+
+def test_force_method_normal_on_already_normal_data():
+    study = compute_capability_study(NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, force_method="normal")
+    assert study["method"] == "normal"
+    assert study["normal_before"] is True
+    assert "user-forced" in study["note"]
+    assert study["cp"] is not None
+    assert study["cp_ci"] is not None
+
+
+def test_force_method_normal_skips_gate_on_non_normal_data():
+    data = _bimodal_data()
+    study = compute_capability_study(data, lsl=1.0, usl=9.0, alpha=STUDY_ALPHA, force_method="normal")
+    assert study["method"] == "normal"
+    assert study["normal_before"] is False
+    assert "user-forced" in study["note"]
+    assert study["cp"] is not None
+    assert study["cp_ci"] is not None
+
+
+def test_force_method_boxcox_on_data_that_already_passed_normal():
+    # Forces the transform path even though normal_before is True; note records
+    # the "forced despite already normal" prefix.
+    data = _lognormal_individuals(seed=1, sigma=0.6, size=60)
+    assert normality_test(data)["is_normal"] in (True, False)  # sanity, not asserted on
+    study = compute_capability_study(data, lsl=0.1, usl=3.0, alpha=STUDY_ALPHA, force_method="boxcox")
+    assert study["method"] in ("boxcox", "yeojohnson")
+    assert study["lambda_used"] is not None
+
+
+def test_force_method_boxcox_forced_note_when_raw_data_was_already_normal():
+    data = NORMAL_DATA  # already positive + normal
+    study = compute_capability_study(data, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, force_method="boxcox")
+    assert study["method"] == "boxcox"
+    assert "user-forced" in study["note"]
+    assert "already" in study["note"] or "passing Shapiro-Wilk" in study["note"]
+
+
+def test_force_method_boxcox_no_forced_note_when_raw_data_was_non_normal():
+    data = _lognormal_individuals(seed=1, sigma=0.6, size=60)
+    normal_before = normality_test(data)["is_normal"]
+    study = compute_capability_study(data, lsl=0.1, usl=3.0, alpha=STUDY_ALPHA, force_method="boxcox")
+    if not normal_before:
+        assert "user-forced" not in study["note"]
+
+
+def test_force_method_boxcox_honors_allow_yeojohnson_false_on_nonpositive_data():
+    data = _nonpositive_data()
+    study = compute_capability_study(
+        data, lsl=-8.0, usl=0.0, alpha=STUDY_ALPHA, force_method="boxcox", allow_yeojohnson=False
+    )
+    assert study["method"] == "boxcox"
+    assert study["shift"] == pytest.approx(1.0 - float(data.min()))
+
+
+def test_force_method_boxcox_defaults_to_yeojohnson_on_nonpositive_data():
+    data = _nonpositive_data()
+    study = compute_capability_study(data, lsl=-8.0, usl=0.0, alpha=STUDY_ALPHA, force_method="boxcox")
+    assert study["method"] == "yeojohnson"
+    assert study["shift"] == pytest.approx(0.0)
+
+
+def test_force_method_percentile_direct_call(monkeypatch):
+    monkeypatch.setattr(capability, "BOOTSTRAP_RESAMPLES", 50)
+    study = compute_capability_study(
+        NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, force_method="percentile"
+    )
+    assert study["method"] == "percentile"
+    assert study["fitted_dist"] is not None
+    assert study["lambda_used"] is None
+    assert study["shift"] == pytest.approx(0.0)
+    assert "user-forced to 'percentile'" in study["note"]
+    assert study["cp_ci"] is not None
+    assert study["cpk_ci"] is not None
+
+
+def test_force_method_percentile_skips_normal_and_transform_paths(monkeypatch):
+    # Even data that would normally take the "normal" path (already Gaussian) goes
+    # straight to the fitted-distribution percentile method when forced.
+    monkeypatch.setattr(capability, "BOOTSTRAP_RESAMPLES", 50)
+    assert normality_test(NORMAL_DATA)["is_normal"] is True
+    study = compute_capability_study(
+        NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, force_method="percentile"
+    )
+    assert study["method"] == "percentile"
+    assert study["normal_before"] is True
+    assert study["normal_after"] is None

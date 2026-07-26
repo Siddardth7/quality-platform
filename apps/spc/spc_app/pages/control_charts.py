@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 import pandas as pd
 import streamlit as st
@@ -23,17 +23,34 @@ from spc_app.fmea_feedback import (
     build_occurrence_feedback,
 )
 from spc_app.schema import IngestError, load_spc_csv
+from spc_app.spc_engine.constants import (
+    CUSUM_DEFAULT_H,
+    CUSUM_DEFAULT_K,
+    EWMA_DEFAULT_L,
+    EWMA_DEFAULT_LAMBDA,
+)
 from spc_app.spc_engine.control_charts import (
+    CUSUMResult,
+    EWMAResult,
     compute_c,
+    compute_cusum,
+    compute_ewma,
     compute_imr,
     compute_p,
     compute_u,
     compute_xbar_r,
     compute_xbar_s,
 )
-from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
+from spc_app.spc_engine.phase import (
+    ExcludedPoint,
+    FrozenLimits,
+    freeze_imr,
+    freeze_xbar_r,
+    freeze_xbar_s,
+)
+from spc_app.spc_engine.rule_detection import detect_violations
 from spc_app.spc_engine.utils import subgroup_rows
-from spc_app.visualizer import build_control_chart
+from spc_app.visualizer import build_control_chart, build_cusum_chart, build_ewma_chart
 
 DEMO_PATH = Path(__file__).resolve().parents[2] / "data" / "demo_composites_aerospace.csv"
 RULE_REFERENCE = pd.DataFrame(
@@ -56,6 +73,8 @@ CHART_OPTIONS = {
     "p": {"stream": "reject_proportion", "compute": "p"},
     "u": {"stream": "surface_defects", "compute": "u"},
     "c": {"stream": "panel_defects", "compute": "c"},
+    "EWMA": {"stream": "autoclave_temp", "compute": "ewma"},
+    "CUSUM": {"stream": "autoclave_temp", "compute": "cusum"},
 }
 #: Demo-only bind of a Control Plan characteristic straight to its own real,
 #: OOC monitored stream (OQ3, W07-2 #89) — (chart_key, stream key). Extend this
@@ -64,6 +83,15 @@ CHART_OPTIONS = {
 _CHARACTERISTIC_STREAM_OVERRIDE: dict[str, tuple[str, str]] = {
     "Prepreg Ply — Ply misalignment (>±2°)": ("Xbar-R", "ply_misalignment"),
 }
+
+#: Chart types that support the Phase I (establish & freeze) / Phase II
+#: (monitor against frozen limits) workflow (W10-1, #141) — variables charts
+#: with a well-defined center-line/dispersion pair. EWMA/CUSUM are their own
+#: monitoring schemes and are excluded.
+PHASE_ELIGIBLE = {"Xbar-R", "Xbar-S", "I-MR"}
+_LIVE_MODE = "Live (recompute)"
+_PHASE_I_MODE = "Phase I: establish & freeze"
+_PHASE_II_MODE = "Phase II: monitor against frozen limits"
 
 
 @st.cache_data
@@ -83,13 +111,16 @@ def load_source_data(uploaded_file) -> pd.DataFrame:
     return load_spc_csv(uploaded_file)
 
 
+def _frozen_state_key(chart_key: str) -> str:
+    return f"spc_frozen::{chart_key}"
 
-def detect_rule_violations(points: list[float], cl: float, sigma: float, rule_set: str):
-    if sigma <= 0:
-        return []
-    if rule_set == "Nelson":
-        return detect_nelson_violations(points, cl=cl, sigma=sigma)
-    return detect_we_violations(points, cl=cl, sigma=sigma)
+
+def detect_rule_violations(
+    chart_type: str, points: list[float], cl: float, sigma: float, rule_set: str
+) -> list[dict[str, int | str]]:
+    # Thin pass-through to the gated engine chokepoint so every branch below
+    # routes through the same run-rule gate (EWMA/CUSUM always get []).
+    return detect_violations(chart_type, points, cl, sigma, rule_set)
 
 
 def summarize_metrics(chart_key: str, result: Mapping[str, Any]) -> list[tuple[str, str]]:
@@ -123,10 +154,22 @@ def summarize_metrics(chart_key: str, result: Mapping[str, Any]) -> list[tuple[s
             ("UCL", f"{result['ucl']:.4f}"),
             ("Points", str(len(result['counts']))),
         ]
+    if chart_key == "u":
+        return [
+            ("ubar", f"{result['ubar']:.4f}"),
+            ("Avg N", f"{sum(result['sample_sizes']) / len(result['sample_sizes']):.2f}"),
+            ("Points", str(len(result['u_values']))),
+        ]
+    if chart_key == "EWMA":
+        return [
+            ("Lambda", f"{result['lam']:.4f}"),
+            ("L", f"{result['L']:.4f}"),
+            ("Sigma", f"{result['sigma']:.4f}"),
+        ]
     return [
-        ("ubar", f"{result['ubar']:.4f}"),
-        ("Avg N", f"{sum(result['sample_sizes']) / len(result['sample_sizes']):.2f}"),
-        ("Points", str(len(result['u_values']))),
+        ("k", f"{result['k']:.4f}"),
+        ("h", f"{result['h']:.4f}"),
+        ("Signals", str(len(result["signals"]))),
     ]
 
 
@@ -159,7 +202,27 @@ def render_control_charts() -> None:
                 f"- Sample size: {cp_config.sample_size}\n"
                 f"- Frequency: {cp_config.frequency}"
             )
-        rule_set = st.radio("Rule Set", options=["Western Electric", "Nelson"], horizontal=True)
+
+        phase_mode = _LIVE_MODE
+        if chart_key in PHASE_ELIGIBLE:
+            phase_mode = st.radio(
+                "Phase Mode", options=[_LIVE_MODE, _PHASE_I_MODE, _PHASE_II_MODE]
+            )
+
+        lam, ewma_l, cusum_k, cusum_h, cusum_fir = (
+            EWMA_DEFAULT_LAMBDA, EWMA_DEFAULT_L, CUSUM_DEFAULT_K, CUSUM_DEFAULT_H, False,
+        )
+        if chart_key == "EWMA":
+            lam = st.number_input("Lambda (λ)", value=EWMA_DEFAULT_LAMBDA, min_value=0.01, max_value=1.0, step=0.01)
+            ewma_l = st.number_input("L (limit width)", value=EWMA_DEFAULT_L, min_value=0.1, step=0.01)
+        elif chart_key == "CUSUM":
+            cusum_k = st.number_input("k (reference value)", value=CUSUM_DEFAULT_K, min_value=0.01, step=0.01)
+            cusum_h = st.number_input("h (decision interval)", value=CUSUM_DEFAULT_H, min_value=0.1, step=0.1)
+            cusum_fir = st.checkbox("FIR (fast initial response)", value=False)
+
+        rule_set = "Western Electric"
+        if chart_key not in ("EWMA", "CUSUM"):
+            rule_set = st.radio("Rule Set", options=["Western Electric", "Nelson"], horizontal=True)
         source_mode = st.radio("Data Source", options=["Demo", "Upload CSV"], horizontal=True)
         upload = None
         if source_mode == "Upload CSV":
@@ -182,6 +245,19 @@ def render_control_charts() -> None:
         st.error("No rows available for the selected chart type.")
         st.stop()
 
+    excluded_points: list[ExcludedPoint] = []
+    if chart_key in PHASE_ELIGIBLE and phase_mode == _PHASE_I_MODE:
+        # ponytail: baseline = the currently selected stream data (no separate
+        # baseline-upload UI); a single documented cause applies to every point
+        # marked for exclusion, which matches RULE 11's non-empty-cause guard.
+        n_points = len(subgroup_rows(stream_frame)) if config["compute"] != "imr" else len(stream_frame)
+        exclude_idx = st.multiselect("Exclude baseline points (assignable cause)", options=list(range(n_points)))
+        cause = st.text_input("Documented cause for excluded points", value="")
+        if exclude_idx and cause.strip():
+            excluded_points = [{"index": i, "cause": cause} for i in exclude_idx]
+        elif exclude_idx:
+            st.warning("Provide a documented cause to exclude points.")
+
     # `result` is a runtime dispatch over chart type; each branch assigns a
     # different precisely-typed compute result, so the shared variable is the
     # honest read-only union surface. Engine functions keep their exact TypedDicts.
@@ -190,37 +266,58 @@ def render_control_charts() -> None:
     result: Mapping[str, Any]
     points: list[float]
     cl: float
-    ucl: float | list[float]  # p/u charts have per-point (vector) limits
+    ucl: float | list[float]  # p/u/EWMA charts have per-point (vector) limits
     lcl: float | list[float]
     violations: list[dict[str, int | str]]
     chart_title: str
     y_axis: str
+    # CUSUM's C- lower arm (positive accumulator) is the only branch that
+    # populates this — every other chart type exports with the default None.
+    secondary_points: tuple[str, list[float]] | None = None
+    frozen_key = _frozen_state_key(chart_key)
     # The schema validates column/type shape; it can't guarantee a stream has enough
     # subgroups, or the sample_size column a p/u chart needs. Guard the compute so
     # those surface as a friendly message rather than a Streamlit stack trace.
     try:
+        if config["compute"] in ("xbar_r", "xbar_s", "imr") and phase_mode == _PHASE_II_MODE:
+            frozen = st.session_state.get(frozen_key)
+            if frozen is None:
+                st.error("No frozen baseline for this chart yet — switch to 'Phase I: establish & freeze' first.")
+                st.stop()
+        else:
+            frozen = None
+
         if config["compute"] == "xbar_r":
             subgroups = subgroup_rows(stream_frame)
-            result = compute_xbar_r(subgroups)
+            if phase_mode == _PHASE_I_MODE:
+                frozen = freeze_xbar_r(subgroups, excluded=excluded_points)
+                st.session_state[frozen_key] = frozen
+            result = compute_xbar_r(subgroups, frozen=frozen)
             points = result["subgroup_means"]
             sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
             cl, ucl, lcl = result["xbarbar"], result["ucl_x"], result["lcl_x"]
-            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            violations = detect_rule_violations(chart_key, points, cl, sigma, rule_set)
             chart_title, y_axis = "Xbar-R Chart", "Subgroup Mean"
         elif config["compute"] == "xbar_s":
             subgroups = subgroup_rows(stream_frame)
-            result = compute_xbar_s(subgroups)
+            if phase_mode == _PHASE_I_MODE:
+                frozen = freeze_xbar_s(subgroups, excluded=excluded_points)
+                st.session_state[frozen_key] = frozen
+            result = compute_xbar_s(subgroups, frozen=frozen)
             points = result["subgroup_means"]
             sigma = result["sigma_hat"] / len(subgroups[0]) ** 0.5
             cl, ucl, lcl = result["xbarbar"], result["ucl_x"], result["lcl_x"]
-            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            violations = detect_rule_violations(chart_key, points, cl, sigma, rule_set)
             chart_title, y_axis = "Xbar-S Chart", "Subgroup Mean"
         elif config["compute"] == "imr":
             values = stream_frame.sort_values("subgroup")["value"].tolist()
-            result = compute_imr(values)
+            if phase_mode == _PHASE_I_MODE:
+                frozen = freeze_imr(values, excluded=excluded_points)
+                st.session_state[frozen_key] = frozen
+            result = compute_imr(values, frozen=frozen)
             points = result["values"]
             cl, ucl, lcl = result["xbar"], result["ucl_x"], result["lcl_x"]
-            violations = detect_rule_violations(points, cl, result["sigma_hat"], rule_set)
+            violations = detect_rule_violations(chart_key, points, cl, result["sigma_hat"], rule_set)
             chart_title, y_axis = "Individuals Chart", "Measurement"
         elif config["compute"] == "p":
             ordered = stream_frame.sort_values("subgroup")
@@ -231,7 +328,7 @@ def render_control_charts() -> None:
             sigma = (result["pbar"] * (1.0 - result["pbar"]) / avg_n) ** 0.5 if result["pbar"] < 1.0 else 0.0
             points = result["proportions"]
             cl, ucl, lcl = result["pbar"], result["ucl"], result["lcl"]
-            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            violations = detect_rule_violations(chart_key, points, cl, sigma, rule_set)
             chart_title, y_axis = "p Chart", "Proportion Defective"
         elif config["compute"] == "c":
             ordered = stream_frame.sort_values("subgroup")
@@ -242,9 +339,9 @@ def render_control_charts() -> None:
             sigma = cbar ** 0.5 if cbar > 0 else 0.0
             points = result["counts"]
             cl, ucl, lcl = cbar, result["ucl"], result["lcl"]
-            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            violations = detect_rule_violations(chart_key, points, cl, sigma, rule_set)
             chart_title, y_axis = "c Chart", "Nonconformity Count"
-        else:
+        elif config["compute"] == "u":
             ordered = stream_frame.sort_values("subgroup")
             counts = ordered["value"].tolist()
             sample_sizes = ordered["sample_size"].tolist()
@@ -253,13 +350,48 @@ def render_control_charts() -> None:
             sigma = (result["ubar"] / avg_n) ** 0.5 if result["ubar"] > 0 else 0.0
             points = result["u_values"]
             cl, ucl, lcl = result["ubar"], result["ucl"], result["lcl"]
-            violations = detect_rule_violations(points, cl, sigma, rule_set)
+            violations = detect_rule_violations(chart_key, points, cl, sigma, rule_set)
             chart_title, y_axis = "u Chart", "Defects per Unit"
+        elif config["compute"] == "ewma":
+            values = stream_frame.sort_values("subgroup")["value"].tolist()
+            # ponytail: mu0/sigma are an independent Phase I estimate from this
+            # stream's own I-MR fit (RULE 12) — never derived from the z-series.
+            baseline = compute_imr(values)
+            mu0, sigma0 = baseline["xbar"], baseline["sigma_hat"]
+            result = compute_ewma(values, mu0, sigma0, lam=lam, L=ewma_l)
+            points, cl, ucl, lcl = result["z"], result["mu0"], result["ucl"], result["lcl"]
+            # Gate proof: WE/Nelson never run on EWMA (always []); the chart's own
+            # limit-crossing signals (result["signals"]) drive the actual overlay.
+            _ = detect_rule_violations(chart_key, points, cl, sigma0, rule_set)
+            violations = [{"index": i, "rule": "EWMA limit exceeded"} for i in result["signals"]]
+            if not result["pairing_adequate"]:
+                st.warning(result["pairing_note"])
+            chart_title, y_axis = "EWMA Chart", "EWMA (z)"
+        else:
+            values = stream_frame.sort_values("subgroup")["value"].tolist()
+            baseline = compute_imr(values)
+            mu0, sigma0 = baseline["xbar"], baseline["sigma_hat"]
+            result = compute_cusum(values, mu0, sigma0, k=cusum_k, h=cusum_h, fir=cusum_fir)
+            points, cl, ucl, lcl = result["c_plus"], 0.0, result["h"], 0.0
+            _ = detect_rule_violations(chart_key, points, cl, sigma0, rule_set)
+            violations = [
+                {"index": i, "rule": "CUSUM decision interval exceeded"} for i in result["signals"]
+            ]
+            # SME Q2 (W10-5, #145): the C- lower arm exports as its own per-point
+            # column (positive-accumulator convention, matching the engine/RULE 13),
+            # not just a metrics summary.
+            secondary_points = ("C-", result["c_minus"])
+            chart_title, y_axis = "CUSUM Chart", "Cumulative Sum"
 
-        figure = build_control_chart(
-            points=points, cl=cl, ucl=ucl, lcl=lcl,
-            violations=violations, title=chart_title, y_axis_title=y_axis,
-        )
+        if config["compute"] == "ewma":
+            figure = build_ewma_chart(cast(EWMAResult, result))
+        elif config["compute"] == "cusum":
+            figure = build_cusum_chart(cast(CUSUMResult, result))
+        else:
+            figure = build_control_chart(
+                points=points, cl=cl, ucl=ucl, lcl=lcl,
+                violations=violations, title=chart_title, y_axis_title=y_axis,
+            )
     except (ValueError, KeyError) as exc:
         st.error(
             "Could not build this chart from the data. Check that the selected chart "
@@ -274,6 +406,16 @@ def render_control_charts() -> None:
         column.metric(label, value)
 
     st.plotly_chart(figure, use_container_width=True)
+
+    if chart_key in PHASE_ELIGIBLE and phase_mode != _LIVE_MODE:
+        frozen_shown: FrozenLimits | None = st.session_state.get(frozen_key)
+        if frozen_shown is not None:
+            st.caption(
+                f"Frozen at {frozen_shown['frozen_at']}  |  baseline range: "
+                f"{frozen_shown['phase_i_range']}  |  excluded: {frozen_shown['excluded']}  |  "
+                f"sigma method: {frozen_shown['sigma_method']}  |  "
+                f"{frozen_shown['baseline_note'] or 'baseline adequate'}"
+            )
 
     # --- SPC -> FMEA candidate feedback (OQ2/OQ4/OQ5, W07-2 #89) --------------
     # Fires only for a real Control Plan characteristic (never "(manual)") with
@@ -309,6 +451,7 @@ def render_control_charts() -> None:
         lcl=lcl,
         violations=violations,
         metrics=metrics,
+        secondary_points=secondary_points,
     )
     # SPC reports are pure tables/text (no embedded chart images), so they build in
     # ~milliseconds; generating eagerly per rerun is fine here, unlike FMEA's

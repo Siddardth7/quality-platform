@@ -17,7 +17,9 @@ from spc_app.exporter import (
     CapabilityReport,
     ControlChartReport,
     _cpk_rating,
+    _fmt_ci,
     _fmt_opt,
+    _point_columns,
     _points_frame,
     build_capability_report_excel,
     build_capability_report_pdf,
@@ -262,3 +264,154 @@ def test_capability_pdf_handles_stability_states(oos):
         oos_signal_count=oos,
     )
     assert build_capability_report_pdf(report).startswith(b"%PDF")
+
+
+# ---------------------------------------------------------------------------
+# W10-5 (#145): _fmt_ci, capability Method/lambda/CI rows, secondary_points.
+# ---------------------------------------------------------------------------
+
+
+def test_fmt_ci_both_branches():
+    assert _fmt_ci((1.0, 2.0)) == "[1.0000, 2.0000]"
+    assert _fmt_ci(None) == "N/A"
+
+
+def _boxcox_capability_report() -> CapabilityReport:
+    return CapabilityReport(
+        stream_label="Ply Thickness",
+        values=[10.0, 10.1, 9.9, 10.2, 9.8, 10.05],
+        capability={
+            "method": "boxcox",
+            "lambda_used": 0.5,
+            "cp": 1.45,
+            "cp_ci": (1.20, 1.70),
+            "cpk": 1.21,
+            "cpk_ci": (1.00, 1.42),
+            "cpk_lower": 1.05,
+            "pp": 1.40,
+            "ppk": 1.18,
+            "fitted_dist": None,
+            "mean": 10.0,
+            "sigma_hat": 0.05,
+            "sigma_overall": 0.06,
+        },
+        lsl=9.7,
+        usl=10.3,
+        normality={"w_stat": 0.98, "p_value": 0.61, "is_normal": True},
+        oos_signal_count=0,
+    )
+
+
+def test_capability_excel_includes_method_lambda_and_ci_rows_for_boxcox_study():
+    wb = openpyxl.load_workbook(io.BytesIO(build_capability_report_excel(_boxcox_capability_report())))
+    summary = _kv_sheet_to_dict(wb["Capability"])
+    assert summary["Method"] == "boxcox"
+    assert summary["Box-Cox lambda"] == "0.5000"
+    assert summary["Cp 95% CI"] == "[1.2000, 1.7000]"
+    assert summary["Cpk 95% CI"] == "[1.0000, 1.4200]"
+    assert summary["Cpk lower bound"] == "1.0500"
+    assert summary["Fitted distribution"] == "N/A"
+
+
+def test_capability_excel_one_sided_spec_ci_rows_render_na():
+    # A plain compute_capability dict has no method/cp_ci/etc. keys at all — the
+    # existing fixture must still export cleanly with "normal"/"N/A" defaults.
+    data = build_capability_report_excel(_capability_report())
+    wb = openpyxl.load_workbook(io.BytesIO(data))
+    summary = _kv_sheet_to_dict(wb["Capability"])
+    assert summary["Method"] == "normal"
+    assert summary["Box-Cox lambda"] == "N/A"
+    assert summary["Cp 95% CI"] == "N/A"
+    assert summary["Cpk 95% CI"] == "N/A"
+    assert summary["Cpk lower bound"] == "N/A"
+    assert summary["Fitted distribution"] == "N/A"
+
+
+def test_capability_excel_percentile_study_reports_fitted_distribution():
+    report = _boxcox_capability_report()
+    report = CapabilityReport(
+        stream_label=report.stream_label,
+        values=report.values,
+        capability={**report.capability, "method": "percentile", "lambda_used": None, "fitted_dist": "gamma"},
+        lsl=report.lsl,
+        usl=report.usl,
+        normality=report.normality,
+        oos_signal_count=0,
+    )
+    wb = openpyxl.load_workbook(io.BytesIO(build_capability_report_excel(report)))
+    summary = _kv_sheet_to_dict(wb["Capability"])
+    assert summary["Method"] == "percentile"
+    assert summary["Box-Cox lambda"] == "N/A"
+    assert summary["Fitted distribution"] == "gamma"
+
+
+def test_capability_pdf_boxcox_study_is_valid_bytes():
+    data = build_capability_report_pdf(_boxcox_capability_report())
+    assert data.startswith(b"%PDF")
+    assert len(data) > 1000
+
+
+# --- ControlChartReport.secondary_points (CUSUM C-) ---------------------------
+
+
+def _cusum_control_chart_report() -> ControlChartReport:
+    return ControlChartReport(
+        chart_label="CUSUM Chart",
+        stream="autoclave_temp",
+        rule_set="Western Electric",
+        points=[0.0, 0.5, 1.2, 0.3, 0.0],
+        cl=0.0,
+        ucl=5.0,
+        lcl=0.0,
+        violations=[],
+        metrics=[("k", "0.5000"), ("h", "5.0000")],
+        secondary_points=("C-", [0.0, 0.0, 0.2, 0.0, 0.4]),
+    )
+
+
+def test_point_columns_with_secondary_points_inserts_label_after_value():
+    assert _point_columns(_cusum_control_chart_report()) == ["Point", "Value", "C-", "UCL", "LCL", "Status"]
+
+
+def test_point_columns_without_secondary_points_unchanged():
+    assert _point_columns(_control_chart_report()) == ["Point", "Value", "UCL", "LCL", "Status"]
+
+
+def test_points_frame_includes_rounded_secondary_column_when_present():
+    frame = _points_frame(_cusum_control_chart_report())
+    assert list(frame.columns) == ["Point", "Value", "C-", "UCL", "LCL", "Status"]
+    assert list(frame["C-"]) == [0.0, 0.0, 0.2, 0.0, 0.4]
+
+
+def test_points_frame_omits_secondary_column_when_absent():
+    frame = _points_frame(_control_chart_report())
+    assert "C-" not in frame.columns
+    assert list(frame.columns) == ["Point", "Value", "UCL", "LCL", "Status"]
+
+
+def test_control_chart_excel_secondary_points_header_and_values():
+    data = build_control_chart_report_excel(_cusum_control_chart_report())
+    wb = openpyxl.load_workbook(io.BytesIO(data))
+    ws = wb["Control Chart"]
+    assert [c.value for c in ws[1]] == ["Point", "Value", "C-", "UCL", "LCL", "Status"]
+    assert [ws.cell(row=r, column=3).value for r in range(2, 7)] == [0.0, 0.0, 0.2, 0.0, 0.4]
+
+
+def test_control_chart_excel_without_secondary_points_is_byte_identical_header():
+    # Backward-compat: absent secondary_points -> unchanged 5-column header.
+    data = build_control_chart_report_excel(_control_chart_report())
+    wb = openpyxl.load_workbook(io.BytesIO(data))
+    ws = wb["Control Chart"]
+    assert [c.value for c in ws[1]] == ["Point", "Value", "UCL", "LCL", "Status"]
+
+
+def test_control_chart_pdf_with_secondary_points_is_valid_bytes():
+    data = build_control_chart_report_pdf(_cusum_control_chart_report())
+    assert data.startswith(b"%PDF")
+    assert len(data) > 1000
+
+
+def test_control_chart_pdf_without_secondary_points_is_valid_bytes():
+    data = build_control_chart_report_pdf(_control_chart_report())
+    assert data.startswith(b"%PDF")
+    assert len(data) > 1000

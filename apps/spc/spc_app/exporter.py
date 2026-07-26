@@ -72,6 +72,10 @@ class ControlChartReport:
     lcl: float | Sequence[float]
     violations: Sequence[Mapping[str, Any]]  # [{"index": int, "rule": str}, ...]
     metrics: Sequence[tuple[str, str]]  # summarize_metrics() output
+    # Optional second per-point series (e.g. CUSUM's C- lower arm, stored as the
+    # positive accumulator) rendered as its own column, (label, values). `None`
+    # (the default) keeps every existing caller/report byte-for-byte unchanged.
+    secondary_points: tuple[str, Sequence[float]] | None = None
 
 
 @dataclass(frozen=True)
@@ -98,6 +102,10 @@ def _fmt(value: float) -> str:
 
 def _fmt_opt(value: float | None) -> str:
     return "N/A" if value is None else f"{value:.4f}"
+
+
+def _fmt_ci(ci: tuple[float, float] | None) -> str:
+    return "N/A" if ci is None else f"[{ci[0]:.4f}, {ci[1]:.4f}]"
 
 
 def _now() -> str:
@@ -144,21 +152,35 @@ def _violations_by_index(report: ControlChartReport) -> dict[int, list[str]]:
 _POINT_COLUMNS = ["Point", "Value", "UCL", "LCL", "Status"]
 
 
+def _point_columns(report: ControlChartReport) -> list[str]:
+    """Column order for the per-point table — `Value` plus, when present, the
+    secondary series (e.g. CUSUM's C-) right next to it, then UCL/LCL/Status."""
+    if report.secondary_points is None:
+        return _POINT_COLUMNS
+    label, _ = report.secondary_points
+    return ["Point", "Value", label, "UCL", "LCL", "Status"]
+
+
 def _points_frame(report: ControlChartReport) -> pd.DataFrame:
     """Per-point table: 1-based Point, Value, the UCL/LCL it was tested against
-    (constant for most charts, per-point for p/u), and OK / rule-violation Status."""
+    (constant for most charts, per-point for p/u), and OK / rule-violation Status.
+    Optionally a secondary per-point series (e.g. CUSUM's C- lower arm)."""
     by_index = _violations_by_index(report)
-    rows = [
-        {
-            "Point": index + 1,
-            "Value": round(float(value), 6),
-            "UCL": round(_limit_at(report.ucl, index), 6),
-            "LCL": round(_limit_at(report.lcl, index), 6),
-            "Status": "; ".join(by_index[index]) if index in by_index else "OK",
-        }
-        for index, value in enumerate(report.points)
-    ]
-    return pd.DataFrame(rows, columns=_POINT_COLUMNS)
+    secondary_label: str | None = None
+    secondary_values: Sequence[float] | None = None
+    if report.secondary_points is not None:
+        secondary_label, secondary_values = report.secondary_points
+
+    rows = []
+    for index, value in enumerate(report.points):
+        row: dict[str, Any] = {"Point": index + 1, "Value": round(float(value), 6)}
+        if secondary_label is not None and secondary_values is not None:
+            row[secondary_label] = round(float(secondary_values[index]), 6)
+        row["UCL"] = round(_limit_at(report.ucl, index), 6)
+        row["LCL"] = round(_limit_at(report.lcl, index), 6)
+        row["Status"] = "; ".join(by_index[index]) if index in by_index else "OK"
+        rows.append(row)
+    return pd.DataFrame(rows, columns=_point_columns(report))
 
 
 def _values_frame(values: Sequence[float]) -> pd.DataFrame:
@@ -205,7 +227,12 @@ def _control_chart_row_fill(row: pd.Series) -> str | None:
 
 def build_control_chart_report_excel(report: ControlChartReport) -> bytes:
     """Excel workbook: a coloured per-point sheet + a summary/metadata sheet."""
+    columns = _point_columns(report)
     points = sanitize_for_export(_points_frame(report))
+    col_widths = {"Point": 8, "Value": 14, "UCL": 14, "LCL": 14, "Status": 40}
+    if report.secondary_points is not None:
+        col_widths[report.secondary_points[0]] = 14
+
     wb = openpyxl.Workbook()
     ws = wb.active
     assert ws is not None  # a freshly created workbook always has an active sheet
@@ -213,8 +240,8 @@ def build_control_chart_report_excel(report: ControlChartReport) -> bytes:
         ws,
         points,
         title="Control Chart",
-        columns=_POINT_COLUMNS,
-        col_widths={"Point": 8, "Value": 14, "UCL": 14, "LCL": 14, "Status": 40},
+        columns=columns,
+        col_widths=col_widths,
         row_fill_hex=_control_chart_row_fill,
     )
     write_keyvalue_sheet(wb.create_sheet("Summary"), _control_chart_summary_rows(report))
@@ -246,17 +273,19 @@ def build_control_chart_report_pdf(report: ControlChartReport) -> bytes:
         ],
     )
 
+    if report.secondary_points is None:
+        pdf_columns = [("Point", 18), ("Value", 30), ("UCL", 30), ("LCL", 30), ("Status", 82)]
+    else:
+        label = report.secondary_points[0]
+        pdf_columns = [
+            ("Point", 18), ("Value", 26), (label, 26), ("UCL", 26), ("LCL", 26), ("Status", 68),
+        ]
+
     render_table(
         pdf,
         _points_frame(report),
-        columns=[("Point", 18), ("Value", 30), ("UCL", 30), ("LCL", 30), ("Status", 82)],
-        row_values=lambda r: [
-            safe_text(str(r["Point"])),
-            safe_text(str(r["Value"])),
-            safe_text(str(r["UCL"])),
-            safe_text(str(r["LCL"])),
-            safe_text(str(r["Status"])),
-        ],
+        columns=pdf_columns,
+        row_values=lambda r: [safe_text(str(r[name])) for name, _ in pdf_columns],
         row_rgb=lambda r: _VIOLATION_RGB if str(r["Status"]) != "OK" else _WHITE_RGB,
     )
     return bytes(pdf.output())
@@ -280,11 +309,17 @@ def _capability_detail_rows(report: CapabilityReport) -> list[tuple[str, object]
         ("Data Points", len(report.values)),
         ("LSL", _fmt_opt(report.lsl)),
         ("USL", _fmt_opt(report.usl)),
+        ("Method", str(cap.get("method", "normal"))),
+        ("Box-Cox lambda", _fmt_opt(cap.get("lambda_used"))),
         ("Cp", _fmt_opt(cap["cp"])),
+        ("Cp 95% CI", _fmt_ci(cap.get("cp_ci"))),
         ("Cpk", _fmt_opt(cap["cpk"])),
+        ("Cpk 95% CI", _fmt_ci(cap.get("cpk_ci"))),
+        ("Cpk lower bound", _fmt_opt(cap.get("cpk_lower"))),
         ("Pp", _fmt_opt(cap["pp"])),
         ("Ppk", _fmt_opt(cap["ppk"])),
         ("Cpk Rating", _cpk_rating(cap["cpk"])),
+        ("Fitted distribution", sanitize_cell(str(cap["fitted_dist"])) if cap.get("fitted_dist") else "N/A"),
         ("Mean", _fmt(cap["mean"])),
         ("Sigma Hat (within)", _fmt(cap["sigma_hat"])),
         ("Sigma Overall", _fmt(cap["sigma_overall"])),
