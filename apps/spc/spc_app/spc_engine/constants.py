@@ -39,3 +39,17 @@ IMR_D2 = 1.128
 # Phase I baseline minimums (see docs/ASSUMPTIONS_LOG.md RULE 11).
 MIN_BASELINE_SUBGROUPS = 25  # NIST SEMATECH e-Handbook Sec 6.3.2.1 (Shewhart: >=25 samples of size 4)
 MIN_BASELINE_INDIVIDUALS = 100  # Montgomery, Introduction to SQC, Ch. 6 (secondary, not NIST-quotable)
+
+# EWMA chart defaults (see docs/ASSUMPTIONS_LOG.md RULE 12).
+EWMA_DEFAULT_LAMBDA = 0.20   # NIST §6.3.2.4 (λ ≈ 0.2–0.3); Montgomery §9.2
+EWMA_DEFAULT_L = 2.860       # paired with λ=0.20, Lucas & Saccucci (1990) / Montgomery Table 9.11
+
+# Lucas & Saccucci (1990) λ/L pairings for ARL0 ≈ 370–500 (Montgomery Table 9.11).
+# Do NOT use L=3 with a small λ — it inflates ARL0.
+EWMA_L_BY_LAMBDA = {
+    0.05: 2.615,
+    0.10: 2.703,
+    0.20: 2.860,
+    0.25: 2.898,
+    0.40: 3.054,
+}

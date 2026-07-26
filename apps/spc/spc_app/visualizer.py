@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 import numpy as np
 import plotly.graph_objects as go
 from quality_core.theme import AMBER, DANGER, PLOTLY_LAYOUT, TEXT_SECONDARY, VIOLET
+
+if TYPE_CHECKING:
+    from spc_app.spc_engine.control_charts import EWMAResult
 
 
 def build_control_chart(
@@ -17,6 +20,7 @@ def build_control_chart(
     violations: Sequence[Mapping[str, int | str]] | None = None,
     title: str = "Control Chart",
     y_axis_title: str = "Value",
+    x_axis_title: str = "Subgroup",
 ) -> go.Figure:
     x_values = list(range(1, len(points) + 1))
     point_values = list(points)
@@ -77,7 +81,7 @@ def build_control_chart(
 
     figure.update_layout(
         title=title,
-        xaxis_title="Subgroup",
+        xaxis_title=x_axis_title,
         yaxis_title=y_axis_title,
         legend={"orientation": "h", "y": 1.08, "x": 0,
                 "bgcolor": "rgba(0,0,0,0)", "font": {"color": TEXT_SECONDARY}},
@@ -85,6 +89,26 @@ def build_control_chart(
         margin={"l": 40, "r": 20, "t": 60, "b": 40},
     )
     return figure
+
+
+def build_ewma_chart(
+    result: EWMAResult,
+    title: str = "EWMA Control Chart",
+    y_axis_title: str = "EWMA",
+) -> go.Figure:
+    violations: list[Mapping[str, int | str]] = [
+        {"index": i, "rule": "EWMA limit exceeded"} for i in result["signals"]
+    ]
+    return build_control_chart(
+        points=result["z"],
+        cl=result["mu0"],
+        ucl=result["ucl"],
+        lcl=result["lcl"],
+        violations=violations,
+        title=title,
+        y_axis_title=y_axis_title,
+        x_axis_title="Observation",
+    )
 
 
 def build_capability_histogram(

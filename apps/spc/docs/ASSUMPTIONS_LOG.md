@@ -256,11 +256,60 @@ supporting SPC evidence for the analyst's control-based rating.
 
 ---
 
+## RULE 12 — EWMA Chart (λ, L, time-varying limits)
+
+**Decision:** `compute_ewma(values, mu0, sigma, lam, L)` implements the exponentially weighted
+moving average chart on individuals, with `mu0`/`sigma` supplied as plain floats (an independent
+Phase I estimate — never derived from the z-series itself):
+
+- **Recursion:** `z_0 = λ·x_1 + (1−λ)·μ0`, `z_i = λ·x_i + (1−λ)·z_{i−1}`, with `z_0 = μ0` (the
+  Phase I target), not `x_1`. `λ` defaults to `EWMA_DEFAULT_LAMBDA = 0.20` (range 0.05–0.40 in the
+  tabulated pairings; usual practitioner range 0.2–0.3).
+- **Exact time-varying variance**, not the asymptotic approximation: `Var(z_i) =
+  σ²·(λ/(2−λ))·[1−(1−λ)^(2i)]`, so `UCL_i = μ0 + L·σ·sqrt(Var(z_i)/σ²)` and `LCL_i` symmetric —
+  limits are deliberately tighter near point 1 and widen toward the asymptote `σ²·λ/(2−λ)`.
+- **`EWMA_DEFAULT_L = 2.860`** is the L paired with λ=0.20 for ARL0 ≈ 370–500. `EWMA_L_BY_LAMBDA`
+  documents five Lucas & Saccucci (1990) λ/L pairings for the same ARL0 target.
+- **λ/L pairing is a soft-warn field, not a hard gate.** `EWMAResult` carries `pairing_adequate`
+  and `pairing_note`: if the caller's `lam` matches a tabulated key (`abs(lam-key) <= 1e-9`) and the
+  supplied `L` differs from the paired value by more than 0.01, `pairing_adequate=False` with an
+  explanatory note (mirrors Rule 11's `baseline_adequate`/`baseline_note` pattern — never raises).
+  An untabulated `lam` cannot be judged, so it defaults to `pairing_adequate=True`,
+  `pairing_note=""` rather than a false warning. A practitioner may legitimately tune λ/L outside
+  the table; this only flags the common L=3-with-small-λ mistake the issue called out.
+- **Run-rules do not apply to EWMA** — the z-series is autocorrelated by construction (each point
+  depends on all prior points), so only limit crossings signal here. Western Electric / Nelson rule
+  gating on EWMA is out of scope (tracked separately as W10-5).
+
+**Source:**
+- **Recursion + λ default** — **NIST/SEMATECH e-Handbook §6.3.2.4** (primary, quoted verbatim:
+  `EWMA_t = λY_t + (1−λ)EWMA_{t−1}`, `EWMA_0` = the Phase I target mean, "λ is usually set between
+  0.2 and 0.3"). <https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc324.htm>
+- **Asymptotic variance** `σ²·λ/(2−λ)` — NIST §6.3.2.4 (primary).
+- **Exact time-varying variance** `[1−(1−λ)^(2i)]` term — **Montgomery, *Introduction to
+  Statistical Quality Control*, §9.2, eq. 9.25** (secondary; NIST states only the asymptotic form).
+  Standard, universally reproduced.
+- **λ/L pairings (`EWMA_L_BY_LAMBDA`, ARL0 ≈ 370–500)** — **Lucas & Saccucci (1990), *Technometrics*
+  32(1), Table 3**, as reproduced in **Montgomery Table 9.11**. ⚠️ Primary source is paywalled —
+  these five numeric pairings are checked against the Montgomery reproduction and the issue body,
+  not the original Technometrics table cell-by-cell (same "secondary, not primary-quotable" flag
+  Rule 11 used for the Montgomery individuals-baseline floor).
+
+**Applied In:** `spc_app/spc_engine/control_charts.py::compute_ewma` (`EWMAResult`),
+`spc_app/spc_engine/constants.py` (`EWMA_DEFAULT_LAMBDA`, `EWMA_DEFAULT_L`, `EWMA_L_BY_LAMBDA`),
+`spc_app/visualizer.py::build_ewma_chart`.
+
+---
+
 *Sources referenced in this log:*
 - *AIAG SPC Reference Manual, 4th Edition (2005) — control-chart constants, attribute charts, capability indices*
 - *Western Electric — Statistical Quality Control Handbook (1956)*
 - *L. S. Nelson — Journal of Quality Technology 16(4), 1984 — tests for special causes*
 - *Shapiro, S. S. & Wilk, M. B. (1965) — An analysis of variance test for normality*
 - *AIAG FMEA-4, 4th Ed. (2008) / SAE J1739 — Occurrence ranking table (rate bands, see Rule 10)*
-- *NIST/SEMATECH e-Handbook of Statistical Methods, §6.3.2.1 & §6.5.4.3 — Phase I baseline size, Phase I/II terminology*
-- *Montgomery, D. C. — Introduction to Statistical Quality Control, Ch. 5–6 — I-MR baseline size (secondary), Phase I/II framework*
+- *NIST/SEMATECH e-Handbook of Statistical Methods, §6.3.2.1, §6.3.2.4 & §6.5.4.3 — Phase I baseline
+  size, EWMA recursion/variance, Phase I/II terminology*
+- *Montgomery, D. C. — Introduction to Statistical Quality Control, Ch. 5–6, §9.2 — I-MR baseline
+  size (secondary), Phase I/II framework, EWMA exact variance*
+- *Lucas, J. M. & Saccucci, M. S. (1990) — Technometrics 32(1) — EWMA λ/L design, as reproduced in
+  Montgomery Table 9.11 (secondary, paywalled primary)*
