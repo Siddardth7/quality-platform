@@ -1,0 +1,7 @@
+reflex==0.9.7
+pandas
+plotly
+scipy
+openpyxl
+fpdf2
+# engine (spc_app) + palette (quality_core) are imported via _engine_bridge sys.path shim, NOT installed

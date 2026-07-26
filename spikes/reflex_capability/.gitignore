@@ -1,0 +1,7 @@
+.venv-spike/
+.web/
+__pycache__/
+*.db
+reflex.lock/
+requirements.txt
+.states/
