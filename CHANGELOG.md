@@ -8,6 +8,29 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Non-normal capability via Box-Cox + Cp/Cpk confidence intervals (W10-4, #144).** New
+  `compute_capability_study` in `apps/spc/spc_app/spc_engine/capability.py` orchestrates a full
+  capability study on individuals or 2D subgroups: Shapiro-Wilk gate → Box-Cox (positive data)
+  or Yeo-Johnson (`allow_yeojohnson=True` default; opt-in documented shift `c=1−min(x)` +
+  Box-Cox otherwise) when non-normal → re-test the transformed data → normal-theory Cp/Cpk/CIs
+  in the transformed space, or a fitted-distribution percentile fallback (ISO 22514-2,
+  `{lognorm, weibull_min, gamma, johnsonsu}` selected by minimum AIC, empirical `np.quantile`
+  last resort if every candidate fit fails) when it stays non-normal. Within-σ reuses the
+  existing `compute_imr`/`compute_xbar_r` estimators in the same (raw or transformed) space as
+  the capability computation, preserving the Cp/Cpk-within vs Pp/Ppk-overall split; λ<0 is
+  handled by a `sorted()` ordering guard on the transformed spec limits, never a literal swap.
+  `compute_capability` (existing signature/keys untouched) gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
+  `cpk_lower` — a χ² exact CI for Cp and a Bissell (1990) large-sample CI for Cpk. The
+  fitted-percentile path instead gets a **deterministic bootstrap** CI (fixed
+  `BOOTSTRAP_SEED = 12345`, `BOOTSTRAP_RESAMPLES = 2000`, `scipy.stats.bootstrap(method=
+  "percentile")`) for bit-reproducible audit trails. New constants `CAPABILITY_ALPHA`,
+  `BOXCOX_LAMBDA_CANDIDATES`, `NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`,
+  `PERCENTILE_FIT_CANDIDATES`, `BOOTSTRAP_SEED`, `BOOTSTRAP_RESAMPLES` in `constants.py`.
+  Documented in `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 14, with NIST §6.5.2/§6.1.6 as the
+  primary/quotable Box-Cox and percentile-index sources, and Montgomery Ch. 8 / Bissell (1990) /
+  ISO 22514-2 / Box & Cox (1964) / Efron & Tibshirani (1993) flagged secondary/paywalled where
+  applicable.
+
 - **CUSUM control chart (W10-3, #143).** New `compute_cusum` in
   `apps/spc/spc_app/spc_engine/control_charts.py` computes the tabular two-sided CUSUM on
   standardized individuals: `C+`/`C−` positive-accumulator recursions with a mandatory

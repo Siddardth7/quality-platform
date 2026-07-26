@@ -58,3 +58,14 @@ EWMA_L_BY_LAMBDA = {
 CUSUM_DEFAULT_K = 0.5   # reference value = δσ/2 for a 1σ target shift — NIST §6.3.2.3
 CUSUM_DEFAULT_H = 5.0   # decision interval in σ units; h≈4 or 5 — NIST §6.3.2.3; Montgomery §9.1
 CUSUM_FIR_FRACTION = 0.5  # FIR/head-start = h/2 (50%) — Lucas & Crosier (1982)
+
+# Non-normal capability + Cp/Cpk confidence intervals (see docs/ASSUMPTIONS_LOG.md RULE 14).
+CAPABILITY_ALPHA = 0.05  # default two-sided significance for Cp/Cpk CIs — Montgomery Ch. 8 convention
+BOXCOX_LAMBDA_CANDIDATES = (-1.0, -0.5, 0.0, 0.5, 1.0, 2.0)  # rounded λ snapped only if inside likelihood CI — NIST §6.5.2 / Box & Cox 1964
+NONNORMAL_LOWER_PCTL = 0.00135  # lower capability percentile — NIST §6.1.6 (mimics −3σ)
+NONNORMAL_UPPER_PCTL = 0.99865  # upper capability percentile — NIST §6.1.6 (mimics +3σ)
+# Fitted-distribution percentile method (ISO 22514-2). Candidate families selected by min AIC.
+PERCENTILE_FIT_CANDIDATES = ("lognorm", "weibull_min", "gamma", "johnsonsu")  # scipy.stats names; SME-locked full skew+kurtosis set, min-AIC selected
+# Deterministic bootstrap for fitted-percentile Cp/Cpk CIs (Efron & Tibshirani 1993, percentile method).
+BOOTSTRAP_SEED = 12345      # fixed seed → reproducible CIs (audit requirement); value arbitrary but pinned
+BOOTSTRAP_RESAMPLES = 2000  # >=1000 for stable percentile CIs (Efron & Tibshirani); 2000 for tighter tails

@@ -344,6 +344,95 @@ crossings signal; run-rule gating for CUSUM is deferred to W10-5.
 
 ---
 
+## RULE 14 — Non-normal capability (Box-Cox / Yeo-Johnson) + Cp/Cpk confidence intervals
+
+**Decision:** `compute_capability_study(data, lsl, usl, *, alpha=CAPABILITY_ALPHA,
+allow_yeojohnson=True)` extends the existing normal-path `compute_capability` (unchanged
+signature/keys, plus new CI fields) with a full non-normal capability study:
+
+- **Gate:** Shapiro-Wilk (`normality_test`) on the pooled sample. Normal → normal-theory
+  Cp/Cpk/Pp/Ppk + CIs, no transform.
+- **Transform (non-normal, Decision 2):** positive data → Box-Cox MLE-λ (`scipy.stats.boxcox`,
+  `alpha=` for the likelihood CI); non-positive data → Yeo-Johnson by default
+  (`allow_yeojohnson=True`), or an opt-in documented shift `c = 1 − min(x)` then Box-Cox on
+  `x+c` when `allow_yeojohnson=False`. Box-Cox is never called on ≤0 data.
+- **Rounded-λ snap:** the nearest of `BOXCOX_LAMBDA_CANDIDATES` is substituted for the MLE λ
+  only if it falls inside the likelihood CI (`scipy.special.boxcox` re-transform); otherwise the
+  MLE λ is kept. Yeo-Johnson never snaps (no tabulated conventional λ set for it here).
+- **Spec limits transform identically** to the data (same λ, same shift). For λ<0 the
+  transform is not monotone in the naive-swap sense some references describe; the correct,
+  general-purpose guard is `lsl_t, usl_t = sorted((t(lsl), t(usl)))` — an ordering-preservation
+  guard, not a literal "if λ<0, swap" branch, and it is correct for any λ sign.
+- **Re-test after transform:** if still non-normal, fall back to a **fitted-distribution
+  percentile method** (ISO 22514-2) on the *original* (untransformed) data rather than
+  reporting a Box-Cox capability index on data that failed its own normality check.
+  Candidate families `{lognorm, weibull_min, gamma, johnsonsu}` are fit by MLE
+  (`scipy.stats.<dist>.fit`), each candidate wrapped in try/except (a failed fit is skipped);
+  the finite-AIC minimum (`AIC = 2k − 2·loglik`) is selected. If every candidate fails, an
+  empirical `np.quantile` last resort is used and `fitted_dist=None`. Percentiles come from the
+  selected distribution's `ppf(0.00135)`/`ppf(0.99865)` (mimicking ±3σ coverage per NIST
+  §6.1.6); `Cpk` mirrors the two-sided-vs-one-sided `None` handling of `_centered_capability`
+  but uses the fitted median and the two percentiles as its two one-sided denominators. Pp/Ppk
+  are `None` for this method (no separate within/overall percentile split exists).
+- **Within-σ (Decision 1):** estimated in the SAME space as the capability computation (raw for
+  the normal path, transformed for Box-Cox/Yeo-Johnson) by **reusing** the existing
+  `compute_imr`/`compute_xbar_r` estimators — individuals → moving-range `MR̄/IMR_D2`;
+  2D subgroups → `R̄/d₂(n)` (`compute_xbar_r`'s own 2≤n≤10 guard is reused, not reimplemented).
+  Overall σ is always the transformed-or-raw sample SD (`ddof=1`). This preserves the
+  Cp/Cpk-within vs Pp/Ppk-overall split after a transform.
+- **Confidence intervals:** `compute_capability` gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
+  `cpk_lower`. Cp uses the exact χ² CI (`cp·sqrt(chi2.ppf(α/2, n−1)/(n−1))` to
+  `cp·sqrt(chi2.ppf(1−α/2, n−1)/(n−1))`); Cpk uses the Bissell (1990) large-sample normal
+  approximation (`se = sqrt(1/(9n) + Cpk²/(2(n−1)))`, two-sided `Cpk ± z_{1−α/2}·se`, one-sided
+  lower bound `Cpk − z_{1−α}·se`). These CIs apply to the normal and Box-Cox/Yeo-Johnson-normal
+  paths. The fitted-percentile path instead gets a **deterministic bootstrap** CI: fixed
+  `BOOTSTRAP_SEED = 12345`, fixed `BOOTSTRAP_RESAMPLES = 2000`,
+  `scipy.stats.bootstrap(method="percentile")` — the statistic refits the candidate families
+  per resample; a resample where every fit fails uses the empirical fallback statistic. A CI
+  whose point estimate is `None` (one-sided spec) is skipped (`*_ci = None` on that side).
+  Fixing the seed and resample count is mandatory for bit-reproducible, auditable CIs — this is
+  an engineering choice, not a statistical one.
+- **Small-n caveat:** the Bissell/bootstrap CIs assume a large sample (n≈30–50). `n<30` never
+  raises; the study's `note` field carries a caveat instead (soft-warn, mirrors Rule 11/12's
+  `*_adequate`/`*_note` pattern).
+- **Degenerate input:** constant data (zero variance) raises `ValueError` — no capability
+  index, transform, or normality test is meaningful on a single-valued sample.
+
+**Source:**
+- **Box-Cox formula `x(λ)=(x^λ−1)/λ, λ≠0; ln x, λ=0`, MLE-λ ("λ that maximizes the
+  log-likelihood")** — **NIST/SEMATECH e-Handbook §6.5.2 "What to do when data are
+  non-normal"** — PRIMARY, quotable. Verified 2026-07-25.
+  <https://www.itl.nist.gov/div898/handbook/pmc/section5/pmc52.htm>
+- **Percentile index `Ĉ_Np = (USL−LSL)/(p_0.99865 − p_0.00135)`, "mimics ±3σ coverage"** —
+  **NIST/SEMATECH e-Handbook §6.1.6 "What is Process Capability?"** — PRIMARY, quotable.
+  Verified 2026-07-25. <https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm>
+- **Cp χ² exact CI + Cpk large-sample normal-approximation CI** — **Montgomery, *Introduction
+  to Statistical Quality Control*, Ch. 8 — SECONDARY.** Not present in NIST's capability
+  sections; standard textbook derivation, universally reproduced.
+- **Cpk CI variance `1/(9n) + Ĉpk²/(2(n−1))`** — **Bissell, A. F. (1990), "How Reliable Is Your
+  Capability Index?", *The Statistician* 39(3) — PAYWALLED primary.** Verified via the
+  Montgomery reproduction and the issue body only, not the original journal article.
+- **Box & Cox (1964), "An Analysis of Transformations," *Journal of the Royal Statistical
+  Society, Series B* 26(2) — PAYWALLED primary.** NIST §6.5.2 is the quotable stand-in used
+  above; the original transformation paper was not directly consulted.
+- **Fitted-distribution percentile capability method** — **ISO 22514-2 — PAYWALLED, cited, not
+  quoted.** The min-AIC family-selection rule over `{lognorm, weibull_min, gamma, johnsonsu}` is
+  our own operationalization of "fit the best distribution" (AIC per **Akaike, H. (1974)**), an
+  engineering choice, not a verbatim ISO procedure — flagged as such.
+- **Bootstrap percentile-method CI** — **Efron, B. & Tibshirani, R. J. (1993), *An Introduction
+  to the Bootstrap* — secondary/paywalled book**, the percentile-method mechanism reproduced by
+  `scipy.stats.bootstrap(method="percentile")`. The fixed seed/resample count is an engineering
+  reproducibility choice, not part of the cited method itself.
+
+**Applied In:** `spc_app/spc_engine/capability.py` (`compute_capability` CI fields,
+`CapabilityStudy`, `compute_capability_study`, `_within_sigma`, `_fit_percentile_capability`,
+`_percentile_cpk`, `_bootstrap_percentile_ci`, `_cp_chi2_ci`, `_cpk_bissell_ci`);
+`spc_app/spc_engine/constants.py` (`CAPABILITY_ALPHA`, `BOXCOX_LAMBDA_CANDIDATES`,
+`NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`, `PERCENTILE_FIT_CANDIDATES`, `BOOTSTRAP_SEED`,
+`BOOTSTRAP_RESAMPLES`).
+
+---
+
 *Sources referenced in this log:*
 - *AIAG SPC Reference Manual, 4th Edition (2005) — control-chart constants, attribute charts, capability indices*
 - *Western Electric — Statistical Quality Control Handbook (1956)*
@@ -361,3 +450,17 @@ crossings signal; run-rule gating for CUSUM is deferred to W10-5.
   CUSUM ARL figures (secondary) and FIR reproduction*
 - *Lucas, J. M. & Crosier, R. B. (1982) — Technometrics 24(3) — Fast Initial Response for CUSUM
   Quality Control Schemes (secondary, paywalled primary)*
+- *NIST/SEMATECH e-Handbook of Statistical Methods, §6.5.2 & §6.1.6 — Box-Cox transformation /
+  MLE-λ, percentile-based process capability index (primary, quotable)*
+- *Montgomery, D. C. — Introduction to Statistical Quality Control, Ch. 8 — Cp χ² CI, Cpk
+  large-sample CI (secondary)*
+- *Bissell, A. F. (1990) — The Statistician 39(3) — Cpk confidence interval variance (secondary,
+  paywalled primary)*
+- *Box, G. E. P. & Cox, D. R. (1964) — Journal of the Royal Statistical Society, Series B 26(2) —
+  the Box-Cox transformation (secondary, paywalled primary; NIST §6.5.2 the quotable stand-in)*
+- *ISO 22514-2 — Statistical methods in process management: Capability and performance — Part 2 —
+  fitted-distribution percentile capability (paywalled, cited not quoted)*
+- *Akaike, H. (1974) — IEEE Transactions on Automatic Control 19(6) — Akaike Information
+  Criterion, used here for min-AIC candidate-family selection (engineering choice)*
+- *Efron, B. & Tibshirani, R. J. (1993) — An Introduction to the Bootstrap — bootstrap
+  percentile-method confidence intervals (secondary, paywalled book)*
