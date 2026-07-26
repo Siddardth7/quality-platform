@@ -7,7 +7,7 @@
 
 - **Repo:** <https://github.com/Siddardth7/quality-platform>
 - **Live demo:** <https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>
-- **Status (2026-07-13):** Weeks 1–5 shipped (v0.1.0 → v0.5.0). **Week 6 up next** — Control Plan connector.
+- **Status (2026-07-24):** Weeks 1–9 + 11 shipped (v0.1.0 → v0.9.0, v0.11.0). **Week 10** (Modern SPC depth) and **Week 12** (frontend migration → Reflex) remain before **v1.0.0-portfolio**.
 - **Roadmap rerouted 2026-07-10:** the AI-copilot phase is **deferred**; **MSA / Gage R&R** and a **SECOM real-semiconductor case study** take its place (see §5 and §9).
 - **Canonical schedule:** GitHub **Milestones** (`Week 01` … `Week 12`). This file mirrors and explains them.
 
@@ -59,13 +59,13 @@ correctness, and trustworthy applied AI.
 
 | | |
 |---|---|
-| **Phase** | C — Integration & core-tool completion (Weeks 6–9) |
-| **Active milestone** | Week 06 · Control Plan connector (due 2026-07-26) |
-| **Shipped releases** | v0.1.0, v0.2.0, v0.3.0, v0.4.0, v0.5.0 |
-| **Next release** | v0.6.0 (end of Week 6) |
-| **Apps live** | FMEA Risk Analyzer, Manufacturing SPC Dashboard (unified shell) |
-| **Shared core** | `quality_core` → `schema` (flat + relational), `io`, `theme` |
-| **Quality gate** | ruff + mypy + pytest/coverage; CI-enforced; `quality_core.io` & `.schema` gated at **100%**, SPC at ≥95% |
+| **Phase** | D — Depth & legibility (Weeks 10–12) |
+| **Active milestone** | Week 10 · Modern SPC depth (→ v0.10.0) |
+| **Shipped releases** | v0.1.0 … v0.9.0, v0.11.0 |
+| **Next release** | v0.10.0 (Week 10), then v1.0.0-portfolio (Week 12 · Reflex migration) |
+| **Apps live** | FMEA Risk Analyzer, SPC Dashboard, Control Plan connector, MSA / Gage R&R (unified shell) |
+| **Shared core** | `quality_core` → `schema` (flat + relational), `io`, `scoring`, `theme` |
+| **Quality gate** | ruff + mypy + pytest/coverage; CI-enforced; `quality_core.io` / `.schema` / `.scoring` & Control Plan gated at **100%**, SPC testable surface at **100%** |
 
 > **Roadmap rerouted (2026-07-10).** The plan's back half changed: instead of topping the platform
 > with an AI copilot, we **complete the AIAG core-tools story** (APQP-adjacent loop, FMEA, SPC,
@@ -162,9 +162,9 @@ flowchart TB
         W9["Wk9 v0.9.0<br/>SECOM semiconductor case study ⭐"]
     end
     subgraph PD["Phase D · Depth & legibility (Wk 10–12)"]
-        W10["Wk10 v0.10.0<br/>Modern SPC depth (cuttable)"]
+        W10["Wk10 v0.10.0<br/>Modern SPC depth"]
         W11["Wk11 v0.11.0<br/>DOE on SECOM + JMP"]
-        W12["Wk12 v1.0.0-portfolio<br/>Legibility + hardening"]
+        W12["Wk12 v1.0.0-portfolio<br/>Frontend migration → Reflex"]
     end
     DEF["Deferred · AI FMEA copilot<br/>LLM + RAG + evals — unscheduled"]:::deferred
     W1-->W2-->W3-->W4-->W5-->W6-->W7-->W8-->W9-->W10-->W11-->W12
@@ -173,14 +173,14 @@ flowchart TB
     classDef done fill:#1b5e20,color:#fff;
     classDef active fill:#e65100,color:#fff;
     classDef deferred stroke-dasharray: 5 5,opacity:0.6;
-    class W1,W2,W3,W4,W5 done;
-    class W6 active;
+    class W1,W2,W3,W4,W5,W6,W7,W8,W9,W11 done;
+    class W10 active;
 ```
 
 - **Phase A — Foundation (Wks 1–2):** one repo, one quality bar, shared theme, shell. *De-risks everything.*
 - **Phase B — Standards-correct cores (Wks 3–5):** FMEA goes AP-native + relational; SPC gets shared validation + export. *Both tools become individually credible.*
 - **Phase C — Integration & core-tool completion (Wks 6–9):** Control Plan connector, the FMEA↔CP↔SPC loop, the MSA / Gage R&R module, and the SECOM real-semiconductor case study. *The platform becomes a workflow, completes the AIAG core-tools story, and runs on real process data.* ← **we are here**
-- **Phase D — Depth & legibility (Wks 10–12):** modern SPC depth (first thing cut if the schedule tightens), DOE screening on SECOM, then a legibility + hardening pass ending in **v1.0.0-portfolio**.
+- **Phase D — Depth & legibility (Wks 10–12):** **Wk 10 — full Modern SPC depth** (EWMA/CUSUM, Phase I/II freezing, Box-Cox capability + CIs); **Wk 11 — DOE screening on SECOM** (shipped v0.11.0); **Wk 12 — frontend migration Streamlit → Reflex**, so **v1.0.0-portfolio** ships on the new branded surface. *(Replan 2026-07-24: SME kept full Week-10 SPC depth rather than trading it for the migration; portfolio hardening is folded into the final tag, not its own week.)*
 - **Deferred — AI FMEA copilot:** the old Weeks 9–11 (LLM + RAG + eval harness) and the Week-12 architecture-fork gate are documented in §9 but **unscheduled**. They reopen only if they become the priority again.
 
 *Rerouted 2026-07-10 (post-v0.5.0): the AI phase was replaced by MSA + SECOM so every remaining week
@@ -351,19 +351,28 @@ labels) through the platform's tools, inside the platform (not a separate repo):
 - **Yield / DPPM:** pass/fail counts as a defect-rate view + a **Pareto of failing signals**.
 This turns the platform from a synthetic demo into an analysis of real semiconductor process data.
 
-### ⬜ Week 10 — Modern SPC depth · **v0.10.0** *(Phase D · first to cut if the schedule tightens)*
+### ⬜ Week 10 — Modern SPC depth · **v0.10.0** *(Phase D · full scope — next up)*
 **Phase I/II** control-limit freezing (establish from a baseline, then monitor new data against frozen
-limits); **EWMA + CUSUM** small-shift charts; *(stretch)* non-normal (Box-Cox) capability + confidence
-intervals.
+limits); **EWMA + CUSUM** small-shift charts; **non-normal (Box-Cox) capability + Cp/Cpk confidence
+intervals**. Standards-anchored (NIST/SEMATECH · Montgomery · AIAG); every new constant cited in
+`apps/spc/docs/ASSUMPTIONS_LOG.md`. Run-rules (WE/Nelson) gated to Shewhart charts only — EWMA/CUSUM
+signal on their own crossings. Issues **#141–#146**.
 
 ### ⬜ Week 11 — DOE screening on SECOM · **v0.11.0** *(Phase D)*
 One **screening analysis** on the most influential SECOM signals — which factors move the response —
 capstoning the platform's real-data story. *(Paired externally with the JMP-STIPS statistics
 curriculum so the DOE method is both applied and certified.)*
 
-### ⬜ Week 12 — Portfolio release · **v1.0.0-portfolio** *(Phase D)*
-Legibility + hardening pass: 60-second README, hosted demo, short demo video/GIF, architecture
-diagram, plain-English framing for a non-domain reviewer — then tag **v1.0.0-portfolio**.
+### ⬜ Week 12 — Frontend migration (Streamlit → Reflex) · **v1.0.0-portfolio** *(Phase D · the 1.0 surface)*
+Migrate the UI off Streamlit to **Reflex** (Python → real React) via **strangler-fig**, so
+**v1.0.0-portfolio ships on the new branded surface**. The correctness-bearing core is already
+~100% Streamlit-free, so this is a **presentation-layer swap**, not a rewrite — all coverage/type
+gates transfer 1:1. Order: Reflex shell + landing/hosting → MSA → SPC → Control Plan → **FMEA
+relational editor last** (the session-state long pole) → retire Streamlit → tag. Decision doc:
+`docs/research/frontend-migration.md`; epic **#107**; issues **#147–#153**. **Portfolio hardening**
+(60-second README, hosted demo, demo video/GIF, architecture diagram, plain-English framing) is
+folded into the final tag issue **#153** — not a separate week. *(Escalation to React + FastAPI +
+Supabase stays gated on a real product signal — see the Deferred phase below.)*
 
 ### 🅿️ Deferred — AI FMEA copilot *(documented, unscheduled)*
 The original Phase D/E content, preserved as a future phase. Reopens only if it becomes the priority
@@ -389,13 +398,13 @@ again.
 | **v0.3.0** | 3 | AP-native FMEA (AIAG-VDA Action Priority) | ✅ released |
 | **v0.4.0** | 4 | Shared validation + export (`quality_core.io`) | ✅ released |
 | **v0.5.0** | 5 | Relational FMEA + schema → core | ✅ released |
-| **v0.6.0** | 6 | Control Plan connector | ⬜ planned |
-| **v0.7.0** | 7 | Close the loop (FMEA↔CP↔SPC) | ⬜ planned |
-| **v0.8.0** | 8 | MSA / Gage R&R module | ⬜ planned |
-| **v0.9.0** | 9 | SECOM semiconductor case study | ⬜ planned |
-| **v0.10.0** | 10 | Modern SPC depth (Phase I/II, EWMA/CUSUM) | ⬜ planned |
-| **v0.11.0** | 11 | DOE screening on SECOM | ⬜ planned |
-| **v1.0.0-portfolio** | 12 | Legibility + hardening (portfolio release) | ⬜ planned |
+| **v0.6.0** | 6 | Control Plan connector | ✅ released |
+| **v0.7.0** | 7 | Close the loop (FMEA↔CP↔SPC) | ✅ released |
+| **v0.8.0** | 8 | MSA / Gage R&R module | ✅ released |
+| **v0.9.0** | 9 | SECOM semiconductor case study | ✅ released |
+| **v0.10.0** | 10 | Modern SPC depth (Phase I/II, EWMA/CUSUM, Box-Cox + CIs) | ⬜ planned (next) |
+| **v0.11.0** | 11 | DOE screening on SECOM | ✅ released |
+| **v1.0.0-portfolio** | 12 | Frontend migration → Reflex (portfolio hardening folded in) | ⬜ planned |
 | *(deferred)* | — | AI FMEA copilot + AI on SPC + architecture-fork gate | 🅿️ unscheduled |
 
 ---
