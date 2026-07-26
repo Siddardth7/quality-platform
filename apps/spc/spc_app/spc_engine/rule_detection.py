@@ -2,6 +2,35 @@
 
 from __future__ import annotations
 
+#: Chart types on which Western Electric / Nelson run-rules are statistically
+#: valid (Shewhart charts — independent points). Keyed on the same display
+#: strings the Control Charts page selector already uses (`CHART_OPTIONS`).
+SHEWHART_CHART_TYPES: frozenset[str] = frozenset(
+    {"Xbar-R", "Xbar-S", "I-MR", "p", "c", "u"}
+)
+
+
+def detect_violations(
+    chart_type: str,
+    points: list[float],
+    cl: float,
+    sigma: float,
+    rule_set: str,
+) -> list[dict[str, int | str]]:
+    """Run WE/Nelson rules ONLY for Shewhart chart types.
+
+    EWMA/CUSUM points are autocorrelated by construction, so WE/Nelson run-rules
+    are statistically invalid on them (see docs/ASSUMPTIONS_LOG.md RULE 15) —
+    those charts signal only on their own limit / decision-interval crossings.
+    Returns [] for any non-Shewhart chart_type and for a non-positive sigma;
+    never raises.
+    """
+    if chart_type not in SHEWHART_CHART_TYPES or sigma <= 0:
+        return []
+    if rule_set == "Nelson":
+        return detect_nelson_violations(points, cl=cl, sigma=sigma)
+    return detect_we_violations(points, cl=cl, sigma=sigma)
+
 
 def detect_we_violations(points: list[float], cl: float, sigma: float) -> list[dict[str, int | str]]:
     if sigma <= 0:

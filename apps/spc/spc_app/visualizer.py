@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Mapping, Sequence
 import numpy as np
 import plotly.graph_objects as go
 from quality_core.theme import AMBER, DANGER, PLOTLY_LAYOUT, TEXT_SECONDARY, VIOLET
+from scipy import stats
 
 if TYPE_CHECKING:
     from spc_app.spc_engine.control_charts import CUSUMResult, EWMAResult
@@ -186,14 +187,43 @@ def build_capability_histogram(
     mean: float,
     sigma_overall: float,
     title: str = "Capability Histogram",
+    *,
+    method: str = "normal",
+    fitted_dist: str | None = None,
+    lambda_used: float | None = None,
+    shift: float = 0.0,
 ) -> go.Figure:
+    """Raw-data histogram with a method-appropriate density overlay (SME Q3, W10-5 #145):
+
+    - "normal" (default, unchanged): normal fit computed from `mean`/`sigma_overall`.
+    - "percentile": overlay the min-AIC `fitted_dist` winner's `.pdf`, refit on the raw
+      `data` (already raw-space — no back-transform needed).
+    - "boxcox" / "yeojohnson": `mean`/`sigma_overall` are the TRANSFORMED-space normal
+      fit (as `compute_capability_study` returns them); back-transform via
+      change-of-variables `f_X(x) = phi((t(x)-mu_t)/sigma_t)/sigma_t * |t'(x)|`.
+    """
     values = np.asarray(data, dtype=float)
-    x_min = values.min() - (3 * sigma_overall)
-    x_max = values.max() + (3 * sigma_overall)
+    # The x-axis range always comes from the RAW data's own spread, independent of
+    # `sigma_overall` (which is transformed-space for boxcox/yeojohnson) — otherwise
+    # a transformed-space sigma would mis-scale the raw-space axis.
+    raw_sigma = float(np.std(values, ddof=1))
+    x_min = values.min() - (3 * raw_sigma)
+    x_max = values.max() + (3 * raw_sigma)
     x_curve = np.linspace(x_min, x_max, 400)
-    pdf = (1.0 / (sigma_overall * np.sqrt(2.0 * np.pi))) * np.exp(
-        -0.5 * ((x_curve - mean) / sigma_overall) ** 2
-    )
+
+    if method == "percentile" and fitted_dist is not None:
+        dist = getattr(stats, fitted_dist)
+        params = dist.fit(values)
+        pdf = dist.pdf(x_curve, *params)
+        curve_name = f"Fitted {fitted_dist}"
+    elif method in ("boxcox", "yeojohnson") and lambda_used is not None:
+        pdf = _backtransformed_pdf(x_curve, method, lambda_used, shift, mu_t=mean, sigma_t=sigma_overall)
+        curve_name = f"Fitted Normal ({method}, λ={lambda_used:.3g})"
+    else:
+        pdf = (1.0 / (sigma_overall * np.sqrt(2.0 * np.pi))) * np.exp(
+            -0.5 * ((x_curve - mean) / sigma_overall) ** 2
+        )
+        curve_name = "Normal Fit"
 
     figure = go.Figure()
     figure.add_trace(
@@ -211,7 +241,7 @@ def build_capability_histogram(
             x=x_curve,
             y=pdf,
             mode="lines",
-            name="Normal Fit",
+            name=curve_name,
             line={"color": VIOLET, "width": 3},
         )
     )
@@ -280,6 +310,57 @@ def build_cpk_gauge(cpk: float | None, title: str = "Cpk") -> go.Figure:
         margin={"l": 30, "r": 30, "t": 60, "b": 30},
     )
     return figure
+
+
+def _backtransformed_pdf(
+    x: np.ndarray, method: str, lam: float, shift: float, *, mu_t: float, sigma_t: float
+) -> np.ndarray:
+    """Exact raw-space density for a Box-Cox/Yeo-Johnson-normal capability study
+    (SME Q3 pinned formula, W10-5 #145): `f_X(x) = phi(z)/sigma_t * |t'(x)|`,
+    `z = (t(x)-mu_t)/sigma_t`, where `t`/`t'` are the transform and its derivative.
+    """
+    t, t_prime = _transform_and_derivative(x, method, lam, shift)
+    z = (t - mu_t) / sigma_t
+    phi = np.exp(-0.5 * z**2) / np.sqrt(2.0 * np.pi)
+    return (phi / sigma_t) * np.abs(t_prime)
+
+
+def _transform_and_derivative(
+    x: np.ndarray, method: str, lam: float, shift: float
+) -> tuple[np.ndarray, np.ndarray]:
+    if method == "boxcox":
+        # Box-Cox is only defined for a positive argument; the axis padding beyond
+        # the observed data can dip non-positive, so it's clamped to a small
+        # epsilon there (ponytail: flattens the far tail slightly, negligible
+        # over the actual data range where x+shift is always > 0 by construction).
+        xs = np.clip(x + shift, 1e-12, None)
+        if lam == 0.0:
+            t = np.log(xs)
+        else:
+            t = (np.power(xs, lam) - 1.0) / lam
+        t_prime = np.power(xs, lam - 1.0)
+        return t, t_prime
+
+    # Yeo-Johnson: piecewise on the sign of x (shift is always 0.0 for this method).
+    xs = x + shift
+    t = np.empty_like(xs)
+    t_prime = np.empty_like(xs)
+    pos = xs >= 0
+    neg = ~pos
+
+    if lam != 0.0:
+        t[pos] = (np.power(xs[pos] + 1.0, lam) - 1.0) / lam
+    else:
+        t[pos] = np.log(xs[pos] + 1.0)
+    t_prime[pos] = np.power(xs[pos] + 1.0, lam - 1.0)
+
+    if lam != 2.0:
+        t[neg] = -(np.power(-xs[neg] + 1.0, 2.0 - lam) - 1.0) / (2.0 - lam)
+    else:
+        t[neg] = -np.log(-xs[neg] + 1.0)
+    t_prime[neg] = np.power(-xs[neg] + 1.0, 1.0 - lam)
+
+    return t, t_prime
 
 
 def _expand_limit(limit: float | Sequence[float], length: int) -> list[float]:

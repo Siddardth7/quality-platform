@@ -8,6 +8,28 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SPC UI wiring for Week-10 features + run-rule gating (W10-5, #145).** EWMA and CUSUM
+  are now reachable from the Control Charts page (standards-default λ/L and k/h/FIR
+  pre-filled from `constants.py`; `mu0`/`sigma` come from an independent I-MR baseline
+  fit, never the z-series/accumulators themselves), alongside a Phase I (establish &
+  freeze) / Phase II (monitor against frozen limits) toggle for X̄-R/X̄-S/I-MR built on
+  W10-1's `phase.py`. **Load-bearing correctness fix:** a single gated chokepoint,
+  `rule_detection.detect_violations(chart_type, ...)`, now routes every WE/Nelson caller
+  (both the Control Charts page and the Capability page's stability gate) — it returns
+  `[]` for any non-Shewhart `chart_type` (EWMA/CUSUM) or non-positive sigma, so run-rules
+  statistically invalid on autocorrelated EWMA/CUSUM series can no longer fire, from any
+  caller. The Capability page gained a `force_method` sidebar override
+  (`compute_capability_study(..., force_method="auto"|"normal"|"boxcox"|"percentile")`)
+  letting an analyst force normal-theory, Box-Cox/Yeo-Johnson, or fitted-percentile
+  capability regardless of the Shapiro-Wilk result, with the histogram overlay now
+  matching the selected method: the fitted-percentile winner's `.pdf` in raw space, or
+  the exact back-transformed Box-Cox/Yeo-Johnson normal density via change-of-variables
+  (`f_X(x) = φ((t(x)-μ_t)/σ_t)/σ_t · |t'(x)|`). The capability exporter gained Method / λ
+  / Cp & Cpk 95% CI / Cpk lower bound / fitted-distribution rows. Documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 15 (WE/Nelson restricted to Shewhart charts;
+  Montgomery §9 autocorrelation rationale) plus an assumption note on the `force_method`
+  override.
+
 - **Non-normal capability via Box-Cox + Cp/Cpk confidence intervals (W10-4, #144).** New
   `compute_capability_study` in `apps/spc/spc_app/spc_engine/capability.py` orchestrates a full
   capability study on individuals or 2D subgroups: Shapiro-Wilk gate → Box-Cox (positive data)

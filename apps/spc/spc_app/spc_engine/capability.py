@@ -6,7 +6,7 @@ See docs/ASSUMPTIONS_LOG.md RULE 14 for standards attribution.
 from __future__ import annotations
 
 import math
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 import numpy as np
 from scipy import special, stats
@@ -116,7 +116,19 @@ def compute_capability_study(
     *,
     alpha: float = CAPABILITY_ALPHA,
     allow_yeojohnson: bool = True,
+    force_method: Literal["auto", "normal", "boxcox", "percentile"] = "auto",
 ) -> CapabilityStudy:
+    """Same as before, plus a user-override `force_method` (SME Q1, W10-5 #145):
+
+    - "auto" (default, unchanged): Shapiro-Wilk-driven method selection.
+    - "normal": skip the normality gate, compute normal-theory capability + CIs on
+      raw data regardless of the Shapiro-Wilk result. The analyst is responsible
+      for that assumption (see docs/ASSUMPTIONS_LOG.md RULE 15 note).
+    - "boxcox": force the transform path even if the raw data already passed
+      Shapiro-Wilk (non-positive data still honors `allow_yeojohnson`).
+    - "percentile": force the fitted-distribution percentile + bootstrap CI method
+      directly on the original data, skipping both the normal and transform paths.
+    """
     if not 0.0 < alpha < 1.0:
         raise ValueError("alpha must be in (0, 1).")
 
@@ -132,9 +144,22 @@ def compute_capability_study(
     n = int(flat.size)
     normal_before = bool(normality_test(flat)["is_normal"])
 
-    if normal_before:
+    if force_method == "percentile":
+        return _percentile_study(
+            flat, shaped, lsl, usl, alpha, n, normal_before,
+            note_prefix="Method user-forced to 'percentile' (force_method). ",
+        )
+
+    use_normal_path = force_method == "normal" or (force_method == "auto" and normal_before)
+    if use_normal_path:
         within_sigma, subgroup_size = _within_sigma(shaped)
         base = compute_capability(flat, lsl, usl, within_sigma, alpha=alpha)
+        note = (
+            "Normality user-forced (force_method='normal'); normal-theory Cp/Cpk/CIs "
+            "used on raw data — the analyst is responsible for this assumption."
+            if force_method == "normal"
+            else "Data passed Shapiro-Wilk (p>0.05); normal-theory Cp/Cpk/CIs used."
+        ) + _small_n_note(n)
         return _build_transform_study(
             method="normal",
             subgroup_size=subgroup_size,
@@ -145,12 +170,12 @@ def compute_capability_study(
             shift=0.0,
             alpha=alpha,
             n=n,
-            normal_before=True,
+            normal_before=normal_before,
             normal_after=None,
-            note="Data passed Shapiro-Wilk (p>0.05); normal-theory Cp/Cpk/CIs used." + _small_n_note(n),
+            note=note,
         )
 
-    # Non-normal: transform (Decision 2).
+    # Non-normal (or force_method="boxcox" forcing the transform path): transform (Decision 2).
     shift = 0.0
     lambda_ci: tuple[float, float] | None
     if flat.min() > 0:
@@ -193,10 +218,16 @@ def compute_capability_study(
     within_sigma_t, subgroup_size = _within_sigma(shaped_transformed)
     normal_after = bool(normality_test(xt)["is_normal"])
 
+    forced_prefix = (
+        "Transform user-forced (force_method='boxcox') despite raw data passing Shapiro-Wilk; "
+        if force_method == "boxcox" and normal_before
+        else ""
+    )
     if normal_after:
         base = compute_capability(xt, lsl_t, usl_t, within_sigma_t, alpha=alpha)
         note = (
-            f"Data transformed via {method} (λ_used={lambda_used:.4g}); "
+            forced_prefix
+            + f"Data transformed via {method} (λ_used={lambda_used:.4g}); "
             "transformed data passed Shapiro-Wilk; normal-theory Cp/Cpk/CIs applied in "
             "transformed space." + _small_n_note(n)
         )
@@ -210,12 +241,43 @@ def compute_capability_study(
             shift=shift,
             alpha=alpha,
             n=n,
-            normal_before=False,
+            normal_before=normal_before,
             normal_after=True,
             note=note,
         )
 
     # E5 — still non-normal after transform: fitted-percentile fallback on the ORIGINAL data.
+    # Lambda/shift from the failed transform attempt are kept as informational context.
+    return _percentile_study(
+        flat, shaped, lsl, usl, alpha, n, normal_before=normal_before, normal_after=False,
+        lambda_used=lambda_used, lambda_mle=lambda_mle, lambda_ci=lambda_ci, shift=shift,
+        note_prefix=forced_prefix + f"Data remained non-normal after {method} transform "
+        "(Shapiro-Wilk p<=0.05); ",
+    )
+
+
+def _percentile_study(
+    flat: np.ndarray,
+    shaped: np.ndarray,
+    lsl: float | None,
+    usl: float | None,
+    alpha: float,
+    n: int,
+    normal_before: bool,
+    *,
+    normal_after: bool | None = None,
+    lambda_used: float | None = None,
+    lambda_mle: float | None = None,
+    lambda_ci: tuple[float, float] | None = None,
+    shift: float = 0.0,
+    note_prefix: str = "",
+) -> CapabilityStudy:
+    """Fitted-distribution percentile method (ISO 22514-2) on the ORIGINAL data.
+
+    Shared by the E5 auto fallback (still non-normal after transform) and the
+    `force_method="percentile"` user override (SME Q1) — only the note/`normal_*`
+    bookkeeping differs between the two callers.
+    """
     cp, cpk, fitted_dist = _fit_percentile_capability(flat, lsl, usl)
     cp_ci, cpk_ci = _bootstrap_percentile_ci(flat, lsl, usl, alpha)
     cpk_lower = cpk_ci[0] if cpk_ci is not None else None
@@ -242,11 +304,11 @@ def compute_capability_study(
         "fitted_dist": fitted_dist,
         "alpha": alpha,
         "n": n,
-        "normal_before": False,
-        "normal_after": False,
+        "normal_before": normal_before,
+        "normal_after": normal_after,
         "note": (
-            f"Data remained non-normal after {method} transform (Shapiro-Wilk p<=0.05); "
-            "used fitted-distribution percentile method (ISO 22514-2, min-AIC over "
+            note_prefix
+            + "used fitted-distribution percentile method (ISO 22514-2, min-AIC over "
             "lognorm/weibull_min/gamma/johnsonsu). cpk_lower is the two-sided bootstrap "
             "cpk_ci lower bound." + _small_n_note(n)
         ),

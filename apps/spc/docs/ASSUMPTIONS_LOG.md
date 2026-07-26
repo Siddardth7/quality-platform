@@ -1,7 +1,7 @@
 # Engineering Assumptions Log
 **Project:** SPC Manufacturing Quality Dashboard
 **Author:** Siddardth | M.S. Aerospace Engineering, UIUC
-**Last Updated:** June 15, 2026
+**Last Updated:** July 26, 2026
 
 This document records every non-obvious engineering decision — and every published
 constant or threshold — used in the SPC app. Each entry explains what was chosen, why,
@@ -430,6 +430,52 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
 `spc_app/spc_engine/constants.py` (`CAPABILITY_ALPHA`, `BOXCOX_LAMBDA_CANDIDATES`,
 `NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`, `PERCENTILE_FIT_CANDIDATES`, `BOOTSTRAP_SEED`,
 `BOOTSTRAP_RESAMPLES`).
+
+**Assumption note — `force_method` user override (W10-5, #145):** `compute_capability_study`
+accepts `force_method="normal"` to skip the Shapiro-Wilk gate and compute normal-theory
+Cp/Cpk/CIs on raw data regardless of the actual normality result. This is a deliberate
+user override, not an engine claim that the data is normal — the returned `note` always
+records "user-forced," and the responsibility for that assumption's validity is the
+analyst's, mirroring how Rule 7's stability gate still renders (marked indicative) rather
+than blocking. `force_method="boxcox"`/`"percentile"` are the same override pattern for
+the other two paths (no normality assumption at stake for those — they force a specific
+already-validated methodology rather than skip a check).
+
+---
+
+## RULE 15 — Run-Rule Gating (WE/Nelson Restricted to Shewhart Charts)
+
+**Decision:** Western Electric (Rules 1–4) and Nelson (Rules 5–8) run-rules are valid only
+on Shewhart charts — X̄-R, X̄-S, I-MR, p, c, u — where successive plotted points are
+independent. They are **statistically invalid on EWMA and CUSUM**, whose plotted
+statistics (the EWMA z-series; the CUSUM C+/C− accumulators) are autocorrelated by
+construction: each point is a function of all prior points, so run-length-based patterns
+(a trend, an alternation, a run on one side) are expected to occur far more often than the
+independent-point run-rule tables assume, causing systematic false alarms if WE/Nelson were
+applied to them. EWMA/CUSUM charts signal exclusively on their own limit / decision-interval
+crossings (`EWMAResult.signals`, `CUSUMResult.signals`), which is the correct and complete
+detection mechanism for those charts.
+
+This is enforced at a single chokepoint rather than per-caller: `rule_detection.
+detect_violations(chart_type, points, cl, sigma, rule_set)` returns `[]` immediately for any
+`chart_type` outside `SHEWHART_CHART_TYPES = {"Xbar-R","Xbar-S","I-MR","p","c","u"}` (and for
+`sigma<=0`), otherwise dispatches to the existing `detect_we_violations`/
+`detect_nelson_violations` unchanged. Both page-level callers — the Control Charts page's
+per-branch rule overlay and the Process Capability page's `assess_control_chart` stability
+gate — now route through this one function, so no caller can (accidentally or otherwise) run
+WE/Nelson on an EWMA/CUSUM chart.
+
+**Source:** Western Electric *Statistical Quality Control Handbook* (1956) and L. S. Nelson,
+*Journal of Quality Technology* 16(4) (1984) — same citations as RULE 8, which define the
+rules being restricted here. The autocorrelation rationale is Montgomery, *Introduction to
+Statistical Quality Control*, §9 (EWMA §9.2 / CUSUM §9.1) — both z-series and C+/C−
+accumulators are explicitly serially correlated by their recursive definitions, already
+noted (without the gating enforcement) in RULE 12/13. No new external citation is
+introduced by this rule.
+
+**Applied In:** `spc_app/spc_engine/rule_detection.py` (`SHEWHART_CHART_TYPES`,
+`detect_violations`) → `spc_app/pages/control_charts.py::detect_rule_violations` →
+`spc_app/pages/process_capability.py::assess_control_chart`.
 
 ---
 
