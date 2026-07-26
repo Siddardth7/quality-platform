@@ -1,6 +1,11 @@
 import pytest
 
-from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
+from spc_app.spc_engine.rule_detection import (
+    SHEWHART_CHART_TYPES,
+    detect_nelson_violations,
+    detect_violations,
+    detect_we_violations,
+)
 
 
 def _has_violation(violations, rule, index):
@@ -158,3 +163,47 @@ def test_nelson_rule_8_does_not_fire_when_a_point_is_within_one_sigma():
     points = [1.2, -1.3, 1.4, -1.5, 1.6, -1.7, 0.9, -1.9]
     violations = detect_nelson_violations(points, cl=0.0, sigma=1.0)
     assert not any(v["rule"] == "Nelson Rule 8" for v in violations)
+
+
+# ---------------------------------------------------------------------------
+# W10-5 (#145): detect_violations — the run-rule gating chokepoint.
+# ---------------------------------------------------------------------------
+
+
+def test_shewhart_chart_types_is_exactly_the_documented_set():
+    assert SHEWHART_CHART_TYPES == frozenset({"Xbar-R", "Xbar-S", "I-MR", "p", "c", "u"})
+    assert "EWMA" not in SHEWHART_CHART_TYPES
+    assert "CUSUM" not in SHEWHART_CHART_TYPES
+
+
+def test_gate_runs_we_on_shewhart():
+    # A >3sigma point on a Shewhart type fires WE Rule 1 through the gate.
+    violations = detect_violations("I-MR", [0.1, 0.2, 3.2], cl=0.0, sigma=1.0, rule_set="Western Electric")
+    assert _has_violation(violations, "Western Electric Rule 1", 2)
+
+
+def test_gate_runs_nelson_when_selected():
+    points = [1, 2, 3, 4, 5, 6]
+    violations = detect_violations("I-MR", points, cl=0.0, sigma=1.0, rule_set="Nelson")
+    assert _has_violation(violations, "Nelson Rule 5", 5)
+
+
+@pytest.mark.parametrize("chart_type", ["EWMA", "CUSUM"])
+@pytest.mark.parametrize("rule_set", ["Western Electric", "Nelson"])
+def test_gate_does_not_run_rules_on_ewma_or_cusum(chart_type, rule_set):
+    # MANDATED: data that WOULD trip WE Rule 1 on a Shewhart chart is suppressed
+    # by the gate itself (not the data) for EWMA/CUSUM chart types.
+    points = [0.1, 0.2, 3.2]
+    assert detect_we_violations(points, cl=0.0, sigma=1.0) != []  # prove the data trips it
+    assert detect_violations(chart_type, points, cl=0.0, sigma=1.0, rule_set=rule_set) == []
+
+
+def test_gate_returns_empty_for_nonpositive_sigma():
+    points = [0.1, 0.2, 3.2]
+    assert detect_we_violations(points, cl=0.0, sigma=1.0) != []  # would fire if not gated
+    assert detect_violations("I-MR", points, cl=0.0, sigma=0.0, rule_set="Western Electric") == []
+
+
+def test_gate_returns_empty_for_unknown_chart_type():
+    points = [0.1, 0.2, 3.2]
+    assert detect_violations("bogus", points, cl=0.0, sigma=1.0, rule_set="Western Electric") == []

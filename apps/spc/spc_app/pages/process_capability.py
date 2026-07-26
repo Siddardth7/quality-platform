@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 import streamlit as st
@@ -11,9 +12,9 @@ from spc_app.exporter import (
     build_capability_report_pdf,
 )
 from spc_app.schema import IngestError, load_spc_csv
-from spc_app.spc_engine.capability import compute_capability, normality_test
+from spc_app.spc_engine.capability import compute_capability_study, normality_test
 from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
-from spc_app.spc_engine.rule_detection import detect_we_violations
+from spc_app.spc_engine.rule_detection import detect_violations
 from spc_app.spc_engine.utils import subgroup_rows
 from spc_app.visualizer import build_capability_histogram, build_cpk_gauge
 
@@ -31,6 +32,12 @@ CAPABILITY_REFERENCE = pd.DataFrame(
     ],
     columns=["Cpk", "Interpretation", "Meaning"],
 )
+FORCE_METHOD_OPTIONS: dict[str, Literal["auto", "normal", "boxcox", "percentile"]] = {
+    "Auto (Shapiro-Wilk driven)": "auto",
+    "Force normal-theory": "normal",
+    "Force Box-Cox / Yeo-Johnson": "boxcox",
+    "Force fitted-distribution percentile": "percentile",
+}
 
 
 @st.cache_data
@@ -40,7 +47,6 @@ def load_demo_data() -> pd.DataFrame:
         DEMO_PATH.parent.mkdir(parents=True, exist_ok=True)
         generate_demo_dataset().to_csv(DEMO_PATH, index=False)
     return pd.read_csv(DEMO_PATH)
-
 
 
 def assess_control_chart(
@@ -55,6 +61,7 @@ def assess_control_chart(
     Returns (sigma_hat, signals); an empty list means in statistical control.
     """
     if stream_name == "ply_thickness":
+        chart_type = "Xbar-R"
         subgroups = subgroup_rows(frame)
         xr = compute_xbar_r(subgroups)
         points: list[float] = xr["subgroup_means"]
@@ -63,6 +70,7 @@ def assess_control_chart(
         # The plotted points are subgroup means, so their spread is sigma/sqrt(n).
         sigma_points: float = sigma_hat / (len(subgroups[0]) ** 0.5)
     elif stream_name == "hole_diameter":
+        chart_type = "Xbar-S"
         subgroups = subgroup_rows(frame)
         xs = compute_xbar_s(subgroups)
         points = xs["subgroup_means"]
@@ -70,13 +78,17 @@ def assess_control_chart(
         sigma_hat = xs["sigma_hat"]
         sigma_points = sigma_hat / (len(subgroups[0]) ** 0.5)
     else:
+        chart_type = "I-MR"
         im = compute_imr(frame.sort_values("subgroup")["value"].tolist())
         points = im["values"]
         cl = im["xbar"]
         sigma_hat = im["sigma_hat"]
         sigma_points = sigma_hat
 
-    signals = detect_we_violations(points, cl=cl, sigma=sigma_points) if sigma_points > 0 else []
+    # Routed through the gated chokepoint (rule_detection.detect_violations) rather
+    # than calling detect_we_violations directly — same behaviour for a Shewhart
+    # chart_type (WE runs, sigma<=0 -> []), but every caller now shares one gate.
+    signals = detect_violations(chart_type, points, cl=cl, sigma=sigma_points, rule_set="Western Electric")
     return sigma_hat, signals
 
 
@@ -130,17 +142,20 @@ def render_capability() -> None:
         lsl = st.number_input("LSL", value=default_lsl if lsl_enabled else 0.0, disabled=not lsl_enabled)
         usl = st.number_input("USL", value=default_usl if usl_enabled else 0.0, disabled=not usl_enabled)
 
+        force_method_label = st.radio("Capability Method", options=list(FORCE_METHOD_OPTIONS.keys()))
+        force_method = FORCE_METHOD_OPTIONS[force_method_label]
+
     values = stream_frame["value"].to_numpy()
-    # Capability/normality need a minimum number of points and a positive sigma; a
+    # Capability/normality need a minimum number of points and a positive spread; a
     # thin or degenerate stream raises ValueError. Surface it as a friendly message
     # rather than a Streamlit stack trace.
     try:
-        sigma_hat, oos_signals = assess_control_chart(stream_name, stream_frame)
-        capability = compute_capability(
+        _, oos_signals = assess_control_chart(stream_name, stream_frame)
+        study = compute_capability_study(
             values,
             lsl=lsl if lsl_enabled else None,
             usl=usl if usl_enabled else None,
-            sigma_hat=sigma_hat,
+            force_method=force_method,
         )
         normality = normality_test(values)
     except (ValueError, KeyError) as exc:
@@ -163,28 +178,46 @@ def render_capability() -> None:
 
     left, right = st.columns([1, 2])
     with left:
-        st.plotly_chart(build_cpk_gauge(capability["cpk"]), use_container_width=True)
+        st.plotly_chart(build_cpk_gauge(study["cpk"]), use_container_width=True)
 
     with right:
-        metric_grid = st.columns(4)
-        metric_grid[0].metric("Cp", "N/A" if capability["cp"] is None else f"{capability['cp']:.3f}")
-        metric_grid[1].metric("Cpk", "N/A" if capability["cpk"] is None else f"{capability['cpk']:.3f}")
-        metric_grid[2].metric("Pp", "N/A" if capability["pp"] is None else f"{capability['pp']:.3f}")
-        metric_grid[3].metric("Ppk", "N/A" if capability["ppk"] is None else f"{capability['ppk']:.3f}")
+        st.caption(f"Method: **{study['method']}**" + (
+            f"  |  λ = {study['lambda_used']:.4g}"
+            if study["method"] in ("boxcox", "yeojohnson") and study["lambda_used"] is not None
+            else f"  |  fitted distribution: {study['fitted_dist']}"
+            if study["method"] == "percentile"
+            else ""
+        ))
+        metric_grid = st.columns(2)
+        metric_grid[0].metric(
+            "Cp", "N/A" if study["cp"] is None else f"{study['cp']:.3f}",
+            help=f"95% CI: {study['cp_ci']}" if study["cp_ci"] else None,
+        )
+        metric_grid[1].metric(
+            "Cpk", "N/A" if study["cpk"] is None else f"{study['cpk']:.3f}",
+            help=f"95% CI: {study['cpk_ci']}" if study["cpk_ci"] else None,
+        )
 
-        summary_grid = st.columns(3)
-        summary_grid[0].metric("Mean", f"{capability['mean']:.4f}")
-        summary_grid[1].metric("Sigma Hat", f"{capability['sigma_hat']:.4f}")
-        summary_grid[2].metric("Sigma Overall", f"{capability['sigma_overall']:.4f}")
+        summary_grid = st.columns(4)
+        summary_grid[0].metric("Pp", "N/A" if study["pp"] is None else f"{study['pp']:.3f}")
+        summary_grid[1].metric("Ppk", "N/A" if study["ppk"] is None else f"{study['ppk']:.3f}")
+        summary_grid[2].metric("Mean", f"{study['mean']:.4f}")
+        summary_grid[3].metric("Sigma Overall", f"{study['sigma_overall']:.4f}")
+
+        st.caption(study["note"])
 
     st.plotly_chart(
         build_capability_histogram(
             data=values,
             lsl=lsl if lsl_enabled else None,
             usl=usl if usl_enabled else None,
-            mean=capability["mean"],
-            sigma_overall=capability["sigma_overall"],
+            mean=study["mean"],
+            sigma_overall=study["sigma_overall"],
             title=f"{stream_label} Distribution",
+            method=study["method"],
+            fitted_dist=study["fitted_dist"],
+            lambda_used=study["lambda_used"],
+            shift=study["shift"],
         ),
         use_container_width=True,
     )
@@ -197,7 +230,7 @@ def render_capability() -> None:
     report = CapabilityReport(
         stream_label=stream_label,
         values=values.tolist(),
-        capability=capability,
+        capability=study,
         lsl=lsl if lsl_enabled else None,
         usl=usl if usl_enabled else None,
         normality=normality,
