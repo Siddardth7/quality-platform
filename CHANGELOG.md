@@ -6,6 +6,8 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-26
+
 ### Added
 
 - **SPC UI wiring for Week-10 features + run-rule gating (W10-5, #145).** EWMA and CUSUM
