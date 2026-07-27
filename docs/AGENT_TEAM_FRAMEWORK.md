@@ -31,6 +31,7 @@ branch without the SME.**
 | 3 | **Coding** | `.claude/agents/coder.md` | Opus 4.8 → Fable 5 on limits | `spec.md`, codebase | source changes + `.pipeline/changes.md` |
 | 4 | **Testing / QA** | `.claude/agents/tester.md` | Opus 4.8 → Fable 5 on limits | `changes.md`, `spec.md`, code | tests + `.pipeline/test-results.md` |
 | 5 | **Reviewer** | `.claude/agents/reviewer.md` (read-only) | Opus 4.8 | all `.pipeline/` + `git diff` | `.pipeline/review.md` verdict |
+| 6 | **Auditor** | `.claude/agents/auditor.md` (read-only), run by `.claude/commands/audit.md` | Opus 4.8 | codebase, standards, web | `.pipeline/audit-<scope>.md` findings |
 
 **Why the Team Lead is a command, not a subagent.** In Claude Code, a subagent cannot spawn other
 subagents — only the main session can delegate. So the Team Lead *is* the main daily session (Opus 4.8)
@@ -41,6 +42,16 @@ loop where the `Task`/delegation tool lives.
 **Why the Reviewer is read-only.** A model that can fix what it judges produces biased reviews — it
 prefers conclusions it could just patch. Stripping edit access forces an honest verdict. This is a
 structural guarantee, not a style choice.
+
+**Why the Auditor is read-only too — and stronger.** Same bias argument, plus a process one: every
+fix must travel through `/ship` (research → code → test → review) so it lands under CI and the
+coverage gates. An auditor that patches what it finds bypasses the entire pipeline, and the fixes
+arrive ungated. The Auditor finds and proves; the pipeline fixes. It also never files GitHub issues
+directly — it *proposes* themes, and the SME approves before anything reaches the backlog.
+
+**Reviewer vs Auditor.** The Reviewer judges *one change* against *one spec*, inside a `/ship` run.
+The Auditor judges *the standing codebase* against *external standards*, outside any feature work.
+Different question, different cadence — hence a separate role rather than a wider Reviewer.
 
 ---
 
@@ -54,7 +65,7 @@ structural guarantee, not a style choice.
 
 | Role | Runtime model | Why |
 |------|---------------|-----|
-| Team Lead, Research, Reviewer | **Opus 4.8** | Highest-leverage reasoning — planning sets the ceiling, review is the last gate, orchestration must not drop a step. Each runs roughly once per feature. |
+| Team Lead, Research, Reviewer, **Auditor** | **Opus 4.8** | Highest-leverage reasoning — planning sets the ceiling, review is the last gate, orchestration must not drop a step, and an audit that misreads a handbook constant is worse than no audit. Each runs roughly once per feature (the Auditor, once per scope). |
 | Coder, Tester | **Opus 4.8** by default, **Fable 5** as fallback | Run on Opus 4.8 for top quality; when you're bumping Opus usage limits, switch these two (the token-heavy roles) to Fable 5 to keep shipping. |
 
 **How the models are pinned:** subagent frontmatter uses `model: opus`, which resolves to the account's
@@ -280,6 +291,24 @@ Be the last line of defense. Green tests are not the same as correct behavior �
 say BLOCK.
 ```
 
+### `.claude/agents/auditor.md`
+
+> **The file is authoritative — it is not reproduced here.** At ~70 lines with three scope
+> definitions and an explicit out-of-scope list, pasting it would create a second copy to drift.
+> Read `.claude/agents/auditor.md` directly.
+
+| | |
+|---|---|
+| **Frontmatter** | `tools: Read, Grep, Glob, Bash, WebSearch, WebFetch` · `model: opus` — no `Write`, no `Edit` |
+| **Writes** | `.pipeline/audit-<scope>.md` only, via Bash heredoc (same read-only pattern as the Reviewer) |
+| **Scopes** | `domain` (AIAG/VDA fidelity) · `security` (deps, secrets, trust boundaries, dead code) · `architecture` (coupling, boundary violations, Streamlit leakage into engines) |
+| **Out of scope** | The Streamlit presentation layer (deleted by the web migration) and coverage findings on already-100%-gated surfaces. See `docs/research/web-platform-migration.md` §2.2. |
+| **Never** | edits code, files GitHub issues, or fixes what it finds |
+
+Findings are severity-ranked (`HIGH` / `MEDIUM` / `LOW` / `UNVERIFIED`) and grouped into **themes**,
+each sized to one `/ship` rung. One issue per theme — a 24k-LOC audit filed finding-by-finding would
+swamp the milestone.
+
 ---
 
 ## 8. Orchestrator commands — copy into `.claude/commands/`
@@ -347,6 +376,26 @@ You are the Team Lead. Cut release $ARGUMENTS (e.g. v0.6.0) from `dev` to `main`
 `main` is production. Only `dev` merges into it, at version boundaries.
 ```
 
+### `.claude/commands/audit.md`
+
+Runs **outside** the feature pipeline — no branch, no PR, no code change. It orchestrates the
+read-only Auditor, then converts approved findings into issues that each re-enter through `/ship`.
+
+```
+/audit domain | security | architecture
+   │
+   ├─ 0 · prep — clean tree required (a dirty tree makes findings unattributable)
+   ├─ 1 · delegate to the `auditor` subagent → .pipeline/audit-<scope>.md
+   ├─ 2 · Team Lead reads it — spot-checks file:line, demands primary sources,
+   │       drops out-of-scope findings, right-sizes themes
+   ├─ 3 · present to the SME → STOP for approval          ← the gate
+   ├─ 4 · gh issue create for approved themes only (label: audit)
+   └─ 5 · hand off — recommend /ship order, start nothing
+```
+
+Issue bodies must be **self-contained**: `.pipeline/` is gitignored, so a link to the report dies with
+the session. The filed issues are the durable record of the audit.
+
 ---
 
 ## 9. Setup checklist
@@ -365,8 +414,8 @@ printf '\n# agent pipeline handoff (transient)\n.pipeline/\n' >> .gitignore
 
 # 3 · create the agent + command files from sections 7 and 8
 mkdir -p .claude/agents .claude/commands
-#   → paste research.md, coder.md, tester.md, reviewer.md into .claude/agents/
-#   → paste ship.md, promote.md, release.md into .claude/commands/
+#   → paste research.md, coder.md, tester.md, reviewer.md, auditor.md into .claude/agents/
+#   → paste ship.md, promote.md, release.md, audit.md into .claude/commands/
 ```
 
 Then, in the GitHub UI (or `gh api`), add **branch protection** for `test`, `dev`, and `main` per §4,
