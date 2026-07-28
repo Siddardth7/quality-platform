@@ -83,8 +83,8 @@ SECOM, is engine-only *by decision* (#206):** a tested analysis library consumed
 and, from P3 onward, by the platform API — deliberately never mounted in the shell, so it has no
 `app.py` and no `st.navigation` entry. That is intent, not an omission: when API routes are
 enumerated, SECOM must be read off the workspace members, not off the shell's navigation map.
-All five depend on the shared core: everything cross-cutting (data contracts, scoring, file IO,
-theme) is written once in `quality_core` and consumed by every member.
+All five depend on the shared core, each on the parts it needs: data contracts, scoring, file IO
+and theme are written once in `quality_core` instead of per app.
 
 ```mermaid
 flowchart TB
