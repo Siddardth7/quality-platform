@@ -320,3 +320,88 @@ def test_add_image_page_embeds_png_with_sanitized_title():
     assert len(images) == 1
     assert images[0][1][0] == "/tmp/chart.png"
     assert images[0][2]["w"] == 277  # default landscape image width
+
+
+# --- #198 · the export primitive owns the injection guarantee ----------------
+#
+# Every test below fails against the pre-#198 code. The fix was originally shipped
+# with no test at all: the io gate still read 100% because existing tests crossed
+# the new lines incidentally, so reverting the fix left the whole suite green.
+
+
+def test_sanitize_for_export_escapes_column_labels():
+    """The header row is a payload surface too — a label is written verbatim."""
+    df = pd.DataFrame([{"=cmd|' /C calc'!A0": 1, "safe": 2}])
+    out = sanitize_for_export(df)
+    assert list(out.columns) == ["'=cmd|' /C calc'!A0", "safe"]
+
+
+def test_sanitize_for_export_escapes_duplicate_column_labels():
+    """Duplicate labels must both be escaped — label-keyed access would miss one."""
+    df = pd.DataFrame([["=a", "=b"]], columns=["dup", "dup"])
+    out = sanitize_for_export(df)
+    assert list(out.columns) == ["dup", "dup"]
+    assert out.iloc[0].tolist() == ["'=a", "'=b"]
+
+
+def test_write_table_sheet_escapes_header_and_body():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    df = pd.DataFrame([{"=header": "=body"}])
+    write_table_sheet(
+        ws, df,
+        title="Data",
+        columns=["=header"],
+        col_widths={"=header": 20},
+    )
+    assert ws.cell(1, 1).value == "'=header"
+    assert ws.cell(2, 1).value == "'=body"
+
+
+def test_write_keyvalue_sheet_escapes_label_and_value():
+    """The key/value sheet has four app callers; the primitive owns their safety."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    write_keyvalue_sheet(ws, [("=label", "=value")])
+    assert ws.cell(1, 1).value == "'=label"
+    assert ws.cell(1, 2).value == "'=value"
+
+
+def test_numeric_text_is_not_escaped_anywhere():
+    """Formatted metrics like "-3.0000" must survive intact.
+
+    openpyxl stores a leading apostrophe as a literal character — Excel's typed-input
+    convention does not apply — so escaping these would visibly corrupt every negative
+    metric in the summary sheets.
+    """
+    for numeric in ("-3.0000", "+5", "-0.5", "1e-4", "-.5", "+1E+3"):
+        assert sanitize_cell(numeric) == numeric, numeric
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    write_keyvalue_sheet(ws, [("Cpk lower bound", "-3.0000")])
+    assert ws.cell(1, 2).value == "-3.0000"
+
+    # ...but a payload that merely starts like a number is still escaped.
+    assert sanitize_cell("-3.0000+cmd|' /C calc'!A0") == "'-3.0000+cmd|' /C calc'!A0"
+
+
+def test_numeric_exemption_is_narrow():
+    """The exemption is the one hole in the escaping, so pin its exact edges.
+
+    Every string below is accepted by Python's ``float()`` but is NOT a plain decimal.
+    A spreadsheet does not read them as the same number, and no formatter in this repo
+    emits them — so widening the exemption back to ``float()`` would give up real
+    coverage for nothing. This test fails if that happens.
+    """
+    for not_exempt in (
+        "-inf", "-Infinity", "-nan",   # float() accepts; Excel renders #NAME? / text
+        "-1_000",                      # PEP 515 separator; Excel reads it as text
+        "-１２３", "-١٢٣",              # Unicode digits — `\d` would have matched these
+    ):
+        assert sanitize_cell(not_exempt) == f"'{not_exempt}", not_exempt
+
+    # Anchoring is the other half: surrounding whitespace must never be exempt,
+    # because a leading Tab/CR is itself a formula trigger.
+    for spaced in ("\t-3.0", "\r-3.0", " -3.0", "-3.0 "):
+        assert sanitize_cell(spaced) == f"'{spaced}", repr(spaced)
