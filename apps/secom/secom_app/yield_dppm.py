@@ -13,11 +13,11 @@ SME resolutions (`.pipeline/spec.md`, locked 2026-07-23), each labelled:
 - **OQ1b (SME-set, standard Pareto practice):** kept signals with 0
   fail-associated violations are dropped from the Pareto table entirely,
   not kept as zero rows.
-- **OQ2 (SME-set, added scope):** this issue also ships a Streamlit page
-  (`secom_app/pages/yield_dppm.py`) rendering this engine's typed output —
-  the series' engine-only default (W09-1..W09-4) is overridden here because
-  the issue title itself said "view." The page is a thin, non-gated renderer;
-  all logic stays in this module.
+- **OQ2 (SME-set at W09-5, since reversed):** W09-5 shipped a thin Streamlit
+  page alongside this engine (`secom_app/pages/yield_dppm.py`). That page was
+  deleted by **#206** — SECOM is engine-only, mounted nowhere — restoring the
+  series' engine-only default (W09-1..W09-4). All logic always lived here; the
+  deletion removed a renderer, not a rule.
 
 **DPPM, not DPMO (SME red line on honesty).** SECOM carries exactly one
 pass/fail verdict per wafer (unit level) — there is no defects-and-

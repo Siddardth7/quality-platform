@@ -16,6 +16,6 @@ dependencies = [
 [tool.uv.sources]
 quality-core = { workspace = true }
 
-# Run from this directory (`streamlit run app.py`); not built/installed as a wheel.
+# Engine-only (#206): a library, no entry script; not built/installed as a wheel.
 [tool.uv]
 package = false
