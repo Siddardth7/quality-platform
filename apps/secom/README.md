@@ -1,7 +1,11 @@
 # SECOM — Semiconductor Manufacturing Dataset
 
-Scaffold for the SECOM app. It mounts into the unified Quality Platform shell
-alongside FMEA, SPC, MSA, and Control Plan, sharing `quality_core`.
+**SECOM is engine-only (#206).** It is a tested analysis *library* over the SECOM
+dataset — consumed by its own suite and, from P3 onward, by the platform API — and
+is deliberately **not** mounted in the unified Streamlit shell: there is no `app.py`
+here and no `st.navigation` entry, unlike FMEA, SPC, Control Plan, and MSA. It is a
+full workspace member (`pyproject.toml`) sharing `quality_core` and reusing
+`spc_app`'s engine.
 
 SECOM (UCI ML Repository, dataset 179) is real semiconductor fab process data:
 1567 production runs x 590 sensor readings, with a pass/fail label and a
@@ -59,9 +63,8 @@ standard-vs-heuristic labelling of every screening rule.
   detection (`control_charts_for_selection`, no anomaly rule re-derived) to
   rank kept signals by how many special-cause violation events land on
   failed wafers — an association/screening Pareto, not a root-cause claim.
-  `secom_app/pages/yield_dppm.py` (`render_yield_dppm()`) is a thin,
-  non-gated Streamlit view of this engine's output, mirroring
-  `msa_app/pages/gage_study.py`.
+  Engine-only: the thin Streamlit view that shipped with W09-5 was deleted by
+  #206 (see the engine-only note at the top).
 
 - **`secom_app/doe_screening.py`** (W11-1, #72) — `screen_signals()` runs an
   observational univariate effect screen (Welch's t + Cohen's d, BH-FDR

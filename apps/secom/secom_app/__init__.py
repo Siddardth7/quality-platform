@@ -1,8 +1,11 @@
-"""SECOM (semiconductor manufacturing) application package.
+"""SECOM (semiconductor manufacturing) analysis engine.
 
-`__version__` is the single source of truth for the SECOM app version. It is read
-by ``app.py`` (added by a later W09 issue) so the displayed/stamped version never
-drifts. Since #204 the app is an installed (editable) workspace package, so
+**Engine-only by decision (#206).** SECOM ships as a tested library — consumed by
+its own suite and, from P3 onward, by the API — and is deliberately *not* mounted
+in the Streamlit shell (``app.py``); there is no entry script under ``apps/secom/``.
+
+`__version__` is the single source of truth for the SECOM app version. Since #204
+the app is an installed (editable) workspace package, so
 ``importlib.metadata.version("secom-app")`` resolves too; this constant stays the
 value ``pyproject.toml`` is kept in sync with.
 

@@ -18,7 +18,9 @@ dependencies = [
 quality-core = { workspace = true }
 spc-app = { workspace = true }
 
-# Installed (editable) so apps/api can `import secom_app` as a library (#204, OQ2).
+# Engine-only (#206): a library with no entry script, deliberately not mounted in
+# the Streamlit shell. Still installed (editable) so apps/api can `import secom_app`
+# as a library (#204, OQ2) — engine-only is about the UI surface, not packaging.
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
