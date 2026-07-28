@@ -26,11 +26,15 @@ from quality_core.io.export import (
     write_table_sheet,
 )
 from quality_core.io.validate import (
+    DEFAULT_MAX_COLUMNS,
+    DEFAULT_MAX_ROWS,
     DEFAULT_MAX_UPLOAD_BYTES,
     IngestError,
     TableSchema,
     load_table,
+    load_table_from_path,
     read_table,
+    read_table_from_path,
     validate_table,
 )
 
@@ -52,7 +56,11 @@ __all__ = [
     "IngestError",
     "TableSchema",
     "DEFAULT_MAX_UPLOAD_BYTES",
+    "DEFAULT_MAX_ROWS",
+    "DEFAULT_MAX_COLUMNS",
     "read_table",
+    "read_table_from_path",
     "validate_table",
     "load_table",
+    "load_table_from_path",
 ]

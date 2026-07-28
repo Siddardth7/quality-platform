@@ -39,7 +39,7 @@ from typing import Annotated, Any, BinaryIO, Literal, cast
 
 import pandas as pd
 import pydantic
-from quality_core.io import IngestError, TableSchema, load_table
+from quality_core.io import IngestError, TableSchema, load_table, load_table_from_path
 from quality_core.schema._base import find_duplicates
 
 __all__ = [
@@ -205,6 +205,10 @@ def load_control_plan_csv(source: str | BinaryIO) -> pd.DataFrame:
     ``target``/``recommended_chart`` value when that optional column is present
     in the upload — see :func:`_reject_bad_optional_values`.
     """
-    df = load_table(source, CONTROL_PLAN_SCHEMA)
+    df = (
+        load_table_from_path(source, CONTROL_PLAN_SCHEMA)
+        if isinstance(source, str)
+        else load_table(source, CONTROL_PLAN_SCHEMA)
+    )
     _reject_bad_optional_values(df)
     return df

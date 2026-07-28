@@ -18,7 +18,7 @@ from typing import Any, BinaryIO, cast
 import pandas as pd
 import pydantic
 import streamlit as st
-from quality_core.io import IngestError, TableSchema, load_table
+from quality_core.io import IngestError, TableSchema, load_table, load_table_from_path
 from quality_core.schema import FMEADataset, FMEARow, RelationalFMEA, flat_to_relational
 
 from controlplan_app.connector import build_control_plan, source_index
@@ -55,7 +55,11 @@ def load_uploaded_fmea(source: str | BinaryIO) -> RelationalFMEA:
     Raises :class:`IngestError` (a ``ValueError`` subclass) on a malformed or
     invalid FMEA CSV — the page catches it and calls ``st.error``.
     """
-    df = load_table(source, FMEA_INPUT_SCHEMA)
+    df = (
+        load_table_from_path(source, FMEA_INPUT_SCHEMA)
+        if isinstance(source, str)
+        else load_table(source, FMEA_INPUT_SCHEMA)
+    )
     dataset = FMEADataset(
         rows=[
             FMEARow(**cast("dict[str, Any]", {k: (None if pd.isna(v) else v) for k, v in rec.items()}))

@@ -266,6 +266,38 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Security
 
+- **`quality_core.io` ingest now fails closed (A05, #199).** Three findings in
+  `read_table`/`load_table` fixed at the shared primitive, not in callers:
+  (1) **HIGH, CWE-400** — the byte ceiling trusted a caller-supplied `.size`
+  attribute and silently skipped the check for any source without one;
+  `read_table` now *measures* the stream by seeking, and an unmeasurable source
+  (not seekable, or missing `tell`/`seek`) is rejected with `IngestError`
+  rather than let through. (2) **MEDIUM, CWE-918/CWE-73** — `read_table`
+  accepted a `str`/`PathLike` and handed it to pandas, which resolves a string
+  as a local path *or a URL*; `Source` is now `bytes | bytearray | BinaryIO`
+  only (raw bytes are wrapped in `io.BytesIO`), and a filesystem path is
+  reachable only via the new, separately named `read_table_from_path` /
+  `load_table_from_path`, which `open()` the path directly — a URL-shaped
+  string is simply an unreadable local path, not a network request, so no URL
+  blocklist was added. New `DEFAULT_MAX_ROWS = 1_000_000` /
+  `DEFAULT_MAX_COLUMNS = 1_000` caps (enforced during the parse via
+  `nrows=max_rows + 1`, a secondary cell-count control) round out the DoD; all
+  three (`max_bytes`/`max_rows`/`max_columns`) keep `None` as an explicit
+  opt-out, distinct from "unmeasurable." The four Streamlit app loaders
+  (`load_spc_csv`, `load_gage_study_csv`, `load_control_plan_csv`,
+  `load_uploaded_fmea`) keep their `str | BinaryIO` signature and now dispatch
+  to `load_table_from_path` for a `str` demo path, `load_table` otherwise; the
+  FMEA CLI (`fmea_analyzer.py`) switched to `read_table_from_path`. (3)
+  **MEDIUM, CWE-400 (JSON)** — `load_scales_from_json`
+  (`apps/fmea/fmea_app/rating_scales.py`) only caught `JSONDecodeError`/
+  `UnicodeDecodeError`, so a deeply nested "JSON bomb" escaped as an uncaught
+  `RecursionError` past `ui/filters.py`'s `except ValueError`; it now checks a
+  byte-length ceiling (reusing `quality_core.io.DEFAULT_MAX_UPLOAD_BYTES`,
+  no second literal) before parsing and normalises every `json.loads` failure
+  to `ValueError`. `secom_app` deliberately does not use this boundary and is
+  unchanged; `validate_table`'s return value and the column-contract work are
+  a separate issue and untouched here.
+
 - **Export header row now escaped for formula injection (A04, #198).** `sanitize_for_export`
   (`packages/quality-core/src/quality_core/io/export.py`) previously escaped only cell values,
   leaving the CSV/Excel header row — including uploader-controlled column names reachable via
