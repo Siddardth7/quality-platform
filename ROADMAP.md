@@ -123,8 +123,10 @@ flowchart TB
 
 **Key architectural choices**
 - **Shared core, consumed by every member.** `quality_core.io` owns CSV/Excel/PDF export (with
-  formula-injection escaping) and validated ingest, so **all five** are guaranteed identical on those
-  boundaries. This is the "economic argument" of the monorepo made concrete.
+  formula-injection escaping) and validated ingest, so **all four mounted apps** are guaranteed
+  identical on those boundaries. SECOM is the deliberate exception: it has no exporter, and its
+  NaN-preserving ingest reuses only `quality_core.io.IngestError` — `load_table`'s per-row validation
+  would discard most of its rows. This is the "economic argument" of the monorepo made concrete.
 - **Schema promoted only when stable.** Schema stayed inside the FMEA app until Week 5, then was
   promoted to `quality_core.schema` (deferred extraction — done once, correctly), so SPC / Control
   Plan can share one contract.
