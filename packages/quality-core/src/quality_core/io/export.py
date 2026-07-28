@@ -18,6 +18,7 @@ these today; SPC and the Control Plan reuse them verbatim.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -37,23 +38,28 @@ from openpyxl.utils import get_column_letter
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
+#: A plain decimal number written as text: optional sign, digits with optional
+#: fraction/exponent, nothing else. Deliberately NARROWER than ``float()``, which also
+#: accepts ``inf``/``nan``, underscore separators (``-1_000``) and non-ASCII digits
+#: (``-١٢٣``) — none of which a spreadsheet reads as the same number, so exempting them
+#: would trade a real guarantee for values no formatter here emits. ASCII ``[0-9]`` is
+#: explicit because ``\d`` matches Unicode digits. Anchored, so any surrounding
+#: whitespace fails to match and stays escaped — a leading Tab/CR is itself a trigger.
+_NUMERIC_LITERAL_RE = re.compile(
+    r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+)
+
+
 def _is_numeric_literal(value: str) -> bool:
-    """True if ``value`` is a plain number written as text (e.g. ``"-3.0000"``).
+    """True if ``value`` is a plain decimal number written as text (e.g. ``"-3.0000"``).
 
     Formatted metric strings legitimately start with ``-``. Escaping them would write a
     literal apostrophe into the cell (openpyxl stores the character; Excel's typed-input
     apostrophe convention does not apply), visibly corrupting ``-3.0000`` into
-    ``'-3.0000``. A string that parses as a number cannot carry a formula payload, so it
-    is exempt. Surrounding whitespace disqualifies it — leading Tab/CR is itself a
-    trigger, so those stay escaped.
+    ``'-3.0000``. A plain decimal cannot carry a formula payload — ``(``, ``|``, ``!``
+    and cell references all fail to match — so it is exempt and nothing else is.
     """
-    if value != value.strip():
-        return False
-    try:
-        float(value)
-    except ValueError:
-        return False
-    return True
+    return _NUMERIC_LITERAL_RE.fullmatch(value) is not None
 
 
 def _is_injection_risk(value: str) -> bool:

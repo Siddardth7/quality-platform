@@ -374,7 +374,7 @@ def test_numeric_text_is_not_escaped_anywhere():
     convention does not apply — so escaping these would visibly corrupt every negative
     metric in the summary sheets.
     """
-    for numeric in ("-3.0000", "+5", "-0.5", "1e-4", "-1_000"):
+    for numeric in ("-3.0000", "+5", "-0.5", "1e-4", "-.5", "+1E+3"):
         assert sanitize_cell(numeric) == numeric, numeric
 
     wb = openpyxl.Workbook()
@@ -384,3 +384,24 @@ def test_numeric_text_is_not_escaped_anywhere():
 
     # ...but a payload that merely starts like a number is still escaped.
     assert sanitize_cell("-3.0000+cmd|' /C calc'!A0") == "'-3.0000+cmd|' /C calc'!A0"
+
+
+def test_numeric_exemption_is_narrow():
+    """The exemption is the one hole in the escaping, so pin its exact edges.
+
+    Every string below is accepted by Python's ``float()`` but is NOT a plain decimal.
+    A spreadsheet does not read them as the same number, and no formatter in this repo
+    emits them — so widening the exemption back to ``float()`` would give up real
+    coverage for nothing. This test fails if that happens.
+    """
+    for not_exempt in (
+        "-inf", "-Infinity", "-nan",   # float() accepts; Excel renders #NAME? / text
+        "-1_000",                      # PEP 515 separator; Excel reads it as text
+        "-１２３", "-١٢٣",              # Unicode digits — `\d` would have matched these
+    ):
+        assert sanitize_cell(not_exempt) == f"'{not_exempt}", not_exempt
+
+    # Anchoring is the other half: surrounding whitespace must never be exempt,
+    # because a leading Tab/CR is itself a formula trigger.
+    for spaced in ("\t-3.0", "\r-3.0", " -3.0", "-3.0 "):
+        assert sanitize_cell(spaced) == f"'{spaced}", repr(spaced)
