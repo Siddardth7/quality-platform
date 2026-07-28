@@ -264,6 +264,39 @@ All notable changes to the Quality Platform are documented here. The format foll
   (`secom_app/yield_dppm.py`) and its 100% CI gate are untouched — the page was ungated and
   untested, so no covered line was lost.
 
+### Security
+
+- **Export header row now escaped for formula injection (A04, #198).** `sanitize_for_export`
+  (`packages/quality-core/src/quality_core/io/export.py`) previously escaped only cell values,
+  leaving the CSV/Excel header row — including uploader-controlled column names reachable via
+  `validate_table` — writable straight to row 1 unescaped; it now runs column labels through the
+  same `sanitize_cell` apostrophe-prefix as values, after the value pass, preserving `MultiIndex`
+  structure and non-string label dtypes. Also fixed a duplicate-column-label hole where
+  `DataFrame.apply` handed `sanitize_cell` a whole `Series` instead of scalars, silently skipping
+  escaping entirely: values are now sanitized positionally (`iloc`-based), covering duplicate
+  labels too. `write_table_sheet`'s header cell and string body cells are now escaped the same
+  way, so every caller inherits the fix from the shared primitive without depending on its own
+  `columns=` allow-list. Per OWASP WSTG-INPV-21 (Testing for CSV Injection) / CWE-1236 (Improper
+  Neutralization of Formula Elements in a CSV File); the `'` prefix is OWASP's named mitigation,
+  not a universal guarantee — OWASP itself notes some spreadsheet applications strip it on
+  save/re-open. `write_keyvalue_sheet` now escapes its labels and values too, so all four of its
+  app callers (SPC, MSA, Control Plan, FMEA) inherit the guarantee from the primitive rather
+  than owning it themselves — which is the whole point of this issue. To make that safe,
+  `_is_numeric_literal` exempts text that parses as a number: openpyxl stores a leading
+  apostrophe as a literal character, so escaping a formatted metric would have visibly corrupted
+  `-3.0000` into `'-3.0000` in every summary sheet. A payload that merely *starts* like a number
+  (`-3.0000+cmd|' /C calc'!A0`) does not parse and is still escaped. `FORMULA_PREFIXES` is
+  unchanged.
+
+### Tests
+
+- **#198's escaping is now actually asserted.** The fix originally shipped with no test: the io
+  gate still read 100% because existing tests crossed the new lines incidentally, so reverting
+  the fix left all 240 tests green. Five regression tests in
+  `packages/quality-core/tests/test_export.py` cover header-label escaping, duplicate labels,
+  `write_table_sheet` header + body, `write_keyvalue_sheet` label + value, and the
+  numeric-exemption guard. All five were verified to fail against the pre-#198 code.
+
 ## [0.7.0] - 2026-07-18
 
 Week 07 — Close the loop. Completes the AIAG improvement loop end to end: a Control Plan
