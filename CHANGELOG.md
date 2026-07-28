@@ -264,6 +264,24 @@ All notable changes to the Quality Platform are documented here. The format foll
   (`secom_app/yield_dppm.py`) and its 100% CI gate are untouched — the page was ungated and
   untested, so no covered line was lost.
 
+### Security
+
+- **Export header row now escaped for formula injection (A04, #198).** `sanitize_for_export`
+  (`packages/quality-core/src/quality_core/io/export.py`) previously escaped only cell values,
+  leaving the CSV/Excel header row — including uploader-controlled column names reachable via
+  `validate_table` — writable straight to row 1 unescaped; it now runs column labels through the
+  same `sanitize_cell` apostrophe-prefix as values, after the value pass, preserving `MultiIndex`
+  structure and non-string label dtypes. Also fixed a duplicate-column-label hole where
+  `DataFrame.apply` handed `sanitize_cell` a whole `Series` instead of scalars, silently skipping
+  escaping entirely: values are now sanitized positionally (`iloc`-based), covering duplicate
+  labels too. `write_table_sheet`'s header cell and string body cells are now escaped the same
+  way, so every caller inherits the fix from the shared primitive without depending on its own
+  `columns=` allow-list. Per OWASP WSTG-INPV-21 (Testing for CSV Injection) / CWE-1236 (Improper
+  Neutralization of Formula Elements in a CSV File); the `'` prefix is OWASP's named mitigation,
+  not a universal guarantee — OWASP itself notes some spreadsheet applications strip it on
+  save/re-open. `FORMULA_PREFIXES` and `write_keyvalue_sheet` (which deliberately leaves
+  developer-formatted metric strings like `"-3.0000"` unescaped) are unchanged in this issue.
+
 ## [0.7.0] - 2026-07-18
 
 Week 07 — Close the loop. Completes the AIAG improvement loop end to end: a Control Plan

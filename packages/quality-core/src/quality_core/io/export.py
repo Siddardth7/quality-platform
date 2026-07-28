@@ -61,17 +61,20 @@ def sanitize_cell(value: Any) -> Any:
 
 
 def sanitize_for_export(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy with formula-injection-risky string cells escaped.
+    """Return a copy with formula-injection-risky string cells and column labels escaped.
 
     A string whose first non-whitespace character is a formula trigger (``= + - @``,
     or a leading Tab/CR) is prefixed with ``'`` so Excel/Sheets/LibreOffice render it
-    literally instead of evaluating it. Non-string cells are untouched, and the escape
-    is idempotent (an already-escaped value is not re-escaped).
+    literally instead of evaluating it. Non-string cells and non-string column labels
+    are untouched, and the escape is idempotent (an already-escaped value or label is
+    not re-escaped). Values are sanitized positionally, so duplicate column labels are
+    covered too; labels are escaped after the value pass, on the original (pre-rename)
+    frame.
     """
-    df = df.copy()
-    for col in df.columns:
-        df[col] = df[col].apply(sanitize_cell)
-    return df
+    out = df.copy()
+    for pos in range(out.shape[1]):
+        out.iloc[:, pos] = out.iloc[:, pos].map(sanitize_cell)
+    return out.rename(columns=sanitize_cell)
 
 
 def export_csv(df: pd.DataFrame) -> bytes:
@@ -107,14 +110,16 @@ def write_table_sheet(
     maps a row to a solid fill color (hex, no ``#``) or ``None`` for no fill — apps use
     it to colour rows by risk tier. numpy scalars are unwrapped via ``.item()`` for
     openpyxl compatibility. Fills are cached per color so repeated colours produce
-    identical ``PatternFill`` objects.
+    identical ``PatternFill`` objects. The header row and string body cells are run
+    through ``sanitize_cell`` (formula-injection escaping), so callers no longer depend
+    on their own ``columns=`` allow-list for safety.
     """
     ws.title = title
     cols = [c for c in columns if c in df.columns]
 
     header_fill = PatternFill(start_color=header_fill_hex, end_color=header_fill_hex, fill_type="solid")
     for col_idx, col_name in enumerate(cols, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell = ws.cell(row=1, column=col_idx, value=sanitize_cell(col_name))
         cell.fill = header_fill
         cell.font = _HEADER_FONT
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -133,6 +138,7 @@ def write_table_sheet(
             val = row[col_name]
             if hasattr(val, "item"):  # numpy bool/int -> native
                 val = val.item()
+            val = sanitize_cell(val)
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             if fill is not None:
                 cell.fill = fill
@@ -158,6 +164,11 @@ def write_keyvalue_sheet(
 
     ``title`` renames the worksheet (matching ``write_table_sheet``'s ``title``),
     so callers set the sheet name the same way for both sheet kinds.
+
+    Deliberately does NOT run labels or values through ``sanitize_cell``: this sheet
+    carries developer-formatted metric strings (e.g. ``"-3.0000"``) where escaping
+    would prefix a spurious apostrophe onto legitimate negative values; callers that
+    pass user-controlled text must sanitize it themselves before calling this.
     """
     if title is not None:
         ws.title = title
