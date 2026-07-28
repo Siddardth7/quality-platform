@@ -25,9 +25,11 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 # Make all first-party code importable from the checked-out repo
 # ---------------------------------------------------------------------------
-# The apps are workspace members built as runnable Streamlit folders, not wheels
-# (``package = false``), so ``fmea_app`` / ``ui`` / ``spc_app`` are not on
-# ``sys.path`` by default. quality-core IS an installed (editable) package locally,
+# Most apps are workspace members built as runnable Streamlit folders, not wheels
+# (``package = false``), so ``fmea_app`` / ``ui`` are not on ``sys.path`` by default.
+# ``spc_app`` is an editable install locally since #204, but not on a plain
+# ``pip install -r requirements.txt`` host, so it stays listed below.
+# quality-core IS an installed (editable) package locally,
 # but on a plain ``pip install -r requirements.txt`` host (Streamlit Cloud) it is
 # not installed — requirements.txt carries only third-party deps. Putting its
 # source root on the path too lets the shell run from the repo with no editable

@@ -6,6 +6,24 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- **`spc-app` and `secom-app` are now installable (editable) workspace packages, so
+  `secom_app.charts`/`.capability` resolve `spc_app.spc_engine` (and `secom_app` itself
+  resolves for `apps/api`) outside pytest (#204).** Declaring `spc-app` as a `secom-app`
+  dependency alone was inert — every app set `[tool.uv] package = false`, so uv resolved
+  the dependency but never installed the `spc_app` module. Both `apps/spc/pyproject.toml`
+  and `apps/secom/pyproject.toml` now drop `package = false` for a
+  `[build-system]`/`[tool.hatch.build.targets.wheel]` block (flat layout, mirroring
+  `packages/quality-core`'s `src/` block), and `secom-app` declares `spc-app` as a
+  `{ workspace = true }` dependency. `apps/secom/conftest.py`'s `sys.path` hacks for
+  `apps/spc` (redundant — spc_app is now installed) and for `apps/secom` itself
+  (redundant — secom_app is now installed) are removed; the `apps/msa` entry stays (msa-app
+  is not yet an installable package). New
+  `apps/secom/tests/test_import_boundary.py` proves both imports in a clean,
+  non-pytest interpreter with no conftest involved. This remains a stopgap — #205
+  (promoting the SPC engine into `quality_core`) is the real fix.
+
 ### Added
 
 - **SPC UI wiring for Week-10 features + run-rule gating (W10-5, #145).** EWMA and CUSUM

@@ -1,8 +1,9 @@
 """Pytest path setup for the SPC app.
 
-The apps are runnable Streamlit folders, not installed wheels (``package = false``),
-so their top-level modules (``spc_app`` / ``app``) are not importable unless this
-directory is on ``sys.path``. Adding it here lets the SPC suite run both standalone
+Since #204 ``spc_app`` is an installed (editable) package, but ``app`` — the top-level
+Streamlit module — is not part of the wheel, and the insert keeps coverage attributed
+to ``apps/spc/spc_app/...`` rather than to the editable install. Adding it here lets
+the SPC suite run both standalone
 (``pytest`` from ``apps/spc``) and under the unified root run (``pytest`` from the
 repo root with ``--import-mode=importlib``).
 """
