@@ -1646,8 +1646,8 @@ requires-dist = [
     { name = "fmea-app", virtual = "apps/fmea" },
     { name = "msa-app", virtual = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
-    { name = "secom-app", virtual = "apps/secom" },
-    { name = "spc-app", virtual = "apps/spc" },
+    { name = "secom-app", editable = "apps/secom" },
+    { name = "spc-app", editable = "apps/spc" },
 ]
 
 [package.metadata.requires-dev]
@@ -1925,13 +1925,14 @@ wheels = [
 [[package]]
 name = "secom-app"
 version = "0.7.0"
-source = { virtual = "apps/secom" }
+source = { editable = "apps/secom" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "pydantic" },
     { name = "quality-core" },
     { name = "scipy" },
+    { name = "spc-app" },
     { name = "streamlit" },
 ]
 
@@ -1942,6 +1943,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0" },
     { name = "quality-core", editable = "packages/quality-core" },
     { name = "scipy", specifier = ">=1.17.1" },
+    { name = "spc-app", editable = "apps/spc" },
     { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
@@ -1966,7 +1968,7 @@ wheels = [
 [[package]]
 name = "spc-app"
 version = "0.7.0"
-source = { virtual = "apps/spc" }
+source = { editable = "apps/spc" }
 dependencies = [
     { name = "fpdf2" },
     { name = "numpy" },
