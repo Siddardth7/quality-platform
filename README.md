@@ -121,7 +121,7 @@ flowchart LR
 | **📈 SPC Dashboard** | Statistical Process Control — variables &amp; attributes control charts, Western Electric / Nelson rules, Cp/Cpk/Pp/Ppk **with a stability gate**, live disturbance simulator | ![live](https://img.shields.io/badge/-live-2ea043) |
 | **🧩 Control Plan connector** | Turns FMEA failure modes into a Control Plan (characteristic, spec, method, sample plan, recommended chart) — the APQP-adjacent bridge that closes the loop | ![live](https://img.shields.io/badge/-live-2ea043) |
 | **📏 MSA / Gage R&amp;R** | Measurement Systems Analysis — Gage R&amp;R (Average-and-Range; ANOVA), %GRR vs study &amp; tolerance, `ndc`, accept/marginal/reject vs AIAG thresholds | ![live](https://img.shields.io/badge/-live-2ea043) |
-| **🏭 SECOM case study** | The whole platform run on **real semiconductor sensor data** — SPC, real Cp/Cpk, yield/DPPM, Pareto of failing signals | ![engine-only](https://img.shields.io/badge/-engine--only%20%C2%B7%20v0.9.0-e65100) |
+| **🏭 SECOM case study** | The whole platform run on **real semiconductor sensor data** — SPC, real Cp/Cpk, yield/DPPM, Pareto of failing signals | ![shipped](https://img.shields.io/badge/-engine--only%20%C2%B7%20v0.9.0%20shipped-2ea043) |
 
 > Standards context: **FMEA** — AIAG-VDA (2019) + AIAG FMEA-4 · **SPC** — AIAG SPC 4th Ed. · capability target **Cpk ≥ 1.33**.
 > The AIAG-VDA Action Priority table is verified cell-by-cell against the primary handbook.
@@ -151,7 +151,7 @@ flowchart TB
     subgraph Core["📦 packages/quality-core → import quality_core"]
         Schema["schema/<br/>flat + relational contracts (Pydantic v2)"]
         IO["io/<br/>validated ingest · CSV/Excel/PDF export"]
-        Scoring["scoring/<br/>RPN · AIAG-VDA Action Priority"]
+        Scoring["scoring.py<br/>RPN · AIAG-VDA Action Priority"]
         Theme["theme/<br/>palette · style"]
     end
 
@@ -257,6 +257,7 @@ quality-platform/
 │       └── src/quality_core/
 │           ├── schema/     # flat (FMEARow) + relational (Function→FM→…) contracts
 │           ├── io/         # validated ingest · CSV/Excel/PDF export (injection-safe)
+│           ├── scoring.py  # RPN · AIAG-VDA Action Priority
 │           └── theme/      # palette · style
 └── apps/
     ├── fmea/               # FMEA Risk Analyzer  (full original history preserved)

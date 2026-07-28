@@ -106,7 +106,7 @@ flowchart TB
     subgraph Core["packages/quality-core — quality_core"]
         Schema["schema/<br/>fmea (flat rows) · relational · _base"]
         IO["io/<br/>export (CSV/Excel/PDF) · validate (ingest)"]
-        Scoring["scoring/<br/>RPN · AIAG-VDA Action Priority"]
+        Scoring["scoring.py<br/>RPN · AIAG-VDA Action Priority"]
         Theme["theme/<br/>palette · style"]
     end
 
@@ -122,9 +122,9 @@ flowchart TB
 ```
 
 **Key architectural choices**
-- **Shared core, consumed twice.** `quality_core.io` owns CSV/Excel/PDF export (with formula-injection
-  escaping) and validated ingest, so both tools are guaranteed identical on those boundaries. This is
-  the "economic argument" of the monorepo made concrete.
+- **Shared core, consumed by every member.** `quality_core.io` owns CSV/Excel/PDF export (with
+  formula-injection escaping) and validated ingest, so **all five** are guaranteed identical on those
+  boundaries. This is the "economic argument" of the monorepo made concrete.
 - **Schema promoted only when stable.** Schema stayed inside the FMEA app until Week 5, then was
   promoted to `quality_core.schema` (deferred extraction — done once, correctly), so SPC / Control
   Plan can share one contract.
@@ -148,8 +148,9 @@ flowchart LR
     C -->|"out-of-control signal →<br/>occurrence-rating feedback / CAPA"| A
 ```
 
-> A user walks **FMEA → Control Plan → SPC → back to FMEA** without leaving the platform. Today the
-> three surfaces exist (SPC + FMEA live; Control Plan lands Week 6); the *connections* are Weeks 6–7.
+> A user walks **FMEA → Control Plan → SPC → back to FMEA** without leaving the platform. The loop is
+> shipped (Control Plan v0.6.0, the FMEA↔CP↔SPC connections v0.7.0): four surfaces — FMEA, SPC,
+> Control Plan, MSA — are mounted in the shell, plus SECOM as an engine-only member.
 
 ---
 
@@ -255,6 +256,7 @@ quality-platform/
 │           │                   # relational.py (Function→FM→Effect/Cause/Control + adapters)
 │           │                   # _base.py (StrictModel, find_duplicates — shared validators)
 │           ├── io/             # export.py (CSV/Excel/PDF) · validate.py (validated ingest)
+│           ├── scoring.py      # RPN · AIAG-VDA Action Priority
 │           └── theme/          # palette.py · style.py
 │
 └── apps/
@@ -424,8 +426,10 @@ again.
   rationale display, cost controls — *then* ship. Built on Claude via the Anthropic API.
 - **AI on SPC:** explainable **special-cause interpretation** (*"Rule 2 fired at point 17 → probable
   mean shift; candidate causes from the linked FMEA"*).
-- **Architecture-fork gate:** the deliberate go/no-go on a FastAPI + React/Next + Supabase rewrite —
-  only relevant if a full-stack fork or a real product signal appears.
+- **Database / Supabase, auth, multi-tenancy:** the Week-12 web platform is explicitly stateless
+  (compute→render, no persistence) — the architecture-fork gate on a FastAPI + Next.js rewrite
+  already **fired** (`docs/research/web-platform-migration.md`); what stays deferred is adding a
+  database, login, or multi-user support, revisited only on a real "save and return" product signal.
 
 ---
 

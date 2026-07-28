@@ -134,7 +134,7 @@ jobs:
       # the yield/DPPM + violation-to-failed-wafer mapping, and the
       # Cohen's-d/Welch-t/BH-FDR screening math can't regress silently.
       # SECOM is engine-only (#206): the W09-5 Streamlit view was deleted, so
-      # every module in this package is gated here — no pages/ exclusion, unlike
+      # every engine module is gated here — no pages/ exclusion, unlike
       # the SPC/MSA gates above.
       - name: SECOM coverage gate
         run: >
