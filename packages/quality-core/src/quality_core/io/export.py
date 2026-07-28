@@ -37,8 +37,29 @@ from openpyxl.utils import get_column_letter
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
+def _is_numeric_literal(value: str) -> bool:
+    """True if ``value`` is a plain number written as text (e.g. ``"-3.0000"``).
+
+    Formatted metric strings legitimately start with ``-``. Escaping them would write a
+    literal apostrophe into the cell (openpyxl stores the character; Excel's typed-input
+    apostrophe convention does not apply), visibly corrupting ``-3.0000`` into
+    ``'-3.0000``. A string that parses as a number cannot carry a formula payload, so it
+    is exempt. Surrounding whitespace disqualifies it — leading Tab/CR is itself a
+    trigger, so those stay escaped.
+    """
+    if value != value.strip():
+        return False
+    try:
+        float(value)
+    except ValueError:
+        return False
+    return True
+
+
 def _is_injection_risk(value: str) -> bool:
     """True if ``value`` could be evaluated as a formula by a spreadsheet."""
+    if _is_numeric_literal(value):
+        return False
     if value.startswith(FORMULA_PREFIXES):
         return True
     # Excel/Sheets strip leading whitespace before formula detection, so a formula
@@ -165,16 +186,16 @@ def write_keyvalue_sheet(
     ``title`` renames the worksheet (matching ``write_table_sheet``'s ``title``),
     so callers set the sheet name the same way for both sheet kinds.
 
-    Deliberately does NOT run labels or values through ``sanitize_cell``: this sheet
-    carries developer-formatted metric strings (e.g. ``"-3.0000"``) where escaping
-    would prefix a spurious apostrophe onto legitimate negative values; callers that
-    pass user-controlled text must sanitize it themselves before calling this.
+    Labels and values are run through ``sanitize_cell``, so this primitive — not its
+    four callers — owns the formula-injection guarantee. Developer-formatted metric
+    strings such as ``"-3.0000"`` are unaffected: ``_is_numeric_literal`` exempts
+    text that parses as a number, so only genuine payloads are escaped.
     """
     if title is not None:
         ws.title = title
     for r_idx, (label, value) in enumerate(rows, start=1):
-        ws.cell(r_idx, 1, label).font = _BOLD_FONT
-        ws.cell(r_idx, 2, value).font = _NORMAL_FONT
+        ws.cell(r_idx, 1, sanitize_cell(label)).font = _BOLD_FONT
+        ws.cell(r_idx, 2, sanitize_cell(value)).font = _NORMAL_FONT
     ws.column_dimensions["A"].width = key_width
     ws.column_dimensions["B"].width = value_width
 

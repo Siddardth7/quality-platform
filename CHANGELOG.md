@@ -279,8 +279,23 @@ All notable changes to the Quality Platform are documented here. The format foll
   `columns=` allow-list. Per OWASP WSTG-INPV-21 (Testing for CSV Injection) / CWE-1236 (Improper
   Neutralization of Formula Elements in a CSV File); the `'` prefix is OWASP's named mitigation,
   not a universal guarantee — OWASP itself notes some spreadsheet applications strip it on
-  save/re-open. `FORMULA_PREFIXES` and `write_keyvalue_sheet` (which deliberately leaves
-  developer-formatted metric strings like `"-3.0000"` unescaped) are unchanged in this issue.
+  save/re-open. `write_keyvalue_sheet` now escapes its labels and values too, so all four of its
+  app callers (SPC, MSA, Control Plan, FMEA) inherit the guarantee from the primitive rather
+  than owning it themselves — which is the whole point of this issue. To make that safe,
+  `_is_numeric_literal` exempts text that parses as a number: openpyxl stores a leading
+  apostrophe as a literal character, so escaping a formatted metric would have visibly corrupted
+  `-3.0000` into `'-3.0000` in every summary sheet. A payload that merely *starts* like a number
+  (`-3.0000+cmd|' /C calc'!A0`) does not parse and is still escaped. `FORMULA_PREFIXES` is
+  unchanged.
+
+### Tests
+
+- **#198's escaping is now actually asserted.** The fix originally shipped with no test: the io
+  gate still read 100% because existing tests crossed the new lines incidentally, so reverting
+  the fix left all 240 tests green. Five regression tests in
+  `packages/quality-core/tests/test_export.py` cover header-label escaping, duplicate labels,
+  `write_table_sheet` header + body, `write_keyvalue_sheet` label + value, and the
+  numeric-exemption guard. All five were verified to fail against the pre-#198 code.
 
 ## [0.7.0] - 2026-07-18
 
