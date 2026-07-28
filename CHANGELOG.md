@@ -242,6 +242,28 @@ All notable changes to the Quality Platform are documented here. The format foll
   results table). New standalone `apps/msa/app.py`; the platform shell landing
   page (`shell/home.py`) now lists an MSA feature card.
 
+### Changed
+
+- **README + ROADMAP reconciled with the tree (A01, #208).** Both documents described a platform
+  that no longer exists: README's architecture omitted SECOM and marked Control Plan / MSA as
+  unshipped, and its layout tree listed two of five apps; ROADMAP §3 still described "two Streamlit
+  apps ... consumed twice". Both now state **five workspace members — four mounted in the shell,
+  SECOM engine-only** — with grep-verified `quality_core` dependency edges. ROADMAP Week 12 is
+  rewritten from the **cancelled** Reflex migration to the decided web platform (FastAPI + Next.js,
+  one repo, `web/` at root — `docs/research/web-platform-migration.md`). Documentation only.
+- **SECOM recorded as engine-only (A02, #206).** ROADMAP §3, `apps/secom/README.md`, and
+  `secom_app/__init__.py` now state that SECOM is a tested *library* — consumed by its suite and,
+  from P3, by the API — deliberately not mounted in the Streamlit shell. Recorded so API-route
+  enumeration reads the workspace members, not the shell's navigation map.
+
+### Removed
+
+- **Orphan SECOM Streamlit page deleted (A02, #206).** `secom_app/pages/yield_dppm.py`
+  (`render_yield_dppm()`, W09-5) was mounted nowhere and, per the engine-only decision, never
+  will be; the now-empty `secom_app/pages/` package goes with it. The engine
+  (`secom_app/yield_dppm.py`) and its 100% CI gate are untouched — the page was ungated and
+  untested, so no covered line was lost.
+
 ## [0.7.0] - 2026-07-18
 
 Week 07 — Close the loop. Completes the AIAG improvement loop end to end: a Control Plan
