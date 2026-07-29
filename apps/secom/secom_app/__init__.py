@@ -4,9 +4,10 @@
 its own suite and, from P3 onward, by the API — and is deliberately *not* mounted
 in the Streamlit shell (``app.py``); there is no entry script under ``apps/secom/``.
 
-`__version__` is the single source of truth for the SECOM version. The package is
-``package = false`` (not installed as a distribution), so ``importlib.metadata``
-cannot resolve it — hence a plain constant here.
+`__version__` is the single source of truth for the SECOM app version. Since #204
+the app is an installed (editable) workspace package, so
+``importlib.metadata.version("secom-app")`` resolves too; this constant stays the
+value ``pyproject.toml`` is kept in sync with.
 
 Keep this in sync with ``apps/secom/pyproject.toml`` at release (bump both together).
 """
