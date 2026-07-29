@@ -23,7 +23,7 @@ from typing import Annotated, BinaryIO
 
 import pandas as pd
 import pydantic
-from quality_core.io import IngestError, TableSchema, load_table
+from quality_core.io import IngestError, TableSchema, load_table, load_table_from_path
 
 __all__ = ["SPCRow", "SPC_SCHEMA", "load_spc_csv", "IngestError"]
 
@@ -68,4 +68,6 @@ def load_spc_csv(source: str | BinaryIO) -> pd.DataFrame:
     ``ValueError`` subclass) with a user-safe message on a malformed upload, for
     the page to surface via ``st.error``.
     """
+    if isinstance(source, str):
+        return load_table_from_path(source, SPC_SCHEMA)
     return load_table(source, SPC_SCHEMA)

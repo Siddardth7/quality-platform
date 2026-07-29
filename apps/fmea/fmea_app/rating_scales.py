@@ -17,7 +17,12 @@ Public API:
     RatingScaleSet                 — validated container for the three scales
     load_default_scales()          — load the bundled AIAG FMEA-4 default
     load_scales_from_mapping(obj)  — validate a parsed dict (custom scale)
-    load_scales_from_json(text)    — parse + validate raw JSON text/bytes
+    load_scales_from_json(text)    — parse + validate raw JSON text/bytes; raises
+                                      ``ValueError`` (never a stack trace) on an
+                                      oversized payload or any parse failure,
+                                      including a deeply nested "JSON bomb"
+                                      that would otherwise blow the recursion
+                                      limit (#199)
 
 Author: Siddardth | M.S. Aerospace Engineering, UIUC
 """
@@ -30,6 +35,7 @@ from typing import Any
 
 import pandas as pd
 import pydantic
+from quality_core.io import DEFAULT_MAX_UPLOAD_BYTES
 
 #: The bundled AIAG FMEA-4 default scale, kept as data (not constants).
 DEFAULT_SCALES_PATH = Path(__file__).resolve().parent.parent / "data" / "rating_scales.json"
@@ -132,10 +138,30 @@ def load_scales_from_mapping(obj: dict[str, Any]) -> RatingScaleSet:
     return _build(obj, default_name="Custom")
 
 
-def load_scales_from_json(text: str | bytes) -> RatingScaleSet:
-    """Parse raw JSON (e.g. an uploaded file) and validate it as a custom scale."""
+def load_scales_from_json(
+    text: str | bytes, *, max_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
+) -> RatingScaleSet:
+    """Parse raw JSON (e.g. an uploaded file) and validate it as a custom scale.
+
+    Fails closed (#199): the byte-length ceiling is checked *before* parsing
+    (reusing ``quality_core.io``'s shared upload ceiling, not a second literal),
+    and every ``json.loads`` failure — not just ``JSONDecodeError``/
+    ``UnicodeDecodeError`` — is normalised to ``ValueError`` so a pathological
+    payload (e.g. deeply nested brackets) cannot escape as an uncaught
+    ``RecursionError`` past ``ui/filters.py``'s ``except ValueError``.
+
+    Raises
+    ------
+    ValueError
+        On an oversized payload or any parse failure.
+    """
+    length = len(text) if isinstance(text, (bytes, bytearray)) else len(text.encode("utf-8", "surrogatepass"))
+    if length > max_bytes:
+        mb = max_bytes // (1024 * 1024)
+        raise ValueError(f"Rating-scale JSON exceeds the {mb} MB limit.")
+
     try:
         parsed = json.loads(text)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except Exception as exc:  # narrow try (json.loads only); normalise every failure
         raise ValueError(f"Could not parse rating-scale JSON: {exc}") from exc
     return load_scales_from_mapping(parsed)

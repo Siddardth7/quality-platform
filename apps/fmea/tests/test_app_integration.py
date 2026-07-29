@@ -97,7 +97,31 @@ def test_formula_prefixed_strings_not_stored_as_formulas():
 
 def test_oversized_upload_rejected_with_friendly_error():
     """F-029 regression: an uploaded file above MAX_UPLOAD_BYTES must be
-    rejected with a ValueError carrying a user-friendly message."""
+    rejected with a ValueError carrying a user-friendly message.
+
+    #199: the ceiling is enforced against the stream's *measured* length, not
+    a caller-supplied `.size`, so the fake upload must be a real seekable
+    buffer over the limit (a `.size`-only double no longer exercises this
+    path — see test_unmeasurable_upload_rejected_as_unmeasurable below)."""
+    import io
+
+    import pytest
+
+    from app import MAX_UPLOAD_BYTES, _load_uploaded
+
+    class _FakeUpload(io.BytesIO):
+        def __init__(self, size, name="huge.csv"):
+            super().__init__(b"x" * size)
+            self.name = name
+
+    with pytest.raises(ValueError, match="exceeds"):
+        _load_uploaded(_FakeUpload(size=MAX_UPLOAD_BYTES + 1))
+
+
+def test_unmeasurable_upload_rejected_as_unmeasurable():
+    """#199: a source with `.size`/`.name` but no `tell`/`seek` (the old
+    trusting-`.size` shape) is rejected as unmeasurable rather than silently
+    let through the ceiling."""
     import pytest
 
     from app import MAX_UPLOAD_BYTES, _load_uploaded
@@ -107,5 +131,5 @@ def test_oversized_upload_rejected_with_friendly_error():
             self.size = size
             self.name = name
 
-    with pytest.raises(ValueError, match="exceeds"):
+    with pytest.raises(ValueError, match="could not be measured"):
         _load_uploaded(_FakeUpload(size=MAX_UPLOAD_BYTES + 1))

@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from quality_core.io import read_table
+from quality_core.io import read_table_from_path
 
 from fmea_app._logging import get_logger
 from fmea_app.rpn_engine import run_pipeline
@@ -65,7 +65,7 @@ def _bold(text: str) -> str:
 def _load_file(path: Path) -> pd.DataFrame:
     """Load a CSV/Excel FMEA file via the shared read boundary (size guard,
     extension dispatch, and friendly errors live once in quality_core.io)."""
-    return read_table(path)
+    return read_table_from_path(path)
 
 
 def _build_flags_str(row: pd.Series) -> str:

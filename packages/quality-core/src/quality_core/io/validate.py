@@ -7,19 +7,33 @@ a :class:`TableSchema` (a Pydantic row model + the columns it requires, plus an
 optional dataset-level model for cross-row rules); these helpers own the cross-cutting
 concerns every app's upload path must get right:
 
-  - reading CSV / Excel from a path or Streamlit upload, with a size guard and a
-    friendly error for unsupported file types or unparseable files
-    (``read_table``)
+  - reading CSV / Excel from raw bytes or a binary file-like (e.g. a Streamlit
+    upload), with a *measured* byte ceiling, row/column caps, and a friendly
+    error for unsupported file types or unparseable files (``read_table``)
+  - the same, but from a trusted filesystem path (``read_table_from_path`` —
+    the *only* place a path is accepted; see "Fail closed" below)
   - schema/type/range validation against the app's Pydantic model, turning the
     first failure into a clear, row-addressed message instead of a stack trace,
     and normalising empty cells to ``None`` so a blank never coerces to the
     literal text ``"nan"`` (``validate_table``)
-  - a single ``load_table`` that reads then validates, the drop-in replacement for
-    a bare ``pd.read_csv(upload)``
+  - ``load_table`` / ``load_table_from_path``, which read then validate — the
+    drop-in replacement for a bare ``pd.read_csv(upload)``
 
 Every friendly failure is raised as :class:`IngestError` — a ``ValueError`` subclass
 so existing ``except ValueError`` paths keep working, and a distinct type so a
 Streamlit caller can ``st.error(str(e))`` and trust the message is user-safe.
+
+Fail closed (#199): ``read_table``/``load_table`` accept only raw bytes or a
+binary file-like — never a ``str``/``PathLike`` — because pandas resolves a
+``str`` source as a local path *or a URL*, which is an SSRF/LFI surface at a
+request boundary. A filesystem path is only reachable via the separately named
+``read_table_from_path``/``load_table_from_path``, which ``open()``s it directly
+(no URL resolution). The byte ceiling is *measured* by seeking the stream, never
+read off a caller-supplied ``.size`` attribute — an unmeasurable source (not
+seekable, or missing ``tell``/``seek``) is rejected outright rather than let
+through unmeasured. Row/column caps are a secondary, cell-count control; for
+``.xlsx`` the byte ceiling remains the primary defense against a small zip
+inflating hugely.
 
 This is the platform's "validate ingest once, use it everywhere" surface: FMEA and
 SPC both plug their own schema into the same machinery.
@@ -27,6 +41,7 @@ SPC both plug their own schema into the same machinery.
 
 from __future__ import annotations
 
+import io
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -44,12 +59,27 @@ import pydantic
 #: likely to be a mistake or an attack than a real dataset.
 DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
+#: Default row ceiling. Every fixture checked into this repo today is orders of
+#: magnitude smaller (thousands of rows at most); 1e6 rows is already far past
+#: what the 20 MB byte ceiling allows for any plausible CSV, so this only bites
+#: pathological input (SME sign-off, #199).
+DEFAULT_MAX_ROWS = 1_000_000
+
+#: Default column ceiling. The widest real quality table (Control Plan) has
+#: ~15 columns; 1e3 columns bites only pathological input (SME sign-off, #199).
+DEFAULT_MAX_COLUMNS = 1_000
+
 #: Longest offending value echoed back in an error message before truncation.
 _MAX_ECHO_LEN = 50
 
-#: A readable source: a filesystem path or a binary file-like (e.g. a Streamlit
-#: ``UploadedFile``, which is a ``BytesIO`` carrying ``.name`` and ``.size``).
-Source = Union[str, "os.PathLike[str]", BinaryIO]
+#: An API-safe source: a binary file-like (Streamlit ``UploadedFile``,
+#: ``io.BytesIO``, an open file handle) or raw bytes. Deliberately NOT a
+#: ``str``/``PathLike`` — pandas resolves a ``str`` as a local path or a URL, so
+#: paths live behind :func:`read_table_from_path` only.
+Source = Union[BinaryIO, bytes, bytearray]
+
+#: A trusted filesystem path, accepted only by the ``*_from_path`` functions.
+PathSource = Union[str, "os.PathLike[str]"]
 
 
 class IngestError(ValueError):
@@ -110,32 +140,42 @@ class TableSchema:
 # ===========================================================================
 
 
-def _resolve_filename(source: Source, filename: str | None) -> str:
+def _resolve_filename(stream: BinaryIO, filename: str | None) -> str:
     """Best-effort name used only for extension dispatch and error messages."""
     if filename:
         return filename
-    name = getattr(source, "name", None)
+    name = getattr(stream, "name", None)
     if isinstance(name, str) and name:
         return name
-    if isinstance(source, (str, os.PathLike)):
-        return os.fspath(source)
     raise IngestError(
         "Could not determine the file type: the upload has no file name. "
         "Pass filename=... or upload a .csv or .xlsx file."
     )
 
 
-def _source_size(source: Source) -> int | None:
-    """Size in bytes if cheaply known (Streamlit upload .size, or a real path)."""
-    size = getattr(source, "size", None)
-    if isinstance(size, int):
-        return size
-    if isinstance(source, (str, os.PathLike)):
-        try:
-            return os.path.getsize(source)
-        except OSError:
-            return None
-    return None
+def _measured_size(stream: BinaryIO) -> int:
+    """Measure a stream's length by seeking, never by trusting a ``.size`` attribute.
+
+    A ``.size`` attribute is whatever the caller (or an attacker) set it to — it is
+    not evidence of the stream's real length (#199 HIGH finding). The only
+    authority is the stream's own position range, so this seeks to the end and
+    back to the position found, leaving the stream exactly where a caller-driven
+    rerun (e.g. Streamlit re-handing the same ``UploadedFile``) expects it, ready
+    for ``pandas`` to read from that same position next.
+    """
+    try:
+        pos = stream.tell()
+        stream.seek(0, os.SEEK_END)
+        size = stream.tell()
+        stream.seek(pos)
+    except (OSError, AttributeError) as exc:
+        # OSError covers io.UnsupportedOperation (a subclass) for a non-seekable
+        # stream; AttributeError covers a source missing tell/seek entirely.
+        raise IngestError(
+            "Upload could not be measured (the stream is not seekable). "
+            "Re-upload the file or pass a seekable buffer."
+        ) from exc
+    return size
 
 
 def read_table(
@@ -143,28 +183,50 @@ def read_table(
     *,
     filename: str | None = None,
     max_bytes: int | None = DEFAULT_MAX_UPLOAD_BYTES,
+    max_rows: int | None = DEFAULT_MAX_ROWS,
+    max_columns: int | None = DEFAULT_MAX_COLUMNS,
 ) -> pd.DataFrame:
     """Read a ``.csv`` or ``.xlsx`` source into a DataFrame, friendly errors only.
 
     Parameters
     ----------
     source:
-        A filesystem path or a binary file-like (e.g. a Streamlit upload).
+        Raw bytes or a binary file-like (e.g. a Streamlit upload). A filesystem
+        path is deliberately NOT accepted here — see :func:`read_table_from_path`.
     filename:
         Overrides the name used to pick the reader; needed when ``source`` is a
-        bare buffer with no ``.name``.
+        bare buffer/bytes with no ``.name``.
     max_bytes:
         Upload ceiling; ``None`` disables the check. Defaults to
-        :data:`DEFAULT_MAX_UPLOAD_BYTES`.
+        :data:`DEFAULT_MAX_UPLOAD_BYTES`. When enforced, the size is *measured*
+        (stream seek), never read off a ``.size`` attribute, and an unmeasurable
+        source is rejected rather than let through (fail closed).
+    max_rows:
+        Row ceiling; ``None`` disables the check. Defaults to
+        :data:`DEFAULT_MAX_ROWS`. Enforced during the parse (one row past the
+        cap is read so "too many" is distinguishable from "exactly at the cap"
+        while keeping the parse bounded) — a secondary, cell-count control; the
+        byte ceiling above is the primary defense, especially for ``.xlsx``
+        (a small zip can inflate hugely).
+    max_columns:
+        Column ceiling; ``None`` disables the check. Defaults to
+        :data:`DEFAULT_MAX_COLUMNS`, checked on the parsed frame.
 
     Raises
     ------
     IngestError
-        On an unsupported extension, an oversized file, or an unparseable file.
-        The file-type check runs first, so the message names the more fundamental
-        problem (wrong type) before complaining about size.
+        On an unsupported extension, an unmeasurable or oversized source, a
+        row/column cap violation, or an unparseable file. The file-type check
+        runs first, then size, so each message names the more fundamental
+        problem before the next.
     """
-    name = _resolve_filename(source, filename)
+    if isinstance(source, (str, os.PathLike)):
+        raise IngestError(
+            "A file path is not accepted here. Upload the file, or use "
+            "read_table_from_path() for a trusted local path."
+        )
+    stream: BinaryIO = io.BytesIO(source) if isinstance(source, (bytes, bytearray)) else source
+    name = _resolve_filename(stream, filename)
     lowered = name.lower()
     is_csv = lowered.endswith(".csv")
     is_excel = lowered.endswith((".xlsx", ".xlsm"))
@@ -175,20 +237,72 @@ def read_table(
         )
 
     if max_bytes is not None:
-        size = _source_size(source)
-        if size is not None and size > max_bytes:
+        size = _measured_size(stream)
+        if size > max_bytes:
             mb = max_bytes // (1024 * 1024)
             raise IngestError(
                 f"Uploaded file exceeds the {mb} MB limit. Files this large are "
                 "unusual for a quality dataset; split it or load it from the CLI."
             )
 
+    # One row past the cap, so "too many rows" is distinguishable from "exactly
+    # at the cap" while keeping the parse itself bounded.
+    nrows = max_rows + 1 if max_rows is not None else None
+
     try:
-        return pd.read_csv(source) if is_csv else pd.read_excel(source)
+        df = pd.read_csv(stream, nrows=nrows) if is_csv else pd.read_excel(stream, nrows=nrows)
     except Exception as exc:  # message varies by reader; normalise to a friendly one
         raise IngestError(
             f"Could not read '{name}'. The file may be corrupt, empty, missing, or not a "
             f"valid {'CSV' if is_csv else 'Excel'} file."
+        ) from exc
+
+    if max_rows is not None and len(df) > max_rows:
+        raise IngestError(
+            f"'{name}' has more than {max_rows} rows, which exceeds the limit for a "
+            "quality dataset. Split it into smaller files."
+        )
+    if max_columns is not None and df.shape[1] > max_columns:
+        raise IngestError(
+            f"'{name}' has more than {max_columns} columns, which exceeds the limit for "
+            "a quality dataset. Check the file is not malformed."
+        )
+
+    return df
+
+
+def read_table_from_path(
+    path: PathSource,
+    *,
+    max_bytes: int | None = DEFAULT_MAX_UPLOAD_BYTES,
+    max_rows: int | None = DEFAULT_MAX_ROWS,
+    max_columns: int | None = DEFAULT_MAX_COLUMNS,
+) -> pd.DataFrame:
+    """Read a ``.csv``/``.xlsx`` file from a trusted filesystem path.
+
+    The only place in this module a filesystem path is accepted (see the module
+    docstring's "Fail closed"). Opens ``path`` directly in binary mode — never
+    handed to pandas as a string — so a URL-shaped string (e.g.
+    ``"http://169.254.169.254/..."``) is simply an unreadable local path, not a
+    network request: the SSRF/LFI shape disappears without a URL blocklist.
+
+    Raises
+    ------
+    IngestError
+        The friendly "Could not read ..." message on a missing/unreadable path
+        or a directory; otherwise the same failures as :func:`read_table`.
+    """
+    name = os.fspath(path)
+    kind = "CSV" if name.lower().endswith(".csv") else "Excel"
+    try:
+        with open(name, "rb") as fh:
+            return read_table(
+                fh, filename=name, max_bytes=max_bytes, max_rows=max_rows, max_columns=max_columns
+            )
+    except OSError as exc:
+        raise IngestError(
+            f"Could not read '{name}'. The file may be corrupt, empty, missing, or not a "
+            f"valid {kind} file."
         ) from exc
 
 
@@ -300,12 +414,34 @@ def load_table(
     *,
     filename: str | None = None,
     max_bytes: int | None = DEFAULT_MAX_UPLOAD_BYTES,
+    max_rows: int | None = DEFAULT_MAX_ROWS,
+    max_columns: int | None = DEFAULT_MAX_COLUMNS,
 ) -> pd.DataFrame:
     """Read a ``.csv``/``.xlsx`` source and validate it against ``schema``.
 
     The one-call drop-in for ``pd.read_csv(upload)`` that fails with a friendly
     :class:`IngestError` instead of a stack trace. See :func:`read_table` and
-    :func:`validate_table` for the individual steps.
+    :func:`validate_table` for the individual steps. ``source`` is bytes/file-like
+    only; for a trusted filesystem path use :func:`load_table_from_path`.
     """
-    df = read_table(source, filename=filename, max_bytes=max_bytes)
+    df = read_table(
+        source, filename=filename, max_bytes=max_bytes, max_rows=max_rows, max_columns=max_columns
+    )
+    return validate_table(df, schema)
+
+
+def load_table_from_path(
+    path: PathSource,
+    schema: TableSchema,
+    *,
+    max_bytes: int | None = DEFAULT_MAX_UPLOAD_BYTES,
+    max_rows: int | None = DEFAULT_MAX_ROWS,
+    max_columns: int | None = DEFAULT_MAX_COLUMNS,
+) -> pd.DataFrame:
+    """Read a ``.csv``/``.xlsx`` file from a trusted path and validate it against ``schema``.
+
+    See :func:`read_table_from_path` and :func:`validate_table` for the individual
+    steps.
+    """
+    df = read_table_from_path(path, max_bytes=max_bytes, max_rows=max_rows, max_columns=max_columns)
     return validate_table(df, schema)
