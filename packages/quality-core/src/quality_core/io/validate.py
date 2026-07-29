@@ -15,9 +15,11 @@ concerns every app's upload path must get right:
   - schema/type/range validation against the app's Pydantic model, turning the
     first failure into a clear, row-addressed message instead of a stack trace,
     and normalising empty cells to ``None`` so a blank never coerces to the
-    literal text ``"nan"`` (``validate_table``)
+    literal text ``"nan"``; the frame comes back narrowed to the columns actually
+    validated, so an undeclared column cannot reach an engine (``validate_table``)
   - ``load_table`` / ``load_table_from_path``, which read then validate — the
-    drop-in replacement for a bare ``pd.read_csv(upload)``
+    *narrowing* replacement for a bare ``pd.read_csv(upload)``: same one call, but
+    only the validated columns come back (#200)
 
 Every friendly failure is raised as :class:`IngestError` — a ``ValueError`` subclass
 so existing ``except ValueError`` paths keep working, and a distinct type so a
@@ -105,6 +107,11 @@ class TableSchema:
     required_columns:
         Columns that must be present and are passed to ``row_model``. Defaults to
         the model's field names (the common case where columns == fields).
+    optional_columns:
+        Columns that need not be present, but when they are, are validated by the
+        same ``row_model`` and kept in the returned frame (#200). Every name must
+        be a ``row_model`` field *with a default* — a file omitting the column
+        would otherwise fail every row with a confusing "Field required".
     dataset_model:
         Optional Pydantic model for cross-row rules (e.g. unique IDs). Constructed
         as ``dataset_model(rows=[...])`` over the validated row *instances*, so its
@@ -117,6 +124,7 @@ class TableSchema:
     name: str
     row_model: type[pydantic.BaseModel]
     required_columns: tuple[str, ...] = ()
+    optional_columns: tuple[str, ...] = ()
     dataset_model: type[pydantic.BaseModel] | None = None
     template_hint: str | None = None
 
@@ -125,6 +133,19 @@ class TableSchema:
         if not self.required_columns:
             object.__setattr__(
                 self, "required_columns", tuple(self.row_model.model_fields)
+            )
+        # A bad optional_columns entry is a developer error at import time, not a
+        # user-facing ingest failure — so plain ValueError, never IngestError.
+        fields = self.row_model.model_fields
+        bad = [
+            col
+            for col in self.optional_columns
+            if col not in fields or fields[col].is_required()
+        ]
+        if bad:
+            raise ValueError(
+                f"{self.name}: optional_columns {bad} must be {self.row_model.__name__} "
+                "fields with defaults."
             )
 
     def _hint_suffix(self) -> str:
@@ -357,12 +378,17 @@ def _format_dataset_error(schema: TableSchema, exc: pydantic.ValidationError) ->
 
 
 def validate_table(df: pd.DataFrame, schema: TableSchema) -> pd.DataFrame:
-    """Validate ``df`` against ``schema``; return it unchanged or raise.
+    """Validate ``df`` against ``schema``; return **only the validated columns** or raise.
 
     Checks, in order: at least one row; all ``required_columns`` present; each row
     valid per ``schema.row_model`` (empty cells normalised to ``None`` first); the
-    dataset valid per ``schema.dataset_model`` (if any). The DataFrame is returned
-    untouched so this slots in where a bare ``pd.read_csv`` result was used.
+    dataset valid per ``schema.dataset_model`` (if any).
+
+    Validation is reductive, not merely assertive (#200): the returned frame is a
+    copy narrowed to ``required_columns`` plus any ``optional_columns`` actually
+    present, in that order. A column the schema never looked at cannot reach an
+    engine through this boundary — undeclared columns are dropped silently, which
+    is normal for field data (``operator``, ``notes``, ``lot_id``) and not an error.
 
     Raises
     ------
@@ -383,8 +409,13 @@ def validate_table(df: pd.DataFrame, schema: TableSchema) -> pd.DataFrame:
             f"Expected columns: {list(required)}.{schema._hint_suffix()}"
         )
 
+    # Required columns, then any declared optional column actually present. dict.fromkeys
+    # dedupes (a name may appear in both) while preserving this deterministic order.
+    present_optional = [col for col in schema.optional_columns if col in df.columns]
+    columns = list(dict.fromkeys([*required, *present_optional]))
+
     rows: list[pydantic.BaseModel] = []
-    records = df[list(required)].to_dict(orient="records")
+    records = df[columns].to_dict(orient="records")
     for offset, record in enumerate(records):
         clean = {key: _na_to_none(value) for key, value in record.items()}
         try:
@@ -400,7 +431,13 @@ def validate_table(df: pd.DataFrame, schema: TableSchema) -> pd.DataFrame:
         except pydantic.ValidationError as exc:
             raise IngestError(_format_dataset_error(schema, exc)) from exc
 
-    return df
+    # Explicit .copy() pins the contract callers rely on: the returned frame is
+    # independent of the input, so assigning into it (e.g. msa_app/gage_rr_engine.py:89
+    # does `df["measurement"] = ...`) can never write through to the caller's frame.
+    # Under the pinned pandas (Copy-on-Write always on) a list projection already
+    # copies, so this is belt-and-braces — kept so the guarantee does not silently
+    # depend on a pandas implementation detail.
+    return df[columns].copy()
 
 
 # ===========================================================================
@@ -420,9 +457,12 @@ def load_table(
     """Read a ``.csv``/``.xlsx`` source and validate it against ``schema``.
 
     The one-call drop-in for ``pd.read_csv(upload)`` that fails with a friendly
-    :class:`IngestError` instead of a stack trace. See :func:`read_table` and
-    :func:`validate_table` for the individual steps. ``source`` is bytes/file-like
-    only; for a trusted filesystem path use :func:`load_table_from_path`.
+    :class:`IngestError` instead of a stack trace — with one deliberate difference
+    from ``pd.read_csv``: the frame comes back narrowed to the columns the schema
+    validated (#200), so an undeclared column never reaches an engine. See
+    :func:`read_table` and :func:`validate_table` for the individual steps.
+    ``source`` is bytes/file-like only; for a trusted filesystem path use
+    :func:`load_table_from_path`.
     """
     df = read_table(
         source, filename=filename, max_bytes=max_bytes, max_rows=max_rows, max_columns=max_columns

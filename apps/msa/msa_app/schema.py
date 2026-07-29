@@ -98,7 +98,11 @@ GAGE_STUDY_SCHEMA = TableSchema(
 def load_gage_study_csv(source: str | BinaryIO) -> pd.DataFrame:
     """Read + validate an uploaded gage-study ``.csv`` against :data:`GAGE_STUDY_SCHEMA`.
 
-    Returns the validated DataFrame unchanged. Raises :class:`IngestError` (a
+    Returns a DataFrame narrowed to exactly the four validated columns — ``part``,
+    ``appraiser``, ``trial``, ``measurement``. The schema declares no optional
+    columns, so any extra column in the upload (a study's ``operator_notes``, a
+    stray index column) is dropped rather than passed on to the R&R math (#200).
+    Raises :class:`IngestError` (a
     ``ValueError`` subclass) with a user-safe message on a malformed upload, for
     the page to surface via ``st.error``.
     """

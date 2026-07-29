@@ -70,6 +70,27 @@ class LooseRow(pydantic.BaseModel):
     Name: str
 
 
+class OptRow(pydantic.BaseModel):
+    """Toy row model with declarable optional columns (#200).
+
+    Non-strict (unlike ``WidgetRow``) so a CSV-parsed numpy scalar coerces, and a
+    blank cell arrives as ``None`` and is accepted by the nullable fields.
+    """
+
+    ID: Annotated[int, pydantic.Field(gt=0)]
+    Name: Annotated[str, pydantic.Field(min_length=1)]
+    Note: Annotated[str | None, pydantic.Field(default=None, max_length=5)] = None
+    Weight: Annotated[float | None, pydantic.Field(default=None, gt=0)] = None
+
+
+OPT_SCHEMA = TableSchema(
+    name="Opt",
+    row_model=OptRow,
+    required_columns=("ID", "Name"),
+    optional_columns=("Note", "Weight"),
+)
+
+
 SCHEMA = TableSchema(
     name="Widget",
     row_model=WidgetRow,
@@ -422,10 +443,13 @@ def test_read_table_from_path_str_and_pathlike_resolve_same_name(tmp_path):
 # --- validate_table ----------------------------------------------------------
 
 
-def test_validate_happy_path_returns_frame_unchanged():
+def test_validate_happy_path_returns_validated_columns():
     df = pd.DataFrame(GOOD_ROWS)
     out = validate_table(df, SCHEMA)
-    assert out is df
+    # #200: a narrowed copy, never the caller's object. Values/order unchanged here
+    # because GOOD_ROWS carries exactly the required columns.
+    assert out is not df
+    pd.testing.assert_frame_equal(out, df)
 
 
 def test_validate_rejects_empty_frame():
@@ -440,9 +464,12 @@ def test_validate_reports_missing_columns():
         validate_table(df, SCHEMA)
 
 
-def test_validate_ignores_extra_columns():
+def test_validate_drops_undeclared_columns():
     df = pd.DataFrame([{"ID": 1, "Name": "alpha", "Score": 5, "Extra": "ok"}])
-    assert validate_table(df, SCHEMA) is df
+    out = validate_table(df, SCHEMA)
+    # #200: an undeclared column is dropped silently — not an error, but it must
+    # not reach the caller (and through them, an engine) unvalidated.
+    assert list(out.columns) == ["ID", "Name", "Score"]
 
 
 def test_validate_range_error_is_addressed_and_friendly():
@@ -549,7 +576,7 @@ def test_validate_without_dataset_model_skips_cross_row_checks():
             {"ID": 1, "Name": "beta", "Score": 6},  # duplicate, but no rule to catch it
         ]
     )
-    assert validate_table(df, schema) is df
+    pd.testing.assert_frame_equal(validate_table(df, schema), df)
 
 
 # --- load_table (read + validate) -------------------------------------------
@@ -644,3 +671,133 @@ def test_r2_url_string_reaches_no_network_via_read_table_from_path():
     filesystem resolver (`open()`), never pandas' URL-resolving `read_csv`."""
     with pytest.raises(IngestError, match="Could not read"):
         read_table_from_path("https://example.com/widgets.csv")
+
+
+# --- #200: validate_table is reductive — optional_columns + narrowed copy ------
+# The finding: validation was assertive only (check required_columns, hand back
+# the caller's whole frame), so any other column reached an engine unvalidated.
+
+
+def test_optional_column_present_and_valid_survives_with_its_values():
+    df = pd.DataFrame([{"ID": 1, "Name": "alpha", "Note": "ok", "Weight": 2.5}])
+    out = validate_table(df, OPT_SCHEMA)
+    assert list(out.columns) == ["ID", "Name", "Note", "Weight"]
+    assert out["Note"].iloc[0] == "ok"
+    assert out["Weight"].iloc[0] == 2.5
+
+
+def test_optional_column_present_and_invalid_is_row_and_column_addressed():
+    df = pd.DataFrame(
+        [
+            {"ID": 1, "Name": "alpha", "Note": "ok"},
+            {"ID": 2, "Name": "beta", "Note": "far too long"},  # max_length=5
+        ]
+    )
+    with pytest.raises(IngestError) as exc:
+        validate_table(df, OPT_SCHEMA)
+    msg = str(exc.value)
+    assert "Row 3" in msg  # header is row 1, so the 2nd data row is row 3
+    assert "column 'Note'" in msg
+
+
+def test_optional_column_absent_is_not_an_error_and_not_in_the_output():
+    df = pd.DataFrame([{"ID": 1, "Name": "alpha"}])
+    out = validate_table(df, OPT_SCHEMA)
+    # present_optional is empty here — the other branch of the projection.
+    assert list(out.columns) == ["ID", "Name"]
+
+
+def test_optional_column_present_but_blank_stays_nan_in_the_output():
+    # The row model sees None (NaN normalised), but the frame is projected, never
+    # rebuilt from model output, so the original NaN cell survives.
+    df = pd.DataFrame([{"ID": 1, "Name": "alpha", "Weight": float("nan")}])
+    out = validate_table(df, OPT_SCHEMA)
+    assert list(out.columns) == ["ID", "Name", "Weight"]
+    assert pd.isna(out["Weight"].iloc[0])
+
+
+def test_returned_columns_follow_schema_order_and_dedupe_a_shared_name():
+    # "Note" is declared in both tuples (legal: it has a default, so the
+    # __post_init__ guard accepts it as optional), and the input column order is
+    # deliberately scrambled — the output must follow the *schema's* order, once each.
+    schema = TableSchema(
+        name="Opt",
+        row_model=OptRow,
+        required_columns=("Name", "ID", "Note"),
+        optional_columns=("Note", "Weight"),
+    )
+    df = pd.DataFrame([{"Weight": 1.0, "Note": "ok", "ID": 1, "Name": "alpha"}])
+    assert list(validate_table(df, schema).columns) == ["Name", "ID", "Note", "Weight"]
+
+
+def test_index_is_preserved_by_the_projection():
+    df = pd.DataFrame(GOOD_ROWS, index=[7, 11])
+    assert list(validate_table(df, SCHEMA).index) == [7, 11]
+
+
+def test_dtypes_are_preserved_no_coercion_back_into_the_frame():
+    df = pd.DataFrame([{"ID": 1, "Name": "alpha", "Weight": 2.5}])
+    out = validate_table(df, OPT_SCHEMA)
+    assert out.dtypes.to_dict() == df[["ID", "Name", "Weight"]].dtypes.to_dict()
+
+
+def test_returned_frame_is_a_copy_mutating_it_does_not_touch_the_input():
+    # Pins the caller-independence contract: msa_app/gage_rr_engine.py assigns into
+    # the frame this returns, and that must never write through to the caller's.
+    # This fails on `return df` (the pre-#200 behaviour); under the pinned pandas
+    # (Copy-on-Write always on) it passes with or without the explicit `.copy()`,
+    # which is kept so the guarantee does not rest on a pandas implementation detail.
+    df = pd.DataFrame(GOOD_ROWS)
+    out = validate_table(df, SCHEMA)
+    out.loc[0, "Score"] = 99
+    assert df.loc[0, "Score"] == 5
+
+
+def test_many_junk_columns_are_all_dropped_under_the_column_cap():
+    row = {"ID": 1, "Name": "alpha", "Score": 5}
+    row.update({f"junk_{i}": i for i in range(900)})
+    assert list(validate_table(pd.DataFrame([row]), SCHEMA).columns) == ["ID", "Name", "Score"]
+
+
+def test_optional_column_that_is_not_a_row_model_field_is_a_developer_error():
+    # ValueError, not IngestError: an import-time developer mistake, never shown
+    # to a user.
+    with pytest.raises(ValueError, match=r"optional_columns \['nope'\]") as exc:
+        TableSchema(name="Opt", row_model=OptRow, optional_columns=("nope",))
+    assert not isinstance(exc.value, IngestError)
+
+
+def test_optional_column_that_is_a_required_row_model_field_is_a_developer_error():
+    # "ID" has no default, so a file omitting it would fail every row with a
+    # confusing "Field required" — reject the schema instead.
+    with pytest.raises(ValueError, match=r"optional_columns \['ID'\]"):
+        TableSchema(name="Opt", row_model=OptRow, optional_columns=("ID",))
+
+
+def test_bad_optional_column_error_lists_every_offender_at_once():
+    with pytest.raises(ValueError, match=r"optional_columns \['ID', 'nope'\]"):
+        TableSchema(name="Opt", row_model=OptRow, optional_columns=("ID", "Note", "nope"))
+
+
+def test_valid_optional_columns_construct_the_schema_without_raising():
+    # The pass-through branch of the __post_init__ guard.
+    assert OPT_SCHEMA.optional_columns == ("Note", "Weight")
+
+
+# --- #200 Definition of Done: an unvalidated column cannot reach an engine ----
+
+
+def test_dod_undeclared_column_cannot_reach_a_caller_through_load_table():
+    rows = [{**r, "secret": "<script>", "operator": "A"} for r in GOOD_ROWS]
+    out = load_table(_csv_bytes(rows), SCHEMA)
+    assert list(out.columns) == ["ID", "Name", "Score"]
+    assert "secret" not in out.columns
+
+
+def test_dod_undeclared_column_cannot_reach_a_caller_through_load_table_from_path(tmp_path):
+    p = tmp_path / "widgets.csv"
+    rows = [{**r, "secret": "<script>", "operator": "A"} for r in GOOD_ROWS]
+    pd.DataFrame(rows).to_csv(p, index=False)
+    out = load_table_from_path(p, SCHEMA)
+    assert list(out.columns) == ["ID", "Name", "Score"]
+    assert "secret" not in out.columns

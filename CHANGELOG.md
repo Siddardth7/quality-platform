@@ -8,6 +8,23 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Fixed
 
+- **`quality_core.io` ingest is now reductive, not just assertive: `validate_table` returns only the
+  columns it validated (#200).** `validate_table` checked `required_columns` and then returned the
+  caller's frame verbatim, so any other column — SPC's `sample_size`, `lsl`, `usl` among them —
+  reached the engines unvalidated; the only guard was the `try/except` in the Streamlit pages, the
+  layer the web migration deletes. `TableSchema` gains `optional_columns`: columns that need not be
+  present, but are validated by the same `row_model` and returned when they are. `validate_table`
+  now returns a copy narrowed to the required columns plus the present optional ones, so an
+  undeclared column cannot reach an engine through `load_table`. SPC declares
+  `sample_size`/`lsl`/`usl`/`chart_type` (validated: `sample_size > 0` and finite — a u chart's
+  area of opportunity is legitimately fractional — finite tolerances,
+  `chart_type` restricted to the six engine chart keys) and drops the unused `parameter`; Control
+  Plan's app-local `_reject_bad_optional_values` is deleted in
+  favour of the core mechanism it prototyped. Related engine fix:
+  `spc_engine._validate_attribute_inputs` now rejects a non-finite sample size — `np.nan <= 0` is
+  `False`, so a NaN `n` previously slipped the positivity check and produced NaN control limits with
+  no error.
+
 - **`spc-app` and `secom-app` are now installable (editable) workspace packages, so
   `secom_app.charts`/`.capability` resolve `spc_app.spc_engine` (and `secom_app` itself
   resolves for `apps/api`) outside pytest (#204).** Declaring `spc-app` as a `secom-app`

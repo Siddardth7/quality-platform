@@ -399,7 +399,9 @@ def _validate_subgroups(subgroups: list[list[float]]) -> np.ndarray:
 def _validate_attribute_inputs(counts: np.ndarray, sizes: np.ndarray) -> None:
     if counts.ndim != 1 or sizes.ndim != 1 or counts.size == 0 or counts.size != sizes.size:
         raise ValueError("Attribute chart inputs must be matching 1D arrays.")
-    if np.any(sizes <= 0):
+    # ~isfinite first: `np.nan <= 0` is False, so a NaN size slipped the positivity
+    # check below and produced NaN control limits with no error at all (#200).
+    if np.any(~np.isfinite(sizes)) or np.any(sizes <= 0):
         raise ValueError("Attribute chart sample sizes must be positive.")
 
 
