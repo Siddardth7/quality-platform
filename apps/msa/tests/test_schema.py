@@ -9,11 +9,14 @@ template — the documented upload shape — must itself validate.
 from __future__ import annotations
 
 import io
+import warnings
 from pathlib import Path
 
 import pandas as pd
 import pytest
+from msa_app.gage_rr_engine import compute_gage_rr
 from msa_app.schema import GAGE_STUDY_SCHEMA, IngestError, load_gage_study_csv
+from quality_core.io import validate_table
 
 TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "data" / "gage_rr_template.csv"
 
@@ -153,6 +156,50 @@ def test_empty_upload_is_friendly():
     empty = pd.DataFrame(columns=["part", "appraiser", "trial", "measurement"])
     with pytest.raises(IngestError, match="at least one"):
         load_gage_study_csv(_csv_from_frame(empty))
+
+
+# --- #200: narrowed return, and the copy the R&R math depends on --------------
+
+
+def test_schema_declares_no_optional_columns():
+    assert GAGE_STUDY_SCHEMA.optional_columns == ()
+
+
+def test_extra_column_is_dropped_leaving_exactly_the_four_validated_ones():
+    rows = [{**r, "operator_notes": "n/a", "Unnamed: 0": i} for i, r in enumerate(GOOD_ROWS)]
+    out = load_gage_study_csv(_csv(rows))
+    assert list(out.columns) == ["part", "appraiser", "trial", "measurement"]
+
+
+def test_gage_rr_over_a_loaded_frame_runs_without_a_pandas_copy_warning():
+    # gage_rr_engine assigns `df["measurement"] = ...` straight into the frame the
+    # loader returns, so that assignment must stay warning-free on the narrowed
+    # frame. `simplefilter("error")` turns any pandas warning into a failure.
+    rows = [
+        {"part": p, "appraiser": a, "trial": t, "measurement": 10.0 + i * 0.01}
+        for i, (p, a, t) in enumerate(
+            (p, a, t)
+            for p in ("P01", "P02", "P03")
+            for a in ("A", "B")
+            for t in (1, 2)
+        )
+    ]
+    # An extra column makes the returned frame a strict projection of the parsed one.
+    loaded = load_gage_study_csv(_csv([{**r, "operator_notes": "x"} for r in rows]))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = compute_gage_rr(loaded)
+    assert result["pgrr_study"] >= 0
+
+
+def test_mutating_the_validated_frame_does_not_touch_the_caller_s_frame():
+    # Drives validate_table with ONE input frame we still hold a reference to: a
+    # re-parsed second frame would be unchanged even if validate_table returned the
+    # caller's object, so it proves nothing about the copy.
+    source = pd.DataFrame([{**r, "operator_notes": "x"} for r in GOOD_ROWS])
+    validated = validate_table(source, GAGE_STUDY_SCHEMA)
+    validated.loc[0, "measurement"] = 999.0
+    assert source.loc[0, "measurement"] == GOOD_ROWS[0]["measurement"]
 
 
 def test_duplicate_triple_rejected():
