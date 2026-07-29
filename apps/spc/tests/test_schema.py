@@ -67,6 +67,15 @@ def test_demo_dataset_validates_as_a_template():
     assert set(out["chart_type"].unique()) >= {"xbar_r", "imr", "p", "u", "c"}
 
 
+def test_csv_path_string_is_read_from_disk(tmp_path):
+    # A str source routes to load_table_from_path (the #199 fail-closed split): the
+    # narrowed load_table refuses paths outright, so this branch must stay covered.
+    path = tmp_path / "upload.csv"
+    path.write_text(pd.DataFrame(GOOD_ROWS).to_csv(index=False))
+    out = load_spc_csv(str(path))
+    assert len(out) == 3
+
+
 def test_optional_limits_may_be_blank():
     rows = [{"stream": "panel_defects", "subgroup": i, "value": 6, "sample_size": 1}
             for i in range(1, 4)]  # no lsl/usl columns at all
