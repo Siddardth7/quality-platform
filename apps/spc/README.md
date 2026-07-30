@@ -266,18 +266,30 @@ For the Xbar rule-detection sigma, pass **σ_x̄ = σ̂ / √n**, not σ̂ itsel
 
 ## Rule Detection Reference
 
-| Rule set | Rule | Definition | Window |
-|---|---|---|---|
-| Western Electric | 1 | 1 point beyond ±3σ | 1 |
-| Western Electric | 2 | 2 of 3 consecutive > ±2σ, same side | 3 |
-| Western Electric | 3 | 4 of 5 consecutive > ±1σ, same side | 5 |
-| Western Electric | 4 | 8 consecutive on same side of CL | 8 |
-| Nelson | 5 | 6 consecutive strictly monotone | 6 |
-| Nelson | 6 | 14 consecutive alternating up/down | 14 |
-| Nelson | 7 | 15 consecutive within ±1σ of CL | 15 |
-| Nelson | 8 | 8 consecutive outside ±1σ on both sides | 8 |
+`rule_set` is a mutually exclusive selector — each set is its own complete numbering; the
+Nelson set never emits a `"Western Electric …"` label.
 
-Calling `detect_nelson_violations` always includes WE Rules 1–4 first.
+**Western Electric** (`detect_we_violations`):
+
+| Rule | Definition | Window |
+|---|---|---|
+| 1 | 1 point beyond ±3σ | 1 |
+| 2 | 2 of 3 consecutive > ±2σ, same side | 3 |
+| 3 | 4 of 5 consecutive > ±1σ, same side | 5 |
+| 4 | 8 consecutive on same side of CL | 8 |
+
+**Nelson** (`detect_nelson_violations`, own numbering per Nelson 1984):
+
+| Rule | Definition | Window |
+|---|---|---|
+| 1 | 1 point beyond ±3σ | 1 |
+| 2 | 9 consecutive on same side of CL | 9 |
+| 3 | 6 consecutive strictly monotone | 6 |
+| 4 | 14 consecutive alternating up/down | 14 |
+| 5 | 2 of 3 consecutive > ±2σ, same side | 3 |
+| 6 | 4 of 5 consecutive > ±1σ, same side | 5 |
+| 7 | 15 consecutive within ±1σ of CL | 15 |
+| 8 | 8 consecutive outside ±1σ on both sides | 8 |
 
 ---
 
@@ -405,5 +417,5 @@ Capability analysis (Cp, Cpk) is **only meaningful on a stable process**. Comput
 
 - **AIAG SPC Reference Manual, 4th Edition (2005)** — chart constants (A₂, D₃, D₄, d₂, A₃, B₃, B₄, c₄, E₂), capability guidance
 - **Western Electric Statistical Quality Control Handbook (1956)** — Rules 1–4
-- **Nelson, L.S. (1984)** "The Shewhart Control Chart — Tests for Special Causes" — Rules 5–8 (*Journal of Quality Technology*, 16(4), 237–239)
+- **Nelson, L.S. (1984)** "The Shewhart Control Chart — Tests for Special Causes" — Nelson's own Rules 1–8 (*Journal of Quality Technology*, 16(4), 237–239)
 - **AS9100 / aerospace supplier guidance** — Cpk ≥ 1.33 as common capability minimum reference

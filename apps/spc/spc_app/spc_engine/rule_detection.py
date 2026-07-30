@@ -2,12 +2,28 @@
 
 from __future__ import annotations
 
+from typing import Mapping
+
 #: Chart types on which Western Electric / Nelson run-rules are statistically
 #: valid (Shewhart charts — independent points). Keyed on the same display
 #: strings the Control Charts page selector already uses (`CHART_OPTIONS`).
 SHEWHART_CHART_TYPES: frozenset[str] = frozenset(
     {"Xbar-R", "Xbar-S", "I-MR", "p", "c", "u"}
 )
+
+#: Zone/limit test labels, keyed by test (see `_zone_violations`).
+WE_LABELS: Mapping[str, str] = {
+    "beyond_3s": "Western Electric Rule 1",
+    "two_of_three": "Western Electric Rule 2",
+    "four_of_five": "Western Electric Rule 3",
+    "run_same_side": "Western Electric Rule 4",
+}
+NELSON_LABELS: Mapping[str, str] = {
+    "beyond_3s": "Nelson Rule 1",
+    "two_of_three": "Nelson Rule 5",
+    "four_of_five": "Nelson Rule 6",
+    "run_same_side": "Nelson Rule 2",
+}
 
 
 def detect_violations(
@@ -36,47 +52,26 @@ def detect_we_violations(points: list[float], cl: float, sigma: float) -> list[d
     if sigma <= 0:
         raise ValueError("sigma must be positive")
 
-    violations: list[dict[str, int | str]] = []
     centered = [point - cl for point in points]
-
-    for index, value in enumerate(centered):
-        if abs(value) > (3.0 * sigma):
-            violations.append(_violation(index, "Western Electric Rule 1"))
-
-    for end_index in range(2, len(centered)):
-        window = centered[end_index - 2 : end_index + 1]
-        if _count_same_side(window, 2.0 * sigma, 2):
-            violations.append(_violation(end_index, "Western Electric Rule 2"))
-
-    for end_index in range(4, len(centered)):
-        window = centered[end_index - 4 : end_index + 1]
-        if _count_same_side(window, 1.0 * sigma, 4):
-            violations.append(_violation(end_index, "Western Electric Rule 3"))
-
-    for end_index in range(7, len(centered)):
-        window = centered[end_index - 7 : end_index + 1]
-        if all(value > 0 for value in window) or all(value < 0 for value in window):
-            violations.append(_violation(end_index, "Western Electric Rule 4"))
-
-    return violations
+    return _zone_violations(centered, sigma, WE_LABELS, run_length=8)
 
 
 def detect_nelson_violations(points: list[float], cl: float, sigma: float) -> list[dict[str, int | str]]:
     if sigma <= 0:
         raise ValueError("sigma must be positive")
 
-    violations = list(detect_we_violations(points, cl=cl, sigma=sigma))
     centered = [point - cl for point in points]
+    violations = _zone_violations(centered, sigma, NELSON_LABELS, run_length=9)
 
     for end_index in range(5, len(points)):
         window = points[end_index - 5 : end_index + 1]
         if _is_strictly_monotonic(window):
-            violations.append(_violation(end_index, "Nelson Rule 5"))
+            violations.append(_violation(end_index, "Nelson Rule 3"))
 
     for end_index in range(13, len(points)):
         window = points[end_index - 13 : end_index + 1]
         if _is_alternating(window):
-            violations.append(_violation(end_index, "Nelson Rule 6"))
+            violations.append(_violation(end_index, "Nelson Rule 4"))
 
     for end_index in range(14, len(centered)):
         window = centered[end_index - 14 : end_index + 1]
@@ -93,13 +88,44 @@ def detect_nelson_violations(points: list[float], cl: float, sigma: float) -> li
     return violations
 
 
+def _zone_violations(
+    centered: list[float],
+    sigma: float,
+    labels: Mapping[str, str],
+    run_length: int,
+) -> list[dict[str, int | str]]:
+    """Beyond-3sigma, 2-of-3-beyond-2sigma, 4-of-5-beyond-1sigma, and
+    `run_length`-in-a-row-same-side, shared by both the Western Electric and
+    Nelson rule sets (they differ only in labels and run length).
+    """
+    violations: list[dict[str, int | str]] = []
+
+    for index, value in enumerate(centered):
+        if abs(value) > (3.0 * sigma):
+            violations.append(_violation(index, labels["beyond_3s"]))
+
+    for end_index in range(2, len(centered)):
+        window = centered[end_index - 2 : end_index + 1]
+        if _count_same_side(window, 2.0 * sigma, 2):
+            violations.append(_violation(end_index, labels["two_of_three"]))
+
+    for end_index in range(4, len(centered)):
+        window = centered[end_index - 4 : end_index + 1]
+        if _count_same_side(window, 1.0 * sigma, 4):
+            violations.append(_violation(end_index, labels["four_of_five"]))
+
+    for end_index in range(run_length - 1, len(centered)):
+        window = centered[end_index - (run_length - 1) : end_index + 1]
+        if all(value > 0 for value in window) or all(value < 0 for value in window):
+            violations.append(_violation(end_index, labels["run_same_side"]))
+
+    return violations
+
+
 def _count_same_side(window: list[float], threshold: float, minimum_count: int) -> bool:
     positive_hits = sum(value > threshold for value in window)
     negative_hits = sum(value < -threshold for value in window)
-    return (
-        (positive_hits >= minimum_count and negative_hits == 0)
-        or (negative_hits >= minimum_count and positive_hits == 0)
-    )
+    return positive_hits >= minimum_count or negative_hits >= minimum_count
 
 
 def _violation(index: int, rule: str) -> dict[str, int | str]:

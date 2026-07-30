@@ -205,11 +205,28 @@ scale all five components identically, so it cancels exactly out of `%GRR = 100 
 
 **Decision:** Compute **%GRR vs Tolerance** (if tolerance is provided) as:
 ```
-%GRR_tolerance = (GR&R / Tolerance) × 100
-where Tolerance = USL − LSL
+%GRR_tolerance = (6 × GR&R / Tolerance) × 100      where Tolerance = USL − LSL
 ```
 
 **Source:** AIAG MSA (4th Edition), Section 3.3, "Measurement System Acceptability Criteria" (alternative criterion).
+
+**Why the 6 is here and not in %GRR_study:** EV/AV/GRR/PV/TV are all carried in bare 1-sigma units
+(`K = 1/d2*`) inside this engine (see RULE 6/7 and `_average_and_range_method()`'s docstring). The
+6-sigma "study variation" multiplier cancels out of `%GRR_study = GRR/TV` and of
+`ndc = 1.41 × PV/GRR` because it would scale numerator and denominator identically — so it is
+correctly omitted there. It does **not** cancel here: the denominator is a fixed spec width
+(`USL − LSL`), not another bare-sigma quantity, so the numerator must first be put on the same
+6-sigma "study variation" basis before dividing. Skipping this step understates %GRR_tolerance by
+exactly 6× (audit finding A07 / issue #190).
+
+⚠ **Verified against a reproduction of the AIAG report form, not the paywalled manual itself:** the
+RTX / United Technologies PPAP toolbox "Study Case 1 — AIAG MSA Manual 4th Edition (pag 118-119)"
+reproduction — built from the same reference dataset as `apps/msa/data/aiag_reference_study.csv` —
+computes `100 × (6.00 × SMV) / Eng. Tolerance = 100 × 1.847522 / 4.4200 = 41.80%`, labelled
+`% Tolerance (SV/Toler)`. This confirms **6.00** (not 5.15) for the 4th edition.
+
+**5.15 is the superseded 3rd-edition convention** (99.0% coverage vs. 6σ's 99.73%) and is not used
+here; there is no config knob to select it — see `_STUDY_VARIATION_SIGMA` in `gage_rr_engine.py`.
 
 **Interpretation:**
 - **< 10%:** Excellent.
@@ -284,8 +301,9 @@ that looks acceptable against tolerance while actually failing against study var
 versa). If only `%GRR_study` is available (no tolerance input), base the verdict on `%GRR_study`.
 `ndc` and each individual `%GRR` value are still reported separately regardless of this choice.
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (computes the effective
-`verdict_pgrr` passed to `_compute_verdict()`)
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` computes the effective
+`verdict_pgrr` (the `max()` above) and passes it as the sole `pgrr` argument to
+`_compute_verdict(ndc, pgrr)`, which applies only the ndc/threshold logic.
 
 ---
 
@@ -417,7 +435,7 @@ new export path.
 | GR&R formula | `compute_gage_rr()`, lines: `grr = sqrt(ev² + av²)` |
 | Part / Total variation | `_average_and_range_method()`, lines: `pv = range_parts * k3`; `compute_gage_rr()`, lines: `tv = sqrt(grr² + pv²)` |
 | %GRR_study | `compute_gage_rr()`, lines: `pgrr_study = (grr / tv) * 100` |
-| %GRR_tolerance | `compute_gage_rr()`, lines: `pgrr_tolerance = (grr / tolerance) * 100` |
+| %GRR_tolerance | `compute_gage_rr()`, lines: `pgrr_tolerance = (grr * _STUDY_VARIATION_SIGMA / tolerance) * 100` |
 | ndc | `_compute_ndc()` |
 | Verdict logic | `_compute_verdict()`, `verdict_pgrr = max(pgrr_tolerance, pgrr_study)` in `compute_gage_rr()` |
 | Balance check | `compute_gage_rr()`, lines: `is_balanced = ...` |
