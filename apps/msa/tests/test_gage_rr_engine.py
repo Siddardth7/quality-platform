@@ -174,53 +174,66 @@ def test_ndc_zero_pv():
 
 def test_verdict_accept():
     """Verify ndc >= 5 AND %GRR < 10% → Accept."""
-    assert _compute_verdict(ndc=5, pgrr_tolerance=9.9, pgrr_study=9.0) == "Accept"
-    assert _compute_verdict(ndc=10, pgrr_tolerance=5.0, pgrr_study=5.0) == "Accept"
+    assert _compute_verdict(ndc=5, pgrr=9.9) == "Accept"
+    assert _compute_verdict(ndc=10, pgrr=5.0) == "Accept"
 
 
 def test_verdict_reject_ndc_low():
     """Verify ndc < 2 → Reject."""
-    assert _compute_verdict(ndc=1, pgrr_tolerance=5.0, pgrr_study=5.0) == "Reject"
-    assert _compute_verdict(ndc=0, pgrr_tolerance=10.0, pgrr_study=10.0) == "Reject"
+    assert _compute_verdict(ndc=1, pgrr=5.0) == "Reject"
+    assert _compute_verdict(ndc=0, pgrr=10.0) == "Reject"
 
 
 def test_verdict_reject_pgrr_high():
     """Verify %GRR > 30% → Reject."""
-    assert _compute_verdict(ndc=5, pgrr_tolerance=31.0, pgrr_study=31.0) == "Reject"
-    assert _compute_verdict(ndc=10, pgrr_tolerance=40.0, pgrr_study=40.0) == "Reject"
+    assert _compute_verdict(ndc=5, pgrr=31.0) == "Reject"
+    assert _compute_verdict(ndc=10, pgrr=40.0) == "Reject"
 
 
 def test_verdict_reject_infinite_pgrr():
     """Verify infinite %GRR → Reject."""
-    assert _compute_verdict(ndc=5, pgrr_tolerance=float("inf"), pgrr_study=100.0) == "Reject"
+    assert _compute_verdict(ndc=5, pgrr=float("inf")) == "Reject"
 
 
 def test_verdict_marginal():
     """Verify everything else → Marginal."""
-    assert _compute_verdict(ndc=3, pgrr_tolerance=15.0, pgrr_study=15.0) == "Marginal"
-    assert _compute_verdict(ndc=2, pgrr_tolerance=25.0, pgrr_study=25.0) == "Marginal"
-    assert _compute_verdict(ndc=5, pgrr_tolerance=15.0, pgrr_study=15.0) == "Marginal"
+    assert _compute_verdict(ndc=3, pgrr=15.0) == "Marginal"
+    assert _compute_verdict(ndc=2, pgrr=25.0) == "Marginal"
+    assert _compute_verdict(ndc=5, pgrr=15.0) == "Marginal"
 
 
-def test_verdict_uses_tolerance_if_available():
-    """Verify verdict prefers %GRR_tolerance over %GRR_study."""
-    # If tolerance is very strict (high %), but study is lenient (low %)
-    assert (
-        _compute_verdict(ndc=5, pgrr_tolerance=35.0, pgrr_study=5.0)
-        == "Reject"  # Uses tolerance
-    )
+def test_verdict_uses_max_of_tolerance_and_study():
+    """Verify compute_gage_rr's verdict is driven by max(%GRR_tolerance, %GRR_study).
+
+    `_compute_verdict` itself now takes a single %GRR figure; the "more
+    conservative of the two" rule lives in `compute_gage_rr()`'s call site, so
+    this is asserted end to end through `compute_gage_rr()` instead of the
+    former direct `_compute_verdict` unit test.
+    """
+    # Tight tolerance drives %GRR_tolerance well above %GRR_study --> Reject.
+    results = compute_gage_rr(_EXAMPLE_B_DATA, tolerance=0.4)
+    assert results["pgrr_study"] < 30
+    assert results["pgrr_tolerance"] > 30
+    assert results["verdict"] == "Reject"
+
+    # The other direction, which pins max() rather than "prefer tolerance":
+    # a loose tolerance puts %GRR_tolerance ~5% (an Accept figure on its own,
+    # and ndc = 5 clears the ndc gate) while %GRR_study stays at 26.7%. Only
+    # max() holds this at Marginal -- "prefer tolerance" would verdict Accept.
+    aiag_data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+    results = compute_gage_rr(aiag_data, tolerance=36.69)
+    assert results["pgrr_tolerance"] == pytest.approx(5.0, rel=1e-2)
+    assert results["pgrr_study"] == pytest.approx(26.678, rel=1e-3)
+    assert results["ndc"] == 5
+    assert results["verdict"] == "Marginal"
 
 
 def test_verdict_fallback_to_study():
-    """Verify verdict falls back to %GRR_study if tolerance is None."""
-    assert (
-        _compute_verdict(ndc=5, pgrr_tolerance=None, pgrr_study=9.0)
-        == "Accept"
-    )
-    assert (
-        _compute_verdict(ndc=5, pgrr_tolerance=None, pgrr_study=15.0)
-        == "Marginal"
-    )
+    """Verify compute_gage_rr's verdict falls back to %GRR_study if tolerance is None."""
+    results = compute_gage_rr(_EXAMPLE_B_DATA, tolerance=None)
+    assert results["pgrr_tolerance"] is None
+    assert results["pgrr_study"] == pytest.approx(13.9226, rel=1e-3)
+    assert results["verdict"] == "Marginal"
 
 
 # --- Happy Path Tests --------------------------------------------------------
@@ -337,13 +350,15 @@ def test_compute_gage_rr_example_b_no_tolerance():
 def test_compute_gage_rr_example_b_with_tolerance():
     """Example B with tolerance=8.0 exercises the pgrr_tolerance branch.
 
-    %GRR_tolerance ~= 3.68% (would be Accept alone), but %GRR_study ~= 13.92% is
-    the more conservative of the two (SME Q2 resolution: verdict uses the max of
-    the two %GRR values when both exist), so the verdict is Marginal, not Accept.
+    %GRR_tolerance = 6 * 0.294184 / 8 * 100 = 22.0638% (AIAG study-variation basis,
+    audit A07 / #190), still below %GRR_study ~= 13.92%'s complement — here
+    22.06% > 13.92%, so %GRR_tolerance is the more conservative of the two (SME
+    Q2 resolution: verdict uses the max of the two %GRR values when both exist).
+    Either way the verdict is Marginal (22.06% is in the 10-30% band), not Accept.
     """
     results = compute_gage_rr(_EXAMPLE_B_DATA, tolerance=8.0)
 
-    assert results["pgrr_tolerance"] == pytest.approx(3.6773, rel=1e-3)
+    assert results["pgrr_tolerance"] == pytest.approx(22.0638, rel=1e-3)
     assert results["ndc"] == 10
     assert results["verdict"] == "Marginal"
 
@@ -356,9 +371,19 @@ def test_compute_gage_rr_aiag_reference_study():
 
     Source: AIAG MSA 4th Ed. study case 1; raw table via RTX PPAP toolbox
     reproduction (`apps/msa/data/aiag_reference_study.csv`, 10 parts x 3
-    appraisers x 3 trials, deviation values). EV/AV/GRR/ndc/verdict asserted
-    below are the manual's own published components for this study, not a
-    snapshot of the current engine output.
+    appraisers x 3 trials, deviation values). EV/AV/GRR/ndc asserted below are
+    the manual's own published components for this study, not a snapshot of
+    the current engine output.
+
+    `pgrr_tolerance` and `verdict` are engine output, not manual-published
+    numbers, checked against the same source form's tolerance-basis figure:
+    the RTX PPAP toolbox reproduction of this study computes
+    `100 * (6.00 * SMV) / Eng. Tolerance = 100 * 1.847522 / 4.4200 = 41.80%`
+    ("% Tolerance (SV/Toler)"). 41.51% here is within rel=1e-2 of that 41.80%
+    (small drift from the form's d2*-by-operator arithmetic). At 41.5% (> 30%)
+    the tolerance basis flags this study UNACCEPTABLE, per the source form,
+    so the verdict is Reject, not Marginal — the old 6.92% figure was never a
+    manual-published number, it was buggy (understated 6x) engine output.
     """
     data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
     results = compute_gage_rr(data, tolerance=4.42)
@@ -367,8 +392,82 @@ def test_compute_gage_rr_aiag_reference_study():
     assert results["av"] == pytest.approx(0.22963, rel=1e-2)
     assert results["grr"] == pytest.approx(0.30576, rel=1e-2)
     assert results["ndc"] == 5
-    assert results["verdict"] == "Marginal"
-    assert results["pgrr_tolerance"] == pytest.approx(6.92, rel=1e-2)
+    assert results["verdict"] == "Reject"
+    assert results["pgrr_tolerance"] == pytest.approx(41.5067, rel=1e-2)
+
+
+# --- A07 / #190 regressions: the tolerance basis must reach the verdict ------
+# 6 parts spaced 1.0 apart, 2 appraisers with a 0.02 bias, 2 trials with 0.01
+# drift. With no tolerance: grr = 0.0164918, pgrr_study = 0.88%, ndc = 100,
+# verdict Accept. ndc >= 5 and pgrr_study < 10 here, so only the tolerance
+# criterion can hold the verdict back below — isolating the ×6 defect.
+
+_A07_REGRESSION_DATA = pd.DataFrame([
+    {
+        "part": f"P{p}",
+        "appraiser": a,
+        "trial": t,
+        "measurement": float(p) + bias + drift,
+    }
+    for p in range(1, 7)
+    for a, bias in [("A", 0.0), ("B", 0.02)]
+    for t, drift in [(1, 0.0), (2, 0.01)]
+])
+
+
+def test_compute_gage_rr_a07_regression_no_tolerance_baseline():
+    """Baseline for the two regressions below: Accept with no tolerance supplied."""
+    results = compute_gage_rr(_A07_REGRESSION_DATA, tolerance=None)
+
+    assert results["grr"] == pytest.approx(0.0164918, rel=1e-3)
+    assert results["pgrr_study"] == pytest.approx(0.88, rel=1e-2)
+    assert results["ndc"] == 100
+    assert results["verdict"] == "Accept"
+
+
+def test_compute_gage_rr_a07_regression_tight_tolerance_not_accept():
+    """A tolerance of ~0.183245 must make pgrr_tolerance ~= 54% and Reject.
+
+    Pre-fix (bug), pgrr_tolerance was 9.0% and the verdict stayed Accept —
+    the ×6 defect meant the tolerance criterion never reached the verdict.
+    """
+    results = compute_gage_rr(_A07_REGRESSION_DATA, tolerance=6 * 0.0164918 / 0.54)
+
+    assert results["pgrr_tolerance"] == pytest.approx(54.0, rel=1e-2)
+    assert results["verdict"] != "Accept"
+    assert results["verdict"] == "Reject"
+
+
+def test_compute_gage_rr_a07_regression_looser_tolerance_rejects_not_marginal():
+    """A tolerance of ~0.119219 must make pgrr_tolerance ~= 83% and Reject, not Marginal.
+
+    Pre-fix (bug), pgrr_tolerance was 13.83% (Marginal); the fixed value is
+    well past the 30% reject threshold. ndc and pgrr_study are unaffected by
+    the ×6 multiplier — asserted here to confirm the fix touches only the
+    tolerance branch.
+    """
+    results = compute_gage_rr(_A07_REGRESSION_DATA, tolerance=6 * 0.0164918 / 0.83)
+
+    assert results["pgrr_tolerance"] == pytest.approx(83.0, rel=1e-2)
+    assert results["verdict"] == "Reject"
+    assert results["pgrr_study"] == pytest.approx(0.88, rel=1e-2)
+    assert results["ndc"] == 100
+
+
+def test_compute_gage_rr_pgrr_tolerance_uses_six_sigma_multiplier():
+    """Direct guard: pgrr_tolerance must be 6x, not 1x, of grr/tolerance.
+
+    Protects against a future edit that drops `_STUDY_VARIATION_SIGMA` and
+    silently reintroduces the ×6 understatement (audit A07 / #190).
+    """
+    tolerance = 4.42
+    results = compute_gage_rr(
+        load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV)), tolerance=tolerance
+    )
+
+    assert results["pgrr_tolerance"] == pytest.approx(
+        6 * results["grr"] / tolerance * 100, rel=1e-9
+    )
 
 
 def test_compute_gage_rr_from_list_of_dicts():
@@ -616,19 +715,19 @@ def test_average_and_range_method_av_clamped_to_zero():
 
 def test_verdict_boundary_ndc_exactly_5():
     """Verify ndc = 5 (boundary) + %GRR < 10% → Accept."""
-    assert _compute_verdict(ndc=5, pgrr_tolerance=9.99, pgrr_study=9.99) == "Accept"
+    assert _compute_verdict(ndc=5, pgrr=9.99) == "Accept"
 
 
 def test_verdict_boundary_ndc_exactly_2():
     """Verify ndc = 2 (boundary) + %GRR < 10% → Marginal (not Accept)."""
-    assert _compute_verdict(ndc=2, pgrr_tolerance=9.0, pgrr_study=9.0) == "Marginal"
+    assert _compute_verdict(ndc=2, pgrr=9.0) == "Marginal"
 
 
 def test_verdict_boundary_pgrr_exactly_10():
     """Verify %GRR = 10% (boundary) with ndc ≥ 5 → Marginal (not Accept)."""
-    assert _compute_verdict(ndc=5, pgrr_tolerance=10.0, pgrr_study=10.0) == "Marginal"
+    assert _compute_verdict(ndc=5, pgrr=10.0) == "Marginal"
 
 
 def test_verdict_boundary_pgrr_exactly_30():
     """Verify %GRR = 30% (boundary) with ndc ≥ 2 → Marginal (not Reject)."""
-    assert _compute_verdict(ndc=5, pgrr_tolerance=30.0, pgrr_study=30.0) == "Marginal"
+    assert _compute_verdict(ndc=5, pgrr=30.0) == "Marginal"
