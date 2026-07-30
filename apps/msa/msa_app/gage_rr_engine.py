@@ -38,6 +38,12 @@ _K3: dict[int, float] = {  # by number of parts (n)
     10: 0.3146,
 }
 
+# AIAG MSA 4th Ed. study-variation multiplier: 6 sigma = 99.73% coverage. EV/AV/GRR/PV/TV are
+# carried in bare 1-sigma units (K = 1/d2*), so the tolerance basis — a full spec width, not a
+# sigma — must scale the numerator by this before dividing. (5.15 sigma / 99.0% is the older
+# 3rd-edition convention; SME decision 2026-07-26 pins 6.)
+_STUDY_VARIATION_SIGMA = 6.0
+
 
 def compute_gage_rr(
     data: pd.DataFrame | list[dict],
@@ -143,7 +149,7 @@ def compute_gage_rr(
     # %GRR vs tolerance (if provided)
     pgrr_tolerance = None
     if tolerance is not None:
-        pgrr_tolerance = (grr / tolerance) * 100
+        pgrr_tolerance = (grr * _STUDY_VARIATION_SIGMA / tolerance) * 100
 
     # Number of distinct categories (independent of tolerance)
     ndc_value = _compute_ndc(grr, pv)
@@ -152,7 +158,7 @@ def compute_gage_rr(
     # the more conservative (worse) of the two (SME resolution, W08-2 spec). ndc and
     # each %GRR are still reported individually via the return dict above.
     verdict_pgrr = max(pgrr_tolerance, pgrr_study) if pgrr_tolerance is not None else pgrr_study
-    verdict = _compute_verdict(ndc_value, None, verdict_pgrr)
+    verdict = _compute_verdict(ndc_value, verdict_pgrr)
 
     return {
         "ev": float(ev),
@@ -266,13 +272,13 @@ def _compute_ndc(grr: float, pv: float) -> int:
     return max(0, min(ndc_int, 100))  # Clamp to [0, 100]
 
 
-def _compute_verdict(ndc: int, pgrr_tolerance: float | None, pgrr_study: float) -> str:
-    """Compute AIAG verdict based on ndc and %GRR thresholds.
+def _compute_verdict(ndc: int, pgrr: float) -> str:
+    """Compute AIAG verdict based on ndc and a single %GRR figure.
 
     Args:
         ndc: Number of distinct categories.
-        pgrr_tolerance: %GRR vs tolerance (or None if tolerance was not provided).
-        pgrr_study: %GRR vs study variation.
+        pgrr: %GRR to apply the thresholds to (callers pass whichever figure —
+            or combination of %GRR-tolerance and %GRR-study — should drive the verdict).
 
     Returns:
         "Accept", "Marginal", or "Reject".
@@ -285,9 +291,6 @@ def _compute_verdict(ndc: int, pgrr_tolerance: float | None, pgrr_study: float) 
     # Hard reject conditions
     if ndc < 2:
         return "Reject"
-
-    # Use %GRR_tolerance if available, else %GRR_study
-    pgrr = pgrr_tolerance if pgrr_tolerance is not None else pgrr_study
 
     # If %GRR is infinite (e.g., TV = 0), reject
     if not np.isfinite(pgrr):
