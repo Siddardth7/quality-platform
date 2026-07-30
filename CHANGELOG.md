@@ -8,6 +8,21 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Fixed
 
+- **SPC run-rule fidelity: WE 2/3 same-side logic and Nelson's own 1–8 numbering (#192,
+  F-03/F-04).** `_count_same_side` (Western Electric rules 2/3, and their Nelson
+  equivalents) required the *opposite* side to have zero hits before counting a same-side
+  signal, contradicting the documented "on the same side" rule and silently suppressing real
+  out-of-control signals whenever one stray point landed on the other side. Fixed to count
+  each side independently. Separately, `detect_nelson_violations` used to start from
+  `detect_we_violations`'s output verbatim, so selecting the Nelson rule set emitted
+  `"Western Electric Rule 1-4"` labels (including WE's 8-in-a-row) instead of Nelson's own
+  numbering, and never emitted Nelson Test 2 (9-in-a-row) at all. The Nelson set now emits
+  only `"Nelson Rule 1"`–`"Nelson Rule 8"` per Nelson (1984); Western Electric keeps its own
+  `"Western Electric Rule 1-4"` labels and 8-in-a-row run length (the two rule sets are a
+  mutually exclusive selector, never shown together). **Consumer impact:** no public
+  signature changed, but every label string under the Nelson rule set changes, including
+  `apps/secom`'s default chart output (`ruleset` defaults to `"nelson"`).
+
 - **MSA `%GRR` vs tolerance was understated 6× (audit A07, #190).** `compute_gage_rr()` computed
   `pgrr_tolerance = (grr / tolerance) * 100`, dividing a bare 1-sigma `grr` (EV/AV/GRR/PV/TV are all
   carried in 1-sigma units, `K = 1/d2*`) by a full spec width — the AIAG MSA 4th Ed. tolerance-basis
