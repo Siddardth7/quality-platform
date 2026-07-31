@@ -148,6 +148,36 @@ def test_xbar_r_subgroup_size_above_ten_propagates_valueerror():
 # --- the caller-supplied chart context (#191 D3) ---
 
 
+def test_imr_sort_is_stable_across_tied_subgroups():
+    """The I-MR branch must not reorder rows that share a subgroup.
+
+    A stream charted as I-MR can still carry several rows per subgroup
+    (ply_misalignment has 5 across 20 subgroups), so `sort_values("subgroup")`
+    is full of ties. pandas' default quicksort is unstable and permutes them
+    differently on different platforms, which changes every moving range and
+    moves sigma_hat enough to flip the verdict — this cost two red CI runs.
+
+    Pinned two ways: the result must equal the already-ordered frame's result
+    (a stable sort is a no-op on data that is already in subgroup order), and
+    sigma_hat must match the stable value exactly. Switching the engine back to
+    an unstable `kind` fails both.
+    """
+    demo_csv = Path(__file__).resolve().parents[1] / "data" / "demo_composites_aerospace.csv"
+    frame = pd.read_csv(demo_csv)
+    sub = frame[frame["stream"] == "ply_misalignment"]
+    assert sub["subgroup"].is_monotonic_increasing, "fixture must already be in subgroup order"
+    assert len(sub) > sub["subgroup"].nunique(), "fixture must contain tied subgroups"
+
+    sigma_hat, signals = assess_stability(sub, "I-MR")
+    assert sigma_hat == pytest.approx(0.24489039329464862, rel=1e-12)
+    assert len(signals) == 19
+
+    # Sorting an already-sorted frame must be a no-op, so re-sorting stably
+    # changes nothing. An unstable sort inside the engine breaks this.
+    resorted = sub.sort_values("subgroup", kind="stable")
+    assert assess_stability(resorted, "I-MR") == (sigma_hat, signals)
+
+
 def test_demo_stream_verdicts_match_the_recorded_baseline():
     # The engine does not derive the chart type, so this map is the only thing
     # tying a demo stream to its chart. Charting hole_diameter as I-MR (a lost
@@ -155,14 +185,15 @@ def test_demo_stream_verdicts_match_the_recorded_baseline():
     # instead of 1. Golden baseline for the A09 move — a change here means a
     # verdict flipped, not that the number needs updating.
     #
-    # Reads the COMMITTED demo CSV, deliberately, NOT generate_demo_dataset().
-    # `data_generator._RNG` is a module-level generator, so the data it returns
-    # depends on how many times it has been called in the process; an earlier
-    # version of this test reseeded it and still went 20 -> 19 under CI's full
-    # -workspace run. The committed CSV is tracked in git, so it is byte-identical
-    # everywhere, and it is what the app actually loads — which is what this
-    # baseline is supposed to be about. See the follow-up issue on making
-    # generate_demo_dataset() take an explicit seed.
+    # Reads the COMMITTED demo CSV, deliberately, NOT generate_demo_dataset():
+    # `data_generator._RNG` is module-level, so what it returns depends on how
+    # many times it has been called in the process. The committed CSV is tracked
+    # in git, is byte-identical everywhere, and is what the app actually loads.
+    #
+    # ply_misalignment is 19, not 20. 20 was the WRONG answer, produced by the
+    # unstable default sort in assess_stability's I-MR branch reordering tied
+    # subgroup rows (see test_imr_sort_is_stable_across_tied_subgroups below).
+    # Fixing that sort is what moved this number; the verdict did not drift.
     from spc_app.pages.process_capability import STREAM_CHART_TYPES
 
     demo_csv = Path(__file__).resolve().parents[1] / "data" / "demo_composites_aerospace.csv"
@@ -180,7 +211,7 @@ def test_demo_stream_verdicts_match_the_recorded_baseline():
         "autoclave_temp": 3,
         "hole_diameter": 0,
         "panel_defects": 0,
-        "ply_misalignment": 20,
+        "ply_misalignment": 19,
         "ply_thickness": 1,
         "reject_proportion": 0,
         "surface_defects": 0,

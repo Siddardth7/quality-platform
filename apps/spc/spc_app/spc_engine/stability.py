@@ -65,7 +65,16 @@ def assess_stability(
         sigma_hat = xs["sigma_hat"]
         sigma_points = sigma_hat / (len(subgroups[0]) ** 0.5)
     else:
-        im = compute_imr(frame.sort_values("subgroup")["value"].tolist())
+        # kind="stable" is load-bearing, not a style choice. A stream charted as
+        # I-MR may still carry several rows per subgroup (ply_misalignment has 5),
+        # so sorting by "subgroup" alone is full of ties. pandas' default
+        # quicksort is UNSTABLE, so it reorders tied rows differently on different
+        # platforms — which permutes the individuals series, changes every moving
+        # range, and moves sigma_hat enough to flip the verdict (macOS gave 20
+        # signals on ply_misalignment, Linux CI gave 19). A stable sort preserves
+        # the frame's own row order within a subgroup, which is the real
+        # measurement order and the only defensible reading of the data.
+        im = compute_imr(frame.sort_values("subgroup", kind="stable")["value"].tolist())
         points = im["values"]
         cl = im["xbar"]
         sigma_hat = im["sigma_hat"]
