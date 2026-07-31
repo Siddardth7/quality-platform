@@ -4,6 +4,8 @@ Migrated from tests/test_pages_process_capability.py, which tested the same
 logic through the Streamlit page's `assess_control_chart`.
 """
 
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -146,25 +148,26 @@ def test_xbar_r_subgroup_size_above_ten_propagates_valueerror():
 # --- the caller-supplied chart context (#191 D3) ---
 
 
-def test_demo_stream_verdicts_match_the_recorded_baseline(monkeypatch):
+def test_demo_stream_verdicts_match_the_recorded_baseline():
     # The engine does not derive the chart type, so this map is the only thing
     # tying a demo stream to its chart. Charting hole_diameter as I-MR (a lost
     # map entry) gives 5 signals instead of 0; ply_thickness as I-MR gives 0
     # instead of 1. Golden baseline for the A09 move — a change here means a
     # verdict flipped, not that the number needs updating.
     #
-    # data_generator._RNG is a MODULE-LEVEL generator: each call draws from the
-    # same stream, so the dataset depends on how many times it has been called
-    # in this process. Reseed it so the baseline is the first-call dataset
-    # regardless of test order.
-    import numpy as np
-
+    # Reads the COMMITTED demo CSV, deliberately, NOT generate_demo_dataset().
+    # `data_generator._RNG` is a module-level generator, so the data it returns
+    # depends on how many times it has been called in the process; an earlier
+    # version of this test reseeded it and still went 20 -> 19 under CI's full
+    # -workspace run. The committed CSV is tracked in git, so it is byte-identical
+    # everywhere, and it is what the app actually loads — which is what this
+    # baseline is supposed to be about. See the follow-up issue on making
+    # generate_demo_dataset() take an explicit seed.
     from spc_app.pages.process_capability import STREAM_CHART_TYPES
-    from spc_app.spc_engine import data_generator
-    from spc_app.spc_engine.data_generator import generate_demo_dataset
 
-    monkeypatch.setattr(data_generator, "_RNG", np.random.default_rng(42))
-    frame = generate_demo_dataset()
+    demo_csv = Path(__file__).resolve().parents[1] / "data" / "demo_composites_aerospace.csv"
+    assert demo_csv.exists(), f"committed demo dataset missing: {demo_csv}"
+    frame = pd.read_csv(demo_csv)
     counts = {
         stream: len(
             assess_stability(
