@@ -272,7 +272,7 @@ quality-platform/
     ├── controlplan/            # Control Plan connector — FMEA → characteristic, spec, method,
     │   └── controlplan_app/    # sample plan, recommended chart; pages/ mounted in the shell
     ├── msa/                    # MSA / Gage R&R
-    │   └── msa_app/            # Average-and-Range + ANOVA, %GRR, ndc; pages/ mounted in the shell
+    │   └── msa_app/            # Average-and-Range (no ANOVA), %GRR, ndc; pages/ mounted in the shell
     └── secom/                  # SECOM real-data case study — ENGINE-ONLY, no app.py, not mounted
         ├── secom_app/          # ingest, selection, charts, capability, msa, yield_dppm,
         │                       # doe_screening — all seven at a 100% CI gate

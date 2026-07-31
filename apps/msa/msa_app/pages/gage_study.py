@@ -24,7 +24,7 @@ from msa_app.exporter import (
     export_results_csv,
     verdict_sentence,
 )
-from msa_app.gage_rr_engine import compute_gage_rr
+from msa_app.gage_rr_engine import METHOD_NOTE, compute_gage_rr
 from msa_app.schema import IngestError, load_gage_study_csv
 
 TEMPLATE_PATH = Path(__file__).resolve().parents[2] / "data" / "gage_rr_template.csv"
@@ -114,6 +114,7 @@ def render_gage_study() -> None:
 
     # Display results
     st.header("Gage R&R Results")
+    st.caption(METHOD_NOTE)
     st.info(
         "**Loop:** the Control Plan names the measurement method for this "
         "characteristic; MSA must prove that gage capable **before** its SPC control "
