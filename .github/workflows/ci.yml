@@ -33,6 +33,20 @@ jobs:
       - name: Sync workspace (locked deps + dev tools)
         run: uv sync --frozen
 
+      # #202 (audit A11): the shared core is imported by every app and by the API. A UI
+      # dependency creeping back into it is a packaging regression the test suite cannot
+      # see (nothing imports streamlit *through* quality_core), so resolve quality-core's
+      # own subtree from the lock and fail if any Streamlit-chain package is in it. The
+      # `streamlit` optional extra is excluded by default, which is the point.
+      - name: Core dependency contract (no UI chain in quality-core)
+        run: |
+          uv export --package quality-core --no-dev --no-emit-workspace --no-hashes \
+            --frozen --format requirements-txt > /tmp/core-deps.txt
+          if grep -E '^(streamlit|gitpython|tornado|protobuf|pyarrow|pydeck)==' /tmp/core-deps.txt; then
+            echo "::error::quality-core resolves a Streamlit-chain dependency"
+            exit 1
+          fi
+
       - name: Ruff
         run: uv run ruff check .
 
