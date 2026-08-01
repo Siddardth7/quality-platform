@@ -73,6 +73,20 @@ issue = read this file + the issue body, nothing else. It is mirrored as a **pin
 - [ ] Roll `CHANGELOG.md` (`[Unreleased]` → `[x.y.z] - date`, open a fresh `[Unreleased]`) and bump
       the version in `pyproject.toml` + `packages/quality-core/pyproject.toml` — a `chore(release):`
       commit.
+- [ ] **`README.md` and `ROADMAP.md` reconciled with the tree that is being tagged.** Both are
+      release artifacts, not background docs — they are the first thing a reader sees and the
+      easiest thing to leave behind. At minimum, check every one of these and fix what has drifted:
+      - **README** — the test-count badge against the collected count, the feature/tool list against
+        what actually ships, any version or coverage number, and every claim about *how* a thing is
+        implemented (not merely that it exists).
+      - **ROADMAP** — status line and date, the shipped-versions list, the "next release" row, and
+        any phase whose plan changed during the cycle. A superseded plan must be marked cancelled
+        where it appears, not silently deleted.
+
+      Stale docs are not cosmetic. `#194` shipped a fix whose *only* defect was README and ROADMAP
+      advertising an ANOVA Gage R&R the engine does not implement — the code was right and the docs
+      were lying, and it took two review rounds to close. A doc claim that survives a release is
+      indistinguishable from a verified one to everybody downstream.
 - [ ] **Tag + push — done by the human owner, never automated.**
 
 ---
