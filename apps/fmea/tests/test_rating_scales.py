@@ -124,3 +124,41 @@ def test_rs10_int_coercion_key_collision_rejected():
     bad["severity"]["1.0"] = "duplicate of rating 1"
     with pytest.raises(ValueError, match="collide on rating"):
         load_scales_from_json(json.dumps(bad))
+
+
+# ---------------------------------------------------------------------------
+# #199 — fail-closed: byte ceiling + JSON-bomb hardening
+# ---------------------------------------------------------------------------
+
+
+def test_r3_deeply_nested_json_bomb_raises_value_error_not_recursion_error():
+    """R3 (#199, MEDIUM): a deeply nested JSON payload must raise ValueError
+    (caught by ui/filters.py's `except ValueError`), never an uncaught
+    RecursionError."""
+    bomb = "[" * 200_000 + "]" * 200_000
+    with pytest.raises(ValueError, match="parse rating-scale JSON"):
+        load_scales_from_json(bomb)
+
+
+def test_oversized_json_payload_rejected_before_parsing():
+    """The byte-length ceiling is checked before json.loads ever runs."""
+    huge = json.dumps(_valid_mapping()) + " " * (21 * 1024 * 1024)
+    with pytest.raises(ValueError, match="exceeds the 20 MB limit"):
+        load_scales_from_json(huge)
+
+
+def test_oversized_json_payload_rejected_before_parsing_bytes():
+    # bytes branch of the length check (len(text) rather than .encode()).
+    huge = (json.dumps(_valid_mapping()) + " " * (21 * 1024 * 1024)).encode("utf-8")
+    with pytest.raises(ValueError, match="exceeds the 20 MB limit"):
+        load_scales_from_json(huge)
+
+
+def test_json_payload_just_under_ceiling_still_loads():
+    scales = load_scales_from_json(json.dumps(_valid_mapping()))
+    assert scales.severity[1] == "level 1"
+
+
+def test_bytes_with_invalid_utf8_still_raises_value_error():
+    with pytest.raises(ValueError, match="parse rating-scale JSON"):
+        load_scales_from_json(b"\xff\xfe not valid utf-8 or json")

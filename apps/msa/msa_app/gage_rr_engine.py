@@ -5,6 +5,14 @@ using the Average-and-Range method per AIAG MSA standards. It computes Equipment
 Variation (EV), Appraiser Variation (AV), %GRR, number of distinct categories (ndc),
 and an AIAG verdict (Accept/Marginal/Reject) for crossed gage studies.
 
+Method limitation, declared in the payload as ``method`` / ``method_note``: the
+Average-and-Range method does not estimate the part x appraiser interaction (AIAG MSA
+4th Ed., Ch. III Sec. B — "the Range and the Average and Range methods does not include
+this variation" [sic]). That interaction is absorbed into the reported components, so
+%GRR is biased low whenever it is non-zero; AIAG's own procedure states "no statistical
+interaction between appraisers and parts" as a precondition. The ANOVA method, which
+separates it, is not implemented here — it is tracked as issue #195.
+
 All formulas and thresholds are verified against AIAG MSA (4th Edition) and documented
 in the ASSUMPTIONS_LOG. See apps/msa/docs/ASSUMPTIONS_LOG.md for standards references.
 """
@@ -17,6 +25,8 @@ import numpy as np
 import pandas as pd
 
 __all__ = [
+    "METHOD",
+    "METHOD_NOTE",
     "compute_gage_rr",
 ]
 
@@ -37,6 +47,33 @@ _K3: dict[int, float] = {  # by number of parts (n)
     9: 0.3249,
     10: 0.3146,
 }
+
+# AIAG MSA 4th Ed. study-variation multiplier: 6 sigma = 99.73% coverage. EV/AV/GRR/PV/TV are
+# carried in bare 1-sigma units (K = 1/d2*), so the tolerance basis — a full spec width, not a
+# sigma — must scale the numerator by this before dividing. (5.15 sigma / 99.0% is the older
+# 3rd-edition convention; SME decision 2026-07-26 pins 6.) Primary-source verified (#217,
+# 2026-07-30): AIAG MSA 4th Ed. Ch. III Sec. B — "%EV, %AV, %GRR and %PV are calculated by
+# substituting the value of tolerance divided by six in the denominator ... in place of the total
+# variation (TV)"; tolerance/6 in the denominator == 6*GRR/tolerance. Same section redirects to
+# Ch. II Sec. D Table II-D 1 for the acceptance bands, so ONE band set (10/30) covers both the
+# tolerance and study-variation bases -- see ASSUMPTIONS_LOG RULE 8.
+_STUDY_VARIATION_SIGMA = 6.0
+
+# Which of AIAG's three acceptable variable-study techniques this engine implements, and what
+# that choice costs. Declared in the payload so a consumer reading JSON/CSV can tell an
+# Average-and-Range %GRR from an ANOVA one. ASCII only ("x", not "×"): these strings flow into
+# the PDF exporter via safe_text/fpdf2, which is latin-1.
+# ponytail: two plain constants, not a TypedDict return or an `interaction_estimated` flag —
+# a consumer that must branch compares `method == "average_and_range"`. Revisit when #195 adds
+# ANOVA and `method` gains a second possible value.
+METHOD = "average_and_range"
+METHOD_NOTE = (
+    "Average-and-Range method: the part x appraiser interaction is NOT estimated. "
+    'AIAG MSA 4th Ed., Ch. III Sec. B: the Average and Range method "does not include" the '
+    "operator-to-part interaction, which is therefore absorbed into the reported components; "
+    "%GRR is biased low when that interaction is non-zero. ANOVA (which separates it) is not "
+    "implemented."
+)
 
 
 def compute_gage_rr(
@@ -65,6 +102,9 @@ def compute_gage_rr(
         - "n_appraisers": int (Unique appraisers)
         - "n_trials": int (Replications per (part, appraiser) cell; assumes balanced)
         - "is_balanced": bool (True if every (part, appraiser) pair has n_trials measurements)
+        - "method": str (the AIAG technique used; always ``METHOD`` == "average_and_range")
+        - "method_note": str (``METHOD_NOTE``: the part x appraiser interaction is not
+          estimated by this method, so %GRR is biased low when it is non-zero)
 
     Raises:
         ValueError: if data is empty, fewer than 2 parts/appraisers/replicates, or
@@ -143,7 +183,7 @@ def compute_gage_rr(
     # %GRR vs tolerance (if provided)
     pgrr_tolerance = None
     if tolerance is not None:
-        pgrr_tolerance = (grr / tolerance) * 100
+        pgrr_tolerance = (grr * _STUDY_VARIATION_SIGMA / tolerance) * 100
 
     # Number of distinct categories (independent of tolerance)
     ndc_value = _compute_ndc(grr, pv)
@@ -152,7 +192,7 @@ def compute_gage_rr(
     # the more conservative (worse) of the two (SME resolution, W08-2 spec). ndc and
     # each %GRR are still reported individually via the return dict above.
     verdict_pgrr = max(pgrr_tolerance, pgrr_study) if pgrr_tolerance is not None else pgrr_study
-    verdict = _compute_verdict(ndc_value, None, verdict_pgrr)
+    verdict = _compute_verdict(ndc_value, verdict_pgrr)
 
     return {
         "ev": float(ev),
@@ -169,6 +209,8 @@ def compute_gage_rr(
         "n_appraisers": n_appraisers,
         "n_trials": n_trials,
         "is_balanced": is_balanced,
+        "method": METHOD,
+        "method_note": METHOD_NOTE,
     }
 
 
@@ -179,6 +221,11 @@ def _average_and_range_method(df: pd.DataFrame) -> tuple[float, float, float]:
     sigma units (K = 1/d2*). The historical 5.15/6-sigma "study variation"
     multiplier is intentionally omitted: it would multiply EV, AV, PV, GRR,
     and TV identically, so it cancels out of %GRR = GRR/TV and ndc = 1.41*PV/GRR.
+
+    Decomposes measurement variation into repeatability and reproducibility only:
+    per AIAG MSA 4th Ed., Ch. III Sec. B ("Average and Range Method"), "variation due to
+    the interaction between the appraiser and the part/gage is not accounted for in the
+    analysis" — that interaction is absorbed into EV/AV/PV rather than estimated.
 
     Args:
         df: DataFrame with columns part, appraiser, trial, measurement.
@@ -266,13 +313,13 @@ def _compute_ndc(grr: float, pv: float) -> int:
     return max(0, min(ndc_int, 100))  # Clamp to [0, 100]
 
 
-def _compute_verdict(ndc: int, pgrr_tolerance: float | None, pgrr_study: float) -> str:
-    """Compute AIAG verdict based on ndc and %GRR thresholds.
+def _compute_verdict(ndc: int, pgrr: float) -> str:
+    """Compute AIAG verdict based on ndc and a single %GRR figure.
 
     Args:
         ndc: Number of distinct categories.
-        pgrr_tolerance: %GRR vs tolerance (or None if tolerance was not provided).
-        pgrr_study: %GRR vs study variation.
+        pgrr: %GRR to apply the thresholds to (callers pass whichever figure —
+            or combination of %GRR-tolerance and %GRR-study — should drive the verdict).
 
     Returns:
         "Accept", "Marginal", or "Reject".
@@ -285,9 +332,6 @@ def _compute_verdict(ndc: int, pgrr_tolerance: float | None, pgrr_study: float) 
     # Hard reject conditions
     if ndc < 2:
         return "Reject"
-
-    # Use %GRR_tolerance if available, else %GRR_study
-    pgrr = pgrr_tolerance if pgrr_tolerance is not None else pgrr_study
 
     # If %GRR is infinite (e.g., TV = 0), reject
     if not np.isfinite(pgrr):

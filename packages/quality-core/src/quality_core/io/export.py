@@ -18,6 +18,7 @@ these today; SPC and the Control Plan reuse them verbatim.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -37,8 +38,34 @@ from openpyxl.utils import get_column_letter
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
+#: A plain decimal number written as text: optional sign, digits with optional
+#: fraction/exponent, nothing else. Deliberately NARROWER than ``float()``, which also
+#: accepts ``inf``/``nan``, underscore separators (``-1_000``) and non-ASCII digits
+#: (``-١٢٣``) — none of which a spreadsheet reads as the same number, so exempting them
+#: would trade a real guarantee for values no formatter here emits. ASCII ``[0-9]`` is
+#: explicit because ``\d`` matches Unicode digits. Anchored, so any surrounding
+#: whitespace fails to match and stays escaped — a leading Tab/CR is itself a trigger.
+_NUMERIC_LITERAL_RE = re.compile(
+    r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+)
+
+
+def _is_numeric_literal(value: str) -> bool:
+    """True if ``value`` is a plain decimal number written as text (e.g. ``"-3.0000"``).
+
+    Formatted metric strings legitimately start with ``-``. Escaping them would write a
+    literal apostrophe into the cell (openpyxl stores the character; Excel's typed-input
+    apostrophe convention does not apply), visibly corrupting ``-3.0000`` into
+    ``'-3.0000``. A plain decimal cannot carry a formula payload — ``(``, ``|``, ``!``
+    and cell references all fail to match — so it is exempt and nothing else is.
+    """
+    return _NUMERIC_LITERAL_RE.fullmatch(value) is not None
+
+
 def _is_injection_risk(value: str) -> bool:
     """True if ``value`` could be evaluated as a formula by a spreadsheet."""
+    if _is_numeric_literal(value):
+        return False
     if value.startswith(FORMULA_PREFIXES):
         return True
     # Excel/Sheets strip leading whitespace before formula detection, so a formula
@@ -61,17 +88,20 @@ def sanitize_cell(value: Any) -> Any:
 
 
 def sanitize_for_export(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy with formula-injection-risky string cells escaped.
+    """Return a copy with formula-injection-risky string cells and column labels escaped.
 
     A string whose first non-whitespace character is a formula trigger (``= + - @``,
     or a leading Tab/CR) is prefixed with ``'`` so Excel/Sheets/LibreOffice render it
-    literally instead of evaluating it. Non-string cells are untouched, and the escape
-    is idempotent (an already-escaped value is not re-escaped).
+    literally instead of evaluating it. Non-string cells and non-string column labels
+    are untouched, and the escape is idempotent (an already-escaped value or label is
+    not re-escaped). Values are sanitized positionally, so duplicate column labels are
+    covered too; labels are escaped after the value pass, on the original (pre-rename)
+    frame.
     """
-    df = df.copy()
-    for col in df.columns:
-        df[col] = df[col].apply(sanitize_cell)
-    return df
+    out = df.copy()
+    for pos in range(out.shape[1]):
+        out.iloc[:, pos] = out.iloc[:, pos].map(sanitize_cell)
+    return out.rename(columns=sanitize_cell)
 
 
 def export_csv(df: pd.DataFrame) -> bytes:
@@ -107,14 +137,16 @@ def write_table_sheet(
     maps a row to a solid fill color (hex, no ``#``) or ``None`` for no fill — apps use
     it to colour rows by risk tier. numpy scalars are unwrapped via ``.item()`` for
     openpyxl compatibility. Fills are cached per color so repeated colours produce
-    identical ``PatternFill`` objects.
+    identical ``PatternFill`` objects. The header row and string body cells are run
+    through ``sanitize_cell`` (formula-injection escaping), so callers no longer depend
+    on their own ``columns=`` allow-list for safety.
     """
     ws.title = title
     cols = [c for c in columns if c in df.columns]
 
     header_fill = PatternFill(start_color=header_fill_hex, end_color=header_fill_hex, fill_type="solid")
     for col_idx, col_name in enumerate(cols, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell = ws.cell(row=1, column=col_idx, value=sanitize_cell(col_name))
         cell.fill = header_fill
         cell.font = _HEADER_FONT
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -133,6 +165,7 @@ def write_table_sheet(
             val = row[col_name]
             if hasattr(val, "item"):  # numpy bool/int -> native
                 val = val.item()
+            val = sanitize_cell(val)
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             if fill is not None:
                 cell.fill = fill
@@ -158,12 +191,17 @@ def write_keyvalue_sheet(
 
     ``title`` renames the worksheet (matching ``write_table_sheet``'s ``title``),
     so callers set the sheet name the same way for both sheet kinds.
+
+    Labels and values are run through ``sanitize_cell``, so this primitive — not its
+    four callers — owns the formula-injection guarantee. Developer-formatted metric
+    strings such as ``"-3.0000"`` are unaffected: ``_is_numeric_literal`` exempts
+    text that parses as a number, so only genuine payloads are escaped.
     """
     if title is not None:
         ws.title = title
     for r_idx, (label, value) in enumerate(rows, start=1):
-        ws.cell(r_idx, 1, label).font = _BOLD_FONT
-        ws.cell(r_idx, 2, value).font = _NORMAL_FONT
+        ws.cell(r_idx, 1, sanitize_cell(label)).font = _BOLD_FONT
+        ws.cell(r_idx, 2, sanitize_cell(value)).font = _NORMAL_FONT
     ws.column_dimensions["A"].width = key_width
     ws.column_dimensions["B"].width = value_width
 

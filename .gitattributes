@@ -1,0 +1,4 @@
+# Take both sides of the changelog instead of conflicting. Every feature appends to
+# [Unreleased], so concurrent entries are additive, not competing — the manual resolution
+# was always "keep both". Tidy duplicate headings at release time.
+CHANGELOG.md merge=union

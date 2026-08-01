@@ -667,3 +667,79 @@ def test_force_method_percentile_skips_normal_and_transform_paths(monkeypatch):
     assert study["method"] == "percentile"
     assert study["normal_before"] is True
     assert study["normal_after"] is None
+
+
+# ---------------------------------------------------------------------------
+# #191 (A09): stability gate on the study — annotate, never suppress.
+# ---------------------------------------------------------------------------
+
+OOC_SIGNALS = [{"index": 9, "rule": "Western Electric Rule 1"}]
+
+
+def test_study_out_of_control_annotates_but_still_reports_indices():
+    # The regression named in #191: an unstable process is flagged, not blanked.
+    study = compute_capability_study(
+        NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, violations=OOC_SIGNALS
+    )
+    assert study["stable"] is False
+    assert study["stability_note"]
+    assert "not in statistical control" in study["stability_note"]
+    assert study["cp"] is not None
+    assert study["cpk"] is not None
+    assert study["pp"] is not None
+    assert study["ppk"] is not None
+
+
+def test_study_empty_violations_is_in_control_not_unassessed():
+    # `violations=[]` is falsy but not None: assessed, in control. Guards the
+    # `if violations is None` test in stability_fields against `if not violations`.
+    study = compute_capability_study(
+        NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, violations=[]
+    )
+    baseline = compute_capability_study(NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA)
+    assert study["stable"] is True
+    assert study["stability_note"] is None
+    assert study["cpk"] == baseline["cpk"]
+
+
+def test_study_without_violations_kwarg_is_not_assessed():
+    study = compute_capability_study(NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA)
+    assert study["stable"] is None
+    assert study["stability_note"]
+    assert "not assessed" in study["stability_note"]
+
+
+def test_study_stability_keys_present_on_normal_and_transform_paths():
+    for data, lsl, usl, force in (
+        (NORMAL_DATA, 8.0, 12.0, "normal"),
+        (NORMAL_DATA, 8.0, 12.0, "boxcox"),
+        (_nonpositive_data(), -8.0, 0.0, "boxcox"),  # yeojohnson branch
+    ):
+        study = compute_capability_study(
+            data, lsl=lsl, usl=usl, alpha=STUDY_ALPHA, force_method=force, violations=OOC_SIGNALS
+        )
+        assert study["stable"] is False
+        assert study["stability_note"]
+
+
+def test_study_stability_keys_present_on_percentile_paths(monkeypatch):
+    monkeypatch.setattr(capability, "BOOTSTRAP_RESAMPLES", 50)
+    forced = compute_capability_study(
+        NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA,
+        force_method="percentile", violations=OOC_SIGNALS,
+    )
+    fallback = compute_capability_study(  # E5 auto fallback on bimodal data
+        _bimodal_data(), lsl=1.0, usl=9.0, alpha=STUDY_ALPHA, violations=OOC_SIGNALS
+    )
+    assert forced["method"] == "percentile"
+    assert fallback["method"] == "percentile"
+    for study in (forced, fallback):
+        assert study["stable"] is False
+        assert study["stability_note"]
+
+
+def test_compute_capability_primitive_has_no_stability_keys():
+    # D1: the sigma-in/indices-out primitive is frozen (SECOM depends on it).
+    result = compute_capability(DATA, lsl=LSL, usl=USL, sigma_hat=SIGMA_HAT)
+    assert "stable" not in result
+    assert "stability_note" not in result

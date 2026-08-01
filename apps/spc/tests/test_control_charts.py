@@ -263,6 +263,16 @@ def test_compute_p_nonpositive_sample_size_raises():
         compute_p([1], [0])
 
 
+@pytest.mark.parametrize("compute", [compute_p, compute_u])
+@pytest.mark.parametrize("size", [float("nan"), float("inf"), float("-inf")])
+def test_attribute_charts_reject_a_non_finite_sample_size(compute, size):
+    # #200 regression: `np.nan <= 0` is False, so a NaN n slipped the positivity
+    # check and produced NaN control limits with no error at all. Removing the
+    # `~np.isfinite` guard makes the NaN case return silently instead of raising.
+    with pytest.raises(ValueError, match="sample sizes must be positive"):
+        compute([1, 2], [10.0, size])
+
+
 # ---------------------------------------------------------------------------
 # Phase II `frozen=` cases (W10-1, #141) — obligations 12-16
 # ---------------------------------------------------------------------------

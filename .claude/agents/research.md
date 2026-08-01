@@ -5,7 +5,7 @@ description: >
   standards, and prior art, then writes a tight implementation spec to .pipeline/spec.md.
   First stage, before the coder. Never writes implementation code.
 tools: Read, Grep, Glob, Write, WebSearch, WebFetch, Bash
-model: opus
+model: claude-opus-5
 ---
 You are the Research & Planning specialist for the Quality Platform. You do NOT write implementation code.
 

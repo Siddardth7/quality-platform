@@ -77,7 +77,7 @@ def test_ruleset_switch_nelson_only_rule_not_under_we():
 
     assert we.violations == []
     nelson_rules = {v["rule"] for v in nelson.violations}
-    assert "Nelson Rule 6" in nelson_rules
+    assert "Nelson Rule 4" in nelson_rules
     assert all(rule.startswith("Nelson") for rule in nelson_rules)
 
 
@@ -87,9 +87,12 @@ def test_ruleset_switch_nelson_only_rule_not_under_we():
 def test_special_cause_beyond_3_sigma_flags_rule_1():
     df = pd.DataFrame({"s": _WITH_SPIKE})
 
+    # Default ruleset is "nelson" (charts.py:189), so the default label is Nelson's.
     result = control_chart_for_signal(df, "s")
+    assert {"index": 8, "rule": "Nelson Rule 1"} in result.violations
 
-    assert {"index": 8, "rule": "Western Electric Rule 1"} in result.violations
+    we_result = control_chart_for_signal(df, "s", ruleset="we")
+    assert {"index": 8, "rule": "Western Electric Rule 1"} in we_result.violations
 
 
 def test_in_control_series_yields_no_violations():

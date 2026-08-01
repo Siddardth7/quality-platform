@@ -34,3 +34,6 @@ htmlcov/
 
 # agent pipeline handoff (transient)
 .pipeline/
+
+# Playwright MCP browser artifacts (transient)
+.playwright-mcp/

@@ -127,12 +127,14 @@ def test_yield_summary_all_fail_slice_is_0_pct_yield_1e6_dppm():
 # Frame of 13 wafer rows. FAIL rows = {9, 12}, all others PASS.
 #
 # - sensor_event_multi: no NaN. A moderate spike (30.0) at row 12, preceded by a
-#   monotonic run, so *three* SPC violation events land on failed wafers (WE Rule 1
-#   @ row12, WE Rule 4 @ row9, Nelson Rule 5 @ row12) even though only 2 distinct
-#   failed wafers (9, 12) are involved -> proves OQ1a counts events, not wafers.
+#   monotonic run, so *three* SPC violation events land on failed wafers (Nelson
+#   Rule 1 @ row12, Nelson Rule 2 @ row9, Nelson Rule 3 @ row12) even though only
+#   2 distinct failed wafers (9, 12) are involved -> proves OQ1a counts events,
+#   not wafers.
 # - sensor_alpha_gap / sensor_zeta_gap: identical data, an interior NaN at raw
 #   position 4 shifts the present-value positional index away from the raw row
-#   index. The single WE Rule 1 violation is at *present* index 8, which must map
+#   index. The single Nelson Rule 1 violation is at *present* index 8 (the
+#   default ruleset is "nelson"), which must map
 #   to raw row 9 (FAIL) via `features.index[features[signal].notna()]` -- not to
 #   raw row 8 (PASS), which is what naive/raw positional indexing would return.
 #   Same data under two signal names -> tests the count-tie, name-ascending
@@ -340,9 +342,10 @@ def test_pareto_ruleset_passthrough_to_control_charts_for_selection():
     nelson_result = failing_signal_pareto(dataset, audit, ruleset="nelson")
     we_result = failing_signal_pareto(dataset, audit, ruleset="we")
 
-    # Under "nelson", row 12 collects WE Rule 1 *and* Nelson Rule 5 (2 events);
-    # under "we", only WE Rule 1 fires on row 12 (Nelson Rule 5 doesn't exist under
-    # this ruleset) -- so the two rulesets must disagree on the count.
+    # Under "nelson", row 12 collects Nelson Rule 1 *and* Nelson Rule 3 (2 events);
+    # under "we", only Western Electric Rule 1 fires on row 12 (Nelson Rule 3
+    # doesn't exist under this ruleset) -- so the two rulesets must disagree on
+    # the count.
     nelson_count = nelson_result.loc[
         nelson_result["signal"] == "sensor_event_multi", "n_fail_violations"
     ].item()

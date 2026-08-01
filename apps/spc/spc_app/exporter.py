@@ -209,9 +209,10 @@ def _control_chart_summary_rows(report: ControlChartReport) -> list[tuple[str, o
         ("Rule Violations", len(report.violations)),
         ("", ""),
     ]
-    # Metrics are app-formatted numeric strings (e.g. "10.0000", "-3.0000"); they are
-    # NOT user input, so they bypass sanitize_cell — escaping them would prefix a
-    # spurious apostrophe onto legitimate negative values.
+    # Metrics are app-formatted numeric strings (e.g. "10.0000", "-3.0000"). Since #198
+    # write_keyvalue_sheet sanitizes everything it writes, so these do pass through
+    # sanitize_cell — they survive intact because a plain decimal is exempt, not because
+    # this call site is trusted.
     rows += list(report.metrics)
     if report.violations:
         rows.append(("", ""))

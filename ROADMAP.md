@@ -7,7 +7,7 @@
 
 - **Repo:** <https://github.com/Siddardth7/quality-platform>
 - **Live demo:** <https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/>
-- **Status (2026-07-24):** Weeks 1–9 + 11 shipped (v0.1.0 → v0.9.0, v0.11.0). **Week 10** (Modern SPC depth) and **Week 12** (frontend migration → Reflex) remain before **v1.0.0-portfolio**.
+- **Status (2026-07-27):** Weeks 1–9 + 11 shipped (v0.1.0 → v0.9.0, v0.11.0). **Week 10** (Modern SPC depth) and **Week 12** (the web platform — FastAPI + Next.js; the Reflex migration is **cancelled**) remain before **v1.0.0-portfolio**.
 - **Roadmap rerouted 2026-07-10:** the AI-copilot phase is **deferred**; **MSA / Gage R&R** and a **SECOM real-semiconductor case study** take its place (see §5 and §9).
 - **Canonical schedule:** GitHub **Milestones** (`Week 01` … `Week 12`). This file mirrors and explains them.
 
@@ -62,7 +62,7 @@ correctness, and trustworthy applied AI.
 | **Phase** | D — Depth & legibility (Weeks 10–12) |
 | **Active milestone** | Week 10 · Modern SPC depth (→ v0.10.0) |
 | **Shipped releases** | v0.1.0 … v0.9.0, v0.11.0 |
-| **Next release** | v0.10.0 (Week 10), then v1.0.0-portfolio (Week 12 · Reflex migration) |
+| **Next release** | v0.10.0 (Week 10), then v1.0.0-portfolio (Week 12 · web platform — FastAPI + Next.js) |
 | **Apps live** | FMEA Risk Analyzer, SPC Dashboard, Control Plan connector, MSA / Gage R&R (unified shell) |
 | **Shared core** | `quality_core` → `schema` (flat + relational), `io`, `scoring`, `theme` |
 | **Quality gate** | ruff + mypy + pytest/coverage; CI-enforced; `quality_core.io` / `.schema` / `.scoring` & Control Plan gated at **100%**, SPC testable surface at **100%** |
@@ -77,9 +77,14 @@ correctness, and trustworthy applied AI.
 
 ## 3. System architecture
 
-The platform is a **uv workspace monorepo**: two Streamlit apps mounted under one shell, both
-depending on a shared core package. Everything cross-cutting (data contracts, file IO, theme) is
-written once in `quality_core` and consumed twice.
+The platform is a **uv workspace monorepo** with **five members** (`pyproject.toml`). **Four are
+Streamlit apps mounted under one shell** — FMEA, SPC, Control Plan, MSA (`app.py`). **The fifth,
+SECOM, is engine-only *by decision* (#206):** a tested analysis library consumed by its own suite
+and, from P3 onward, by the platform API — deliberately never mounted in the shell, so it has no
+`app.py` and no `st.navigation` entry. That is intent, not an omission: when API routes are
+enumerated, SECOM must be read off the workspace members, not off the shell's navigation map.
+All five depend on the shared core, each on the parts it needs: data contracts, scoring, file IO
+and theme are written once in `quality_core` instead of per app.
 
 ```mermaid
 flowchart TB
@@ -87,33 +92,42 @@ flowchart TB
         Home["🏠 Landing page"]
     end
 
-    subgraph Apps["Apps"]
+    subgraph Apps["Apps mounted in the shell"]
         FMEA["📋 FMEA Risk Analyzer<br/>apps/fmea<br/>RPN + AIAG-VDA Action Priority"]
         SPC["📈 Manufacturing SPC Dashboard<br/>apps/spc<br/>control charts · capability · live sim"]
-        CP["🧩 Control Plan connector<br/>apps/controlplan (Week 6)"]:::planned
-        MSA["📏 MSA / Gage R&R<br/>apps/msa (Week 8)"]:::planned
+        CP["🧩 Control Plan connector<br/>apps/controlplan"]
+        MSA["📏 MSA / Gage R&R<br/>apps/msa"]
+    end
+
+    subgraph EngineOnly["Engine-only member (library · not mounted)"]
+        SECOM["🏭 SECOM case study<br/>apps/secom<br/>ingest · selection · charts · capability<br/>msa · yield/DPPM · DOE screening"]:::engine
     end
 
     subgraph Core["packages/quality-core — quality_core"]
         Schema["schema/<br/>fmea (flat rows) · relational · _base"]
         IO["io/<br/>export (CSV/Excel/PDF) · validate (ingest)"]
+        Scoring["scoring.py<br/>RPN · AIAG-VDA Action Priority"]
         Theme["theme/<br/>palette · style"]
     end
 
     Home --> FMEA & SPC & CP & MSA
-    FMEA --> Schema & IO & Theme
-    SPC  --> IO & Theme
-    CP   --> Schema
-    MSA  --> Schema & IO & Theme
-    SPC  -.consumes schema (Week 7).-> Schema
+    FMEA  --> Schema & IO & Scoring & Theme
+    SPC   --> IO & Theme
+    CP    --> Schema & IO & Scoring
+    MSA   --> Schema & IO & Theme
+    SECOM --> IO
+    SECOM -.reuses the SPC engine.-> SPC
 
-    classDef planned stroke-dasharray: 5 5,opacity:0.7;
+    classDef engine stroke-dasharray: 5 5,opacity:0.85;
 ```
 
 **Key architectural choices**
-- **Shared core, consumed twice.** `quality_core.io` owns CSV/Excel/PDF export (with formula-injection
-  escaping) and validated ingest, so both tools are guaranteed identical on those boundaries. This is
-  the "economic argument" of the monorepo made concrete.
+- **Shared core, consumed by every member.** `quality_core.io` owns CSV/Excel/PDF export (with
+  formula-injection escaping) and validated ingest, so no surface hand-rolls either one — each
+  consumes the parts it needs. SECOM is the widest exception: it reuses only `IngestError`, because
+  `load_table`'s per-row validation would discard most of its rows. The guarantee is that where two
+  surfaces do the same thing, they do it identically. This is the "economic argument" of the monorepo
+  made concrete.
 - **Schema promoted only when stable.** Schema stayed inside the FMEA app until Week 5, then was
   promoted to `quality_core.schema` (deferred extraction — done once, correctly), so SPC / Control
   Plan can share one contract.
@@ -137,8 +151,9 @@ flowchart LR
     C -->|"out-of-control signal →<br/>occurrence-rating feedback / CAPA"| A
 ```
 
-> A user walks **FMEA → Control Plan → SPC → back to FMEA** without leaving the platform. Today the
-> three surfaces exist (SPC + FMEA live; Control Plan lands Week 6); the *connections* are Weeks 6–7.
+> A user walks **FMEA → Control Plan → SPC → back to FMEA** without leaving the platform. The loop is
+> shipped (Control Plan v0.6.0, the FMEA↔CP↔SPC connections v0.7.0): four surfaces — FMEA, SPC,
+> Control Plan, MSA — are mounted in the shell, plus SECOM as an engine-only member.
 
 ---
 
@@ -164,7 +179,7 @@ flowchart TB
     subgraph PD["Phase D · Depth & legibility (Wk 10–12)"]
         W10["Wk10 v0.10.0<br/>Modern SPC depth"]
         W11["Wk11 v0.11.0<br/>DOE on SECOM + JMP"]
-        W12["Wk12 v1.0.0-portfolio<br/>Frontend migration → Reflex"]
+        W12["Wk12 v1.0.0-portfolio<br/>Web platform: FastAPI + Next.js"]
     end
     DEF["Deferred · AI FMEA copilot<br/>LLM + RAG + evals — unscheduled"]:::deferred
     W1-->W2-->W3-->W4-->W5-->W6-->W7-->W8-->W9-->W10-->W11-->W12
@@ -180,7 +195,7 @@ flowchart TB
 - **Phase A — Foundation (Wks 1–2):** one repo, one quality bar, shared theme, shell. *De-risks everything.*
 - **Phase B — Standards-correct cores (Wks 3–5):** FMEA goes AP-native + relational; SPC gets shared validation + export. *Both tools become individually credible.*
 - **Phase C — Integration & core-tool completion (Wks 6–9):** Control Plan connector, the FMEA↔CP↔SPC loop, the MSA / Gage R&R module, and the SECOM real-semiconductor case study. *The platform becomes a workflow, completes the AIAG core-tools story, and runs on real process data.* ← **we are here**
-- **Phase D — Depth & legibility (Wks 10–12):** **Wk 10 — full Modern SPC depth** (EWMA/CUSUM, Phase I/II freezing, Box-Cox capability + CIs); **Wk 11 — DOE screening on SECOM** (shipped v0.11.0); **Wk 12 — frontend migration Streamlit → Reflex**, so **v1.0.0-portfolio** ships on the new branded surface. *(Replan 2026-07-24: SME kept full Week-10 SPC depth rather than trading it for the migration; portfolio hardening is folded into the final tag, not its own week.)*
+- **Phase D — Depth & legibility (Wks 10–12):** **Wk 10 — full Modern SPC depth** (EWMA/CUSUM, Phase I/II freezing, Box-Cox capability + CIs); **Wk 11 — DOE screening on SECOM** (shipped v0.11.0); **Wk 12 — the web platform (FastAPI + Next.js, one repo)**, so **v1.0.0-portfolio** ships as a real web application. *(Replan 2026-07-26: Reflex cancelled — `docs/research/web-platform-migration.md`.)* *(Replan 2026-07-24: SME kept full Week-10 SPC depth rather than trading it for the migration; portfolio hardening is folded into the final tag, not its own week.)*
 - **Deferred — AI FMEA copilot:** the old Weeks 9–11 (LLM + RAG + eval harness) and the Week-12 architecture-fork gate are documented in §9 but **unscheduled**. They reopen only if they become the priority again.
 
 *Rerouted 2026-07-10 (post-v0.5.0): the AI phase was replaced by MSA + SECOM so every remaining week
@@ -244,15 +259,24 @@ quality-platform/
 │           │                   # relational.py (Function→FM→Effect/Cause/Control + adapters)
 │           │                   # _base.py (StrictModel, find_duplicates — shared validators)
 │           ├── io/             # export.py (CSV/Excel/PDF) · validate.py (validated ingest)
+│           ├── scoring.py      # RPN · AIAG-VDA Action Priority
 │           └── theme/          # palette.py · style.py
 │
 └── apps/
     ├── fmea/                   # FMEA Risk Analyzer (full original history preserved)
     │   ├── app.py · fmea_app/  # rpn_engine, ap_engine, rating_scales, exporter, schema (re-export), charts
     │   └── data/               # composite_panel_fmea_demo.csv, input template
-    └── spc/                    # Manufacturing SPC Dashboard (full original history preserved)
-        └── spc_app/            # spc_engine (control_charts, capability, rule_detection),
-                                # simulation, visualizer, exporter, pages/
+    ├── spc/                    # Manufacturing SPC Dashboard (full original history preserved)
+    │   └── spc_app/            # spc_engine (control_charts, capability, rule_detection),
+    │                           # simulation, visualizer, exporter, pages/
+    ├── controlplan/            # Control Plan connector — FMEA → characteristic, spec, method,
+    │   └── controlplan_app/    # sample plan, recommended chart; pages/ mounted in the shell
+    ├── msa/                    # MSA / Gage R&R
+    │   └── msa_app/            # Average-and-Range (no ANOVA), %GRR, ndc; pages/ mounted in the shell
+    └── secom/                  # SECOM real-data case study — ENGINE-ONLY, no app.py, not mounted
+        ├── secom_app/          # ingest, selection, charts, capability, msa, yield_dppm,
+        │                       # doe_screening — all seven at a 100% CI gate
+        └── data/               # vendored UCI SECOM raw files
 ```
 
 ---
@@ -363,16 +387,37 @@ One **screening analysis** on the most influential SECOM signals — which facto
 capstoning the platform's real-data story. *(Paired externally with the JMP-STIPS statistics
 curriculum so the DOE method is both applied and certified.)*
 
-### ⬜ Week 12 — Frontend migration (Streamlit → Reflex) · **v1.0.0-portfolio** *(Phase D · the 1.0 surface)*
-Migrate the UI off Streamlit to **Reflex** (Python → real React) via **strangler-fig**, so
-**v1.0.0-portfolio ships on the new branded surface**. The correctness-bearing core is already
-~100% Streamlit-free, so this is a **presentation-layer swap**, not a rewrite — all coverage/type
-gates transfer 1:1. Order: Reflex shell + landing/hosting → MSA → SPC → Control Plan → **FMEA
-relational editor last** (the session-state long pole) → retire Streamlit → tag. Decision doc:
-`docs/research/frontend-migration.md`; epic **#107**; issues **#147–#153**. **Portfolio hardening**
-(60-second README, hosted demo, demo video/GIF, architecture diagram, plain-English framing) is
-folded into the final tag issue **#153** — not a separate week. *(Escalation to React + FastAPI +
-Supabase stays gated on a real product signal — see the Deferred phase below.)*
+### ⬜ Week 12 — The web platform (FastAPI + Next.js) · **v1.0.0-portfolio** *(Phase D · the 1.0 surface)*
+> **The Reflex migration is CANCELLED (2026-07-26).** `docs/research/web-platform-migration.md`
+> supersedes `frontend-migration.md` §1–§8: the §10 GO-FULL gate fired — *"You want the frontend
+> itself as a senior full-stack hiring artifact and can budget the XL"* — so the website **becomes
+> the product** rather than a shell around Streamlit.
+
+**Build a real web application: FastAPI over `quality_core` plus a Next.js frontend**, in **one
+repo** — `web/` at the root (not `apps/web/`: the uv workspace globs `apps/*` as Python members).
+Next.js 16 App Router + TypeScript + Tailwind. **No auth, no database, no multi-tenancy** — every
+tool is stateless compute→render, and building a SaaS substrate for zero users is the single most
+likely way this plan fails.
+
+Sequential phases, each shipping something; the working app never breaks:
+
+| Phase | Work | Ships |
+|---|---|---|
+| **P0** | `/auditor` agent + `/audit` command; issue breakdown | the pipeline |
+| **P1 · Audit** | `/audit domain` · `security` · `architecture` → themed issues → `/ship` each | a verified core — **blocks P3** |
+| **P2 · Web foundation** | `web/` · Next.js · landing · `/projects` · `/decisions` | the public site, live |
+| **P3 · API** | `apps/api` — FastAPI over `quality_core`, OpenAPI schema, TestClient tests **@ 100% line + branch** | a tested, documented API |
+| **P4 · Tool migration** | strangler fig, **one tool per release**; delete each Streamlit page as its replacement lands | one tool per release |
+| **P5 · Cutover** | retire the Streamlit deploy · **v1.0.0** | the product |
+
+**Audit blocks the API** — never publish a contract over unverified math. P4 order is by state
+complexity: Process Capability (the pilot, zero session state) → SPC charts → MSA → Control Plan →
+**FMEA relational editor last** (55 of ~59 session-state sites). **Two gates, one system:** CI runs
+`gate` (ruff · mypy · pytest) and `web-gate` (eslint · `tsc --noEmit` · vitest + playwright), with
+TS types generated from the OpenAPI schema and CI failing on drift; `web/` ships green from its
+first commit. **Portfolio hardening** (60-second README, hosted demo, demo video/GIF, architecture
+diagram, plain-English framing) folds into the final tag issue, not a separate week. Decision doc:
+`docs/research/web-platform-migration.md`; epic **#107** stays open, its scope is now this plan.
 
 ### 🅿️ Deferred — AI FMEA copilot *(documented, unscheduled)*
 The original Phase D/E content, preserved as a future phase. Reopens only if it becomes the priority
@@ -384,8 +429,10 @@ again.
   rationale display, cost controls — *then* ship. Built on Claude via the Anthropic API.
 - **AI on SPC:** explainable **special-cause interpretation** (*"Rule 2 fired at point 17 → probable
   mean shift; candidate causes from the linked FMEA"*).
-- **Architecture-fork gate:** the deliberate go/no-go on a FastAPI + React/Next + Supabase rewrite —
-  only relevant if a full-stack fork or a real product signal appears.
+- **Database / Supabase, auth, multi-tenancy:** the Week-12 web platform is explicitly stateless
+  (compute→render, no persistence) — the architecture-fork gate on a FastAPI + Next.js rewrite
+  already **fired** (`docs/research/web-platform-migration.md`); what stays deferred is adding a
+  database, login, or multi-user support, revisited only on a real "save and return" product signal.
 
 ---
 
@@ -404,7 +451,7 @@ again.
 | **v0.9.0** | 9 | SECOM semiconductor case study | ✅ released |
 | **v0.10.0** | 10 | Modern SPC depth (Phase I/II, EWMA/CUSUM, Box-Cox + CIs) | ⬜ planned (next) |
 | **v0.11.0** | 11 | DOE screening on SECOM | ✅ released |
-| **v1.0.0-portfolio** | 12 | Frontend migration → Reflex (portfolio hardening folded in) | ⬜ planned |
+| **v1.0.0-portfolio** | 12 | Web platform — FastAPI + Next.js (portfolio hardening folded in) | ⬜ planned |
 | *(deferred)* | — | AI FMEA copilot + AI on SPC + architecture-fork gate | 🅿️ unscheduled |
 
 ---
@@ -413,7 +460,7 @@ again.
 
 **Run the unified platform (recommended):**
 ```bash
-uv run streamlit run app.py      # one URL: Home + FMEA + the three SPC workflows
+uv run streamlit run app.py      # one URL: Home + FMEA + the three SPC workflows + Control Plan + MSA
 ```
 
 **Run a single app standalone (unchanged from its original repo):**

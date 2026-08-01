@@ -133,9 +133,9 @@ jobs:
       # stability-gated capability coupling, the MSA-applicability refusal,
       # the yield/DPPM + violation-to-failed-wafer mapping, and the
       # Cohen's-d/Welch-t/BH-FDR screening math can't regress silently.
-      # `secom_app.pages` (W09-5 Streamlit view) is intentionally excluded —
-      # it's a thin, non-gated renderer, same as SPC/MSA pages/. W11-1 ships
-      # engine-only (no page).
+      # SECOM is engine-only (#206): the W09-5 Streamlit view was deleted, so
+      # every engine module is gated here — no pages/ exclusion, unlike
+      # the SPC/MSA gates above.
       - name: SECOM coverage gate
         run: >
           uv run pytest apps/secom

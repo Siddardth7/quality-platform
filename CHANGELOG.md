@@ -6,6 +6,447 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **MSA declares which Gage R&R method it ran, and what that method cannot see (audit A10, #194).**
+  `compute_gage_rr()` now returns two additional keys — `method` (`"average_and_range"`) and
+  `method_note` — exported from `gage_rr_engine` as the `METHOD` / `METHOD_NOTE` constants, and
+  surfaced as "Method" / "Method Limitation" in the results CSV, the Excel Summary sheet and the PDF
+  detail table. The engine implements only the Average-and-Range method, which per AIAG MSA 4th Ed.,
+  Ch. III Sec. B "does not include" the operator-to-part interaction: that interaction is absorbed
+  into the reported components, so `%GRR` is biased low when it is non-zero. Previously nothing in
+  the payload or the exports said so, leaving a consumer unable to distinguish this `%GRR` from an
+  ANOVA result. ASSUMPTIONS_LOG RULE 1 is rewritten with primary-source quotations and correct
+  Chapter/Section locators (its previous "Section 3.2" citation does not exist in the 4th Edition).
+  **No computed value changed** — `%GRR`, `ndc` and `verdict` are byte-identical. The ANOVA method,
+  which would estimate the interaction, is tracked as #195 and is not implemented here.
+
+### Changed
+
+- **MSA acceptance bands: the disputed tolerance-basis band set was investigated and refuted; no
+  code change, and the ×6 multiplier's provenance is upgraded to primary source (audit A07-b,
+  #217, follow-up to #190).** #217 asserted that AIAG MSA 4th Ed. applies a *separate* `0–19%` /
+  `20–30%` / `>30%` band set to the tolerance basis. It does not: **Table II-D 1 (Ch. II §D)** is a
+  single "GRR Criteria" table with no basis qualifier (`Under 10 percent` / `10 percent to 30
+  percent` / `Over 30 percent`), and **Ch. III §B** makes the tolerance basis a denominator swap
+  only ("substituting the value of tolerance *divided by six* in the denominator … in place of the
+  total variation (TV)") before redirecting acceptance back to Ch. II §D ("the rule of thumb for
+  gage repeatability and reproducibility (%GRR) may be found in Chapter II, Section D"). The
+  `0–19/20–30` figures trace to a Hamilton Sundstrand / UTC customer form whose own study-variation
+  row also contradicts AIAG's 10/30. `_compute_verdict(ndc, pgrr)` is therefore correct as written
+  and is unchanged — #190's F-12 collapse to two arguments stands. `ASSUMPTIONS_LOG.md` RULE 8 and
+  RULE 10 now state **explicitly** that one band set (10/30) governs both the study-variation and
+  tolerance bases, with the citations above and the rejected alternative recorded, so a future
+  attempt to add a second band set is visibly wrong instead of silently plausible — RULE 8's
+  silence on this is what let A07 hide. Separately, RULE 8's ⚠ "verified against a third-party
+  reproduction, not the paywalled manual itself" caveat on `_STUDY_VARIATION_SIGMA = 6.0` (#190) is
+  **withdrawn**: Ch. III §B's "tolerance divided by six" confirms 6.00 (not the 3rd-edition 5.15)
+  from the primary manual, so the RTX PPAP form is now only a numeric cross-check. The same upgrade
+  is applied to the `_STUDY_VARIATION_SIGMA` comment in `gage_rr_engine.py` and to the AIAG
+  reference-study test's docstring. Documentation and comments only — no `.py` behaviour changed.
+
+### Fixed
+
+- **The SPC capability stability gate now lives in the engine, not only in the Streamlit page
+  (audit A09, #191).** `assess_control_chart` (page-only, outside the coverage gate) moved to
+  `spc_app/spc_engine/stability.py::assess_stability`; the page keeps only its stream →
+  chart-type map. `CapabilityStudy` gains two keys — `stable: bool | None` and
+  `stability_note: str | None` — populated on all four method paths (normal / boxcox /
+  yeojohnson / percentile), and `compute_capability_study` gains a keyword-only
+  `violations` parameter carrying the caller's out-of-control signal list. **`stable is None`
+  means stability was *not assessed*** (no control-chart context supplied) and is never
+  defaulted to `True`; `violations=[]` means assessed and in control. The engine does not
+  derive the control chart itself — I-MR on flattened subgrouped data understates sigma and
+  flips verdicts (RULE 7 / D3). Indices are annotated, never suppressed (SME: annotate, do not
+  block). **`compute_capability` is unchanged** — same signature, same return keys (SECOM
+  depends on it directly). No behavior change on the demo streams: all 7 report the same
+  signal counts as before.
+
+- **SPC run-rule fidelity: WE 2/3 same-side logic and Nelson's own 1–8 numbering (#192,
+  F-03/F-04).** `_count_same_side` (Western Electric rules 2/3, and their Nelson
+  equivalents) required the *opposite* side to have zero hits before counting a same-side
+  signal, contradicting the documented "on the same side" rule and silently suppressing real
+  out-of-control signals whenever one stray point landed on the other side. Fixed to count
+  each side independently. Separately, `detect_nelson_violations` used to start from
+  `detect_we_violations`'s output verbatim, so selecting the Nelson rule set emitted
+  `"Western Electric Rule 1-4"` labels (including WE's 8-in-a-row) instead of Nelson's own
+  numbering, and never emitted Nelson Test 2 (9-in-a-row) at all. The Nelson set now emits
+  only `"Nelson Rule 1"`–`"Nelson Rule 8"` per Nelson (1984); Western Electric keeps its own
+  `"Western Electric Rule 1-4"` labels and 8-in-a-row run length (the two rule sets are a
+  mutually exclusive selector, never shown together). **Consumer impact:** no public
+  signature changed, but every label string under the Nelson rule set changes, including
+  `apps/secom`'s default chart output (`ruleset` defaults to `"nelson"`).
+
+- **MSA `%GRR` vs tolerance was understated 6× (audit A07, #190).** `compute_gage_rr()` computed
+  `pgrr_tolerance = (grr / tolerance) * 100`, dividing a bare 1-sigma `grr` (EV/AV/GRR/PV/TV are all
+  carried in 1-sigma units, `K = 1/d2*`) by a full spec width — the AIAG MSA 4th Ed. tolerance-basis
+  criterion requires the 6-sigma *study variation* as the numerator, not σ_GRR (§3.3). Verified
+  against a reproduction of the manual's own report form (AIAG reference study, `apps/msa/data/
+  aiag_reference_study.csv`): the engine reported 6.92%, the form's `% Tolerance (SV/Toler)` line
+  reports 41.80%. New module constant `_STUDY_VARIATION_SIGMA = 6.0` in `gage_rr_engine.py` fixes
+  the numerator; the same study's verdict correctly flips Marginal → Reject (41.5% > 30%, matching
+  the source form's own "unacceptable" flag). `_compute_verdict()` also collapses from
+  `(ndc, pgrr_tolerance, pgrr_study)` to `(ndc, pgrr)` — the caller already computed
+  `max(pgrr_tolerance, pgrr_study)` before calling it, making the old third parameter dead code.
+  `%GRR_study` and `ndc` are unaffected (the multiplier cancels there); no other app or exporter
+  needed changes since `pgrr_tolerance`'s type and meaning are unchanged, only its value.
+
+- **`quality_core.io` ingest is now reductive, not just assertive: `validate_table` returns only the
+  columns it validated (#200).** `validate_table` checked `required_columns` and then returned the
+  caller's frame verbatim, so any other column — SPC's `sample_size`, `lsl`, `usl` among them —
+  reached the engines unvalidated; the only guard was the `try/except` in the Streamlit pages, the
+  layer the web migration deletes. `TableSchema` gains `optional_columns`: columns that need not be
+  present, but are validated by the same `row_model` and returned when they are. `validate_table`
+  now returns a copy narrowed to the required columns plus the present optional ones, so an
+  undeclared column cannot reach an engine through `load_table`. SPC declares
+  `sample_size`/`lsl`/`usl`/`chart_type` (validated: `sample_size > 0` and finite — a u chart's
+  area of opportunity is legitimately fractional — finite tolerances,
+  `chart_type` restricted to the six engine chart keys) and drops the unused `parameter`; Control
+  Plan's app-local `_reject_bad_optional_values` is deleted in
+  favour of the core mechanism it prototyped. Related engine fix:
+  `spc_engine._validate_attribute_inputs` now rejects a non-finite sample size — `np.nan <= 0` is
+  `False`, so a NaN `n` previously slipped the positivity check and produced NaN control limits with
+  no error.
+
+- **`spc-app` and `secom-app` are now installable (editable) workspace packages, so
+  `secom_app.charts`/`.capability` resolve `spc_app.spc_engine` (and `secom_app` itself
+  resolves for `apps/api`) outside pytest (#204).** Declaring `spc-app` as a `secom-app`
+  dependency alone was inert — every app set `[tool.uv] package = false`, so uv resolved
+  the dependency but never installed the `spc_app` module. Both `apps/spc/pyproject.toml`
+  and `apps/secom/pyproject.toml` now drop `package = false` for a
+  `[build-system]`/`[tool.hatch.build.targets.wheel]` block (flat layout, mirroring
+  `packages/quality-core`'s `src/` block), and `secom-app` declares `spc-app` as a
+  `{ workspace = true }` dependency. `apps/secom/conftest.py`'s `sys.path` hacks for
+  `apps/spc` (redundant — spc_app is now installed) and for `apps/secom` itself
+  (redundant — secom_app is now installed) are removed; the `apps/msa` entry stays (msa-app
+  is not yet an installable package). New
+  `apps/secom/tests/test_import_boundary.py` proves both imports in a clean,
+  non-pytest interpreter with no conftest involved. This remains a stopgap — #205
+  (promoting the SPC engine into `quality_core`) is the real fix.
+
+### Added
+
+- **SPC UI wiring for Week-10 features + run-rule gating (W10-5, #145).** EWMA and CUSUM
+  are now reachable from the Control Charts page (standards-default λ/L and k/h/FIR
+  pre-filled from `constants.py`; `mu0`/`sigma` come from an independent I-MR baseline
+  fit, never the z-series/accumulators themselves), alongside a Phase I (establish &
+  freeze) / Phase II (monitor against frozen limits) toggle for X̄-R/X̄-S/I-MR built on
+  W10-1's `phase.py`. **Load-bearing correctness fix:** a single gated chokepoint,
+  `rule_detection.detect_violations(chart_type, ...)`, now routes every WE/Nelson caller
+  (both the Control Charts page and the Capability page's stability gate) — it returns
+  `[]` for any non-Shewhart `chart_type` (EWMA/CUSUM) or non-positive sigma, so run-rules
+  statistically invalid on autocorrelated EWMA/CUSUM series can no longer fire, from any
+  caller. The Capability page gained a `force_method` sidebar override
+  (`compute_capability_study(..., force_method="auto"|"normal"|"boxcox"|"percentile")`)
+  letting an analyst force normal-theory, Box-Cox/Yeo-Johnson, or fitted-percentile
+  capability regardless of the Shapiro-Wilk result, with the histogram overlay now
+  matching the selected method: the fitted-percentile winner's `.pdf` in raw space, or
+  the exact back-transformed Box-Cox/Yeo-Johnson normal density via change-of-variables
+  (`f_X(x) = φ((t(x)-μ_t)/σ_t)/σ_t · |t'(x)|`). The capability exporter gained Method / λ
+  / Cp & Cpk 95% CI / Cpk lower bound / fitted-distribution rows. Documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 15 (WE/Nelson restricted to Shewhart charts;
+  Montgomery §9 autocorrelation rationale) plus an assumption note on the `force_method`
+  override.
+
+- **Non-normal capability via Box-Cox + Cp/Cpk confidence intervals (W10-4, #144).** New
+  `compute_capability_study` in `apps/spc/spc_app/spc_engine/capability.py` orchestrates a full
+  capability study on individuals or 2D subgroups: Shapiro-Wilk gate → Box-Cox (positive data)
+  or Yeo-Johnson (`allow_yeojohnson=True` default; opt-in documented shift `c=1−min(x)` +
+  Box-Cox otherwise) when non-normal → re-test the transformed data → normal-theory Cp/Cpk/CIs
+  in the transformed space, or a fitted-distribution percentile fallback (ISO 22514-2,
+  `{lognorm, weibull_min, gamma, johnsonsu}` selected by minimum AIC, empirical `np.quantile`
+  last resort if every candidate fit fails) when it stays non-normal. Within-σ reuses the
+  existing `compute_imr`/`compute_xbar_r` estimators in the same (raw or transformed) space as
+  the capability computation, preserving the Cp/Cpk-within vs Pp/Ppk-overall split; λ<0 is
+  handled by a `sorted()` ordering guard on the transformed spec limits, never a literal swap.
+  `compute_capability` (existing signature/keys untouched) gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
+  `cpk_lower` — a χ² exact CI for Cp and a Bissell (1990) large-sample CI for Cpk. The
+  fitted-percentile path instead gets a **deterministic bootstrap** CI (fixed
+  `BOOTSTRAP_SEED = 12345`, `BOOTSTRAP_RESAMPLES = 2000`, `scipy.stats.bootstrap(method=
+  "percentile")`) for bit-reproducible audit trails. New constants `CAPABILITY_ALPHA`,
+  `BOXCOX_LAMBDA_CANDIDATES`, `NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`,
+  `PERCENTILE_FIT_CANDIDATES`, `BOOTSTRAP_SEED`, `BOOTSTRAP_RESAMPLES` in `constants.py`.
+  Documented in `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 14, with NIST §6.5.2/§6.1.6 as the
+  primary/quotable Box-Cox and percentile-index sources, and Montgomery Ch. 8 / Bissell (1990) /
+  ISO 22514-2 / Box & Cox (1964) / Efron & Tibshirani (1993) flagged secondary/paywalled where
+  applicable.
+
+- **CUSUM control chart (W10-3, #143).** New `compute_cusum` in
+  `apps/spc/spc_app/spc_engine/control_charts.py` computes the tabular two-sided CUSUM on
+  standardized individuals: `C+`/`C−` positive-accumulator recursions with a mandatory
+  `max(0, …)` reset barrier on both arms, an optional FIR head-start (`h/2`) seeded on both
+  arms, and `n_plus`/`n_minus` run-length counters estimating shift onset. `CUSUMResult`
+  echoes `k`/`h`/`fir` alongside the series. New constants `CUSUM_DEFAULT_K = 0.5`,
+  `CUSUM_DEFAULT_H = 5.0`, `CUSUM_FIR_FRACTION = 0.5` in `constants.py`. `build_cusum_chart`
+  in `visualizer.py` is a standalone `go.Figure` (two accumulators, no symmetric CL, so it
+  does not delegate to `build_control_chart`): `C+` plotted upward, `C−` negated for display
+  only (Montgomery Fig. 9.2 two-sided style — the stored `c_minus` stays a positive
+  accumulator), decision-interval lines at both `+h` and `−h`. No WE/Nelson run-rule gating
+  on CUSUM points (autocorrelated; deferred to W10-5). Documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 13, including the explicit flag that the issue's
+  quoted ARL figures trace to Montgomery §9.1/Lucas (1976), not NIST §6.3.2.3, and the
+  Lucas & Crosier (1982) FIR citation (paywalled primary, checked against Montgomery §9.1.4).
+
+- **EWMA control chart (W10-2, #142).** New `compute_ewma` in
+  `apps/spc/spc_app/spc_engine/control_charts.py` computes the exponentially weighted moving
+  average on individuals from an independent Phase I `(mu0, sigma)` pair, with exact
+  time-varying limits (not the asymptotic approximation) that widen from point 1 toward the
+  asymptote. `EWMAResult` carries a soft-warn `pairing_adequate`/`pairing_note` pair (never
+  raises) flagging a λ/L combination that deviates from the tabulated Lucas & Saccucci (1990)
+  pairing by more than 0.01, mirroring W10-1's `baseline_adequate`/`baseline_note`. New
+  constants `EWMA_DEFAULT_LAMBDA = 0.20`, `EWMA_DEFAULT_L = 2.860`, and `EWMA_L_BY_LAMBDA` in
+  `constants.py`. `build_ewma_chart` in `visualizer.py` delegates to the existing
+  `build_control_chart` (now with an additive `x_axis_title` param, default `"Subgroup"`)
+  passing `x_axis_title="Observation"` and per-point limits/signal markers — no new plotting
+  code. Documented in `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 12, including the
+  Lucas & Saccucci-via-Montgomery paywall flag.
+
+- **Phase I/II control-limit freezing (W10-1, #141).** New
+  `apps/spc/spc_app/spc_engine/phase.py` adds `freeze_xbar_r/_s/_imr`, which screen a
+  Phase I baseline (documented-cause exclusion via `ExcludedPoint`, non-empty `cause`
+  required) and reuse the existing `compute_xbar_r/_s/_imr` on the retained points to
+  produce a `FrozenLimits` TypedDict — an all-primitives, JSON-serializable audit record
+  (no storage layer). A soft guardrail (`baseline_adequate` / `baseline_note`, never
+  raises) flags baselines below `MIN_BASELINE_SUBGROUPS = 25` (NIST §6.3.2.1) or
+  `MIN_BASELINE_INDIVIDUALS = 100` (Montgomery, secondary). `compute_xbar_r/_s/_imr` in
+  `control_charts.py` gain an optional `frozen=` argument so Phase II data is plotted
+  against fixed limits instead of recomputing them; a guard rejects a `frozen` struct
+  whose chart type or subgroup size doesn't match the new data. New constants
+  `MIN_BASELINE_SUBGROUPS`/`MIN_BASELINE_INDIVIDUALS` in `constants.py`, documented in
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 11.
+
+- **SECOM DOE screening analysis (W11-1, #72).** New
+  `apps/secom/secom_app/doe_screening.py` adds `screen_signals()`, an
+  observational univariate effect screen of pass/fail on the
+  `select_signals()`-kept candidate signals — Cohen's d effect size and
+  Welch's two-sample t-test per signal (`scipy.stats.ttest_ind`,
+  `equal_var=False`), with Benjamini-Hochberg FDR-adjusted significance
+  (`scipy.stats.false_discovery_control`, q < 0.05, a screening convention
+  not a quality-standard threshold). Explicitly labelled a screening
+  ANALYSIS of association — SECOM's factor levels are observational, never
+  set or randomized, so this is NOT a designed experiment and NOT causal.
+  Adds `scipy>=1.17.1`/`numpy>=2.4.4` to `apps/secom/pyproject.toml`
+  (already in the workspace lock via `spc-app`). Engine-only, no Streamlit
+  page. `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 14 documents the method
+  and standard-vs-convention labelling.
+
+- **SECOM case-study writeup (W09-6, #70).** New
+  `apps/secom/docs/CASE_STUDY.md`, a short, honest condensation of the W09-1..5
+  series (ingest/selection -> SPC charts -> capability -> MSA applicability ->
+  yield/DPPM/Pareto), citing only test-locked headline numbers (1567 x 590
+  shape, 1463/104 pass/fail split, 93.363% yield, 66,368.86 DPPM) with a
+  mandatory Limitations section covering honest missingness (NaN-preserved,
+  never imputed) and SECOM's observational nature (no designed measurement
+  study: MSA does not apply, capability limits are caller-supplied, the
+  failing-signal Pareto is association not causation). Pure docs — no code,
+  no new coverage surface; one-line pointers added from `apps/secom/README.md`
+  and `docs/README.md`.
+
+- **SECOM yield/DPPM + failing-signal Pareto (W09-5, #69).** New
+  `secom_app/yield_dppm.py` adds `yield_summary()` (pass/fail counts ->
+  yield fraction/pct and DPPM) and `failing_signal_pareto()`, an
+  association/screening Pareto that reuses the *existing* W09-2 SPC
+  violation detection (`control_charts_for_selection`, no anomaly rule
+  re-derived) to rank kept signals by the number of special-cause violation
+  events landing on failed wafers (SME resolution: events, not distinct
+  failed-wafer count; zero-contributor signals dropped from the table).
+  DPPM is explicitly labelled **defective units per million, not DPMO**
+  (SECOM carries one pass/fail verdict per wafer, no defects-and-
+  opportunities count) — no acceptance threshold is invented. The Pareto is
+  explicitly labelled association/screening, not root-cause attribution
+  (SECOM's label attributes no failure to any signal). Also ships a thin,
+  non-gated Streamlit page, `secom_app/pages/yield_dppm.py`
+  (`render_yield_dppm()`), rendering yield, DPPM, and the Pareto table/chart
+  — the SME added this scope over the series' engine-only default because
+  the issue itself asked for a "view." `apps/secom/docs/ASSUMPTIONS_LOG.md`
+  RULE 12 (yield/DPPM, DPPM-not-DPMO) and RULE 13 (association Pareto
+  construction, labelled a defensible heuristic) record both decisions.
+  SECOM CI coverage gate extended to `secom_app.yield_dppm` (100%
+  line+branch); `secom_app.pages` stays outside the gate, matching SPC/MSA.
+
+- **SECOM MSA applicability guard (W09-4, #68).** SECOM has no
+  `part`/`appraiser`/`trial` structure and none can be legitimately
+  constructed (different sensors measure different characteristics, not
+  repeat appraisals of one measurand; successive wafers are different parts,
+  not re-measurements of the same part) — the honest deliverable is a
+  standards-anchored "MSA does not apply" document plus an executable
+  refusal guard, not a fabricated Gage R&R. New
+  `apps/secom/docs/MSA_APPLICABILITY.md` records the AIAG MSA 4th ed.
+  Section 3.1/3.2 justification, cross-referencing the SME-verified
+  `apps/msa/docs/ASSUMPTIONS_LOG.md` RULE 1/RULE 11/RULE 12 (no new AIAG
+  section numbers, tables, or thresholds introduced). New
+  `secom_app/msa.py` adds `gage_rr_applicability()` /
+  `assert_gage_rr_applicable()`, which detect missing
+  `part`/`appraiser`/`trial` columns and return/raise a standards-anchored
+  verdict — no Gage R&R math (EV/AV/%GRR/ndc/verdict) is reimplemented;
+  a real study still runs through the existing `apps/msa` app
+  (`compute_gage_rr`). `apps/secom/conftest.py` gains an `apps/msa`
+  `sys.path` shim (mirroring the existing `apps/spc` block) so the test
+  suite can import the real AIAG engine and prove it also rejects
+  SECOM-shaped frames. `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
+  the finding. SECOM CI coverage gate extended to `secom_app.msa` (100%
+  line+branch).
+
+- **SECOM real capability, Cp/Cpk (W09-3, #67).** New `secom_app/capability.py`
+  adds `capability_for_signal()`, which reuses the *existing* SPC
+  `compute_capability` (`apps/spc/spc_app/spc_engine/capability.py`) unchanged
+  against the W09-2 I-MR control chart's present values and within-process
+  σ̂ = MR̄/d₂ — no Cp/Cpk math is re-derived. Limits are caller-supplied only
+  (`lsl`/`usl`, either may be `None` for one-sided); the module never derives,
+  defaults, or fabricates a limit (both `None` raises `ValueError`; `lsl >=
+  usl` raises `ValueError`). Capability is coupled to the W09-2 stability
+  gate: on a signal with any special-cause `violations`, the indices are
+  still computed but returned with `stable=False` and a `stability_warning`
+  (mirrors `apps/spc/spc_app/pages/process_capability.py:156`) rather than
+  hard-suppressed. `charts.py` stays untouched and pure control-chart; the
+  new code lives in a separate module. `apps/secom/docs/ASSUMPTIONS_LOG.md`
+  RULE 9/RULE 10 record both resolutions with AIAG citations and standard-
+  vs-heuristic labels. SECOM CI coverage gate extended to
+  `secom_app.capability` (100% line+branch). No UI page (later W09 issue).
+
+- **SECOM SPC control charts (W09-2, #66).** New `secom_app/charts.py` runs
+  every `select_signals()`-kept sensor through the *existing* SPC I-MR engine
+  (`apps/spc/spc_app/spc_engine/`: `compute_imr`, `detect_we_violations`,
+  `detect_nelson_violations`), reused read-only via a `sys.path` shim added to
+  `apps/secom/conftest.py` (mirrors the `fmea_app` cross-app precedent) — no
+  control-limit math or rule detection is reimplemented. Handles SECOM's
+  honest missingness by splitting each signal into maximal NaN-free runs
+  before any moving-range math, so a moving range never spans a missing cell;
+  within-run moving ranges pool into one control-limit set per signal.
+  Attaches a per-signal lag-1 autocorrelation diagnostic (`lag1_autocorr`,
+  `autocorr_flag`, threshold `1.96/sqrt(n)`, Bartlett's white-noise bound) —
+  diagnostic only, never a filter or gate. `control_charts_for_selection()`
+  charts every `status=="keep"` signal from a selection audit. RED LINE
+  unchanged: no USL/LSL fabricated, no `compute_capability`, no Cp/Cpk/Pp/Ppk.
+  Every resolution recorded in `apps/secom/docs/ASSUMPTIONS_LOG.md`. SECOM CI
+  coverage gate extended to `secom_app.charts` (100% line+branch). No UI page
+  (later W09 issue).
+
+- **SECOM dataset ingest + signal selection (W09-1, #65).** New `apps/secom/`
+  app package (mirrors msa/controlplan). `secom_app/ingest.py` (`load_secom`,
+  `secom_missingness`) reads the two vendored raw UCI SECOM files
+  (`data/secom.data`, `data/secom_labels.data`; 1567 runs x 590 sensors, no
+  header) into an aligned, NaN-preserving `SecomDataset` — deliberately not
+  routed through `quality_core.io.load_table`'s per-row validation, which would
+  reject SECOM's honest missing cells; only `IngestError` is reused for
+  structural failures (row-count mismatch, out-of-domain labels).
+  `secom_app/selection.py` (`select_signals`) screens the 590 signals for
+  SPC/capability suitability with three ordered filters — a `MIN_NON_MISSING =
+  100` present-value floor (AIAG SPC capability sample-size guidance), an
+  unconditional zero-variance drop, and a near-zero-variance drop
+  (`caret::nearZeroVar` defaults, flagged as a third-party heuristic, not a
+  quality standard) — returning a full per-signal audit table. Spec limits
+  (USL/LSL) and Cp/Cpk remain out of scope: SECOM ships none, and no limits are
+  fabricated. Every criterion and its source is recorded in
+  `apps/secom/docs/ASSUMPTIONS_LOG.md`. New CI coverage gate
+  (`secom_app.ingest` + `secom_app.selection`, 100% line+branch) mirrors the
+  MSA/SPC gates. No UI yet — later W09 issues wire SECOM into SPC/capability/
+  MSA/yield-Pareto.
+
+- **MSA tests + CI coverage gate (W08-4, #57).** New engine reference test asserts
+  `compute_gage_rr` against the AIAG MSA 4th-ed "study case 1" published
+  EV/AV/%GRR/ndc/verdict, loaded from a new fixture
+  `apps/msa/data/aiag_reference_study.csv` (raw 10x3x3 canonical study). New
+  "MSA coverage gate" CI step enforces `--cov-fail-under=100` on
+  `msa_app.gage_rr_engine` + `msa_app.schema` + `msa_app.exporter`, mirroring
+  the SPC and Control Plan gates.
+- **MSA app UI — study entry, results, verdict + export (W08-3, #56).** The Gage
+  R&R page now shows a loop-link note (Control Plan → MSA → SPC) and a
+  plain-English verdict interpretation sentence, and exports the study/results
+  as CSV/Excel/PDF via `quality_core.io`. New `apps/msa/msa_app/exporter.py`
+  (`GageStudyReport`, `export_csv`, `export_results_csv`, `export_excel`,
+  `export_pdf`, `verdict_sentence`) mirrors the SPC/Control Plan exporter
+  pattern; two CSV downloads are offered (the validated study frame, and a flat
+  results table). New standalone `apps/msa/app.py`; the platform shell landing
+  page (`shell/home.py`) now lists an MSA feature card.
+
+### Changed
+
+- **README + ROADMAP reconciled with the tree (A01, #208).** Both documents described a platform
+  that no longer exists: README's architecture omitted SECOM and marked Control Plan / MSA as
+  unshipped, and its layout tree listed two of five apps; ROADMAP §3 still described "two Streamlit
+  apps ... consumed twice". Both now state **five workspace members — four mounted in the shell,
+  SECOM engine-only** — with grep-verified `quality_core` dependency edges. ROADMAP Week 12 is
+  rewritten from the **cancelled** Reflex migration to the decided web platform (FastAPI + Next.js,
+  one repo, `web/` at root — `docs/research/web-platform-migration.md`). Documentation only.
+- **SECOM recorded as engine-only (A02, #206).** ROADMAP §3, `apps/secom/README.md`, and
+  `secom_app/__init__.py` now state that SECOM is a tested *library* — consumed by its suite and,
+  from P3, by the API — deliberately not mounted in the Streamlit shell. Recorded so API-route
+  enumeration reads the workspace members, not the shell's navigation map.
+
+### Removed
+
+- **Orphan SECOM Streamlit page deleted (A02, #206).** `secom_app/pages/yield_dppm.py`
+  (`render_yield_dppm()`, W09-5) was mounted nowhere and, per the engine-only decision, never
+  will be; the now-empty `secom_app/pages/` package goes with it. The engine
+  (`secom_app/yield_dppm.py`) and its 100% CI gate are untouched — the page was ungated and
+  untested, so no covered line was lost.
+
+### Security
+
+- **`quality_core.io` ingest now fails closed (A05, #199).** Three findings in
+  `read_table`/`load_table` fixed at the shared primitive, not in callers:
+  (1) **HIGH, CWE-400** — the byte ceiling trusted a caller-supplied `.size`
+  attribute and silently skipped the check for any source without one;
+  `read_table` now *measures* the stream by seeking, and an unmeasurable source
+  (not seekable, or missing `tell`/`seek`) is rejected with `IngestError`
+  rather than let through. (2) **MEDIUM, CWE-918/CWE-73** — `read_table`
+  accepted a `str`/`PathLike` and handed it to pandas, which resolves a string
+  as a local path *or a URL*; `Source` is now `bytes | bytearray | BinaryIO`
+  only (raw bytes are wrapped in `io.BytesIO`), and a filesystem path is
+  reachable only via the new, separately named `read_table_from_path` /
+  `load_table_from_path`, which `open()` the path directly — a URL-shaped
+  string is simply an unreadable local path, not a network request, so no URL
+  blocklist was added. New `DEFAULT_MAX_ROWS = 1_000_000` /
+  `DEFAULT_MAX_COLUMNS = 1_000` caps (enforced during the parse via
+  `nrows=max_rows + 1`, a secondary cell-count control) round out the DoD; all
+  three (`max_bytes`/`max_rows`/`max_columns`) keep `None` as an explicit
+  opt-out, distinct from "unmeasurable." The four Streamlit app loaders
+  (`load_spc_csv`, `load_gage_study_csv`, `load_control_plan_csv`,
+  `load_uploaded_fmea`) keep their `str | BinaryIO` signature and now dispatch
+  to `load_table_from_path` for a `str` demo path, `load_table` otherwise; the
+  FMEA CLI (`fmea_analyzer.py`) switched to `read_table_from_path`. (3)
+  **MEDIUM, CWE-400 (JSON)** — `load_scales_from_json`
+  (`apps/fmea/fmea_app/rating_scales.py`) only caught `JSONDecodeError`/
+  `UnicodeDecodeError`, so a deeply nested "JSON bomb" escaped as an uncaught
+  `RecursionError` past `ui/filters.py`'s `except ValueError`; it now checks a
+  byte-length ceiling (reusing `quality_core.io.DEFAULT_MAX_UPLOAD_BYTES`,
+  no second literal) before parsing and normalises every `json.loads` failure
+  to `ValueError`. `secom_app` deliberately does not use this boundary and is
+  unchanged; `validate_table`'s return value and the column-contract work are
+  a separate issue and untouched here.
+
+- **Export header row now escaped for formula injection (A04, #198).** `sanitize_for_export`
+  (`packages/quality-core/src/quality_core/io/export.py`) previously escaped only cell values,
+  leaving the CSV/Excel header row — including uploader-controlled column names reachable via
+  `validate_table` — writable straight to row 1 unescaped; it now runs column labels through the
+  same `sanitize_cell` apostrophe-prefix as values, after the value pass, preserving `MultiIndex`
+  structure and non-string label dtypes. Also fixed a duplicate-column-label hole where
+  `DataFrame.apply` handed `sanitize_cell` a whole `Series` instead of scalars, silently skipping
+  escaping entirely: values are now sanitized positionally (`iloc`-based), covering duplicate
+  labels too. `write_table_sheet`'s header cell and string body cells are now escaped the same
+  way, so every caller inherits the fix from the shared primitive without depending on its own
+  `columns=` allow-list. Per OWASP WSTG-INPV-21 (Testing for CSV Injection) / CWE-1236 (Improper
+  Neutralization of Formula Elements in a CSV File); the `'` prefix is OWASP's named mitigation,
+  not a universal guarantee — OWASP itself notes some spreadsheet applications strip it on
+  save/re-open. `write_keyvalue_sheet` now escapes its labels and values too, so all four of its
+  app callers (SPC, MSA, Control Plan, FMEA) inherit the guarantee from the primitive rather
+  than owning it themselves — which is the whole point of this issue. To make that safe,
+  `_is_numeric_literal` exempts text that parses as a number: openpyxl stores a leading
+  apostrophe as a literal character, so escaping a formatted metric would have visibly corrupted
+  `-3.0000` into `'-3.0000` in every summary sheet. A payload that merely *starts* like a number
+  (`-3.0000+cmd|' /C calc'!A0`) does not parse and is still escaped. `FORMULA_PREFIXES` is
+  unchanged.
+
+### Tests
+
+- **#198's escaping is now actually asserted.** The fix originally shipped with no test: the io
+  gate still read 100% because existing tests crossed the new lines incidentally, so reverting
+  the fix left all 240 tests green. Five regression tests in
+  `packages/quality-core/tests/test_export.py` cover header-label escaping, duplicate labels,
+  `write_table_sheet` header + body, `write_keyvalue_sheet` label + value, and the
+  numeric-exemption guard. All five were verified to fail against the pre-#198 code.
+
 ## [0.12.0] - 2026-07-26
 
 ### Added

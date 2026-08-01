@@ -8,22 +8,74 @@ Each entry cites the exact AIAG MSA (4th Edition) source and explains why that s
 
 ---
 
-## RULE 1 — Average-and-Range Method (AIAG MSA, 4th Edition, Section 3.2)
+## RULE 1 — Average-and-Range Method (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
-**Decision:** Implement the **Average-and-Range method** for Gage R&R computation, not the ANOVA method (saved for W09+ stretch).
+**Decision:** Implement the **Average-and-Range method** for Gage R&R computation, not the ANOVA
+method. The choice is declared in the computed payload (`method` / `method_note`) and in every
+export, so a consumer can never mistake an Average-and-Range `%GRR` for an ANOVA one.
 
-**Source:** AIAG MSA (4th Edition), Section 3.2, "Crossed Designs — Average-and-Range Method."
-The method is the industry standard for crossed designs (every part measured by every appraiser multiple times).
-AIAG recommends it as the quickest and most intuitive for studies with balanced data.
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Variable Measurement System Study
+Guidelines." Under "Guidelines for Determining Repeatability and Reproducibility" the manual names
+three acceptable techniques:
+
+> "The Variable Gage Study can be performed using a number of differing techniques. Three
+> acceptable methods will be discussed in detail in this section. These are: Range method /
+> Average and Range method (including the Control Chart method) / ANOVA method"
+
+and states the trade-off between them directly:
+
+> "Except for the Range method, the study data design is very similar for each of these methods.
+> The ANOVA method is preferred because it measures the operator to part interaction gauge error,
+> whereas the Range and the Average and Range methods does not include this variation." [sic —
+> the manual's own grammar, quoted unaltered]
+
+The same passage is why Average-and-Range remains *acceptable* rather than merely tolerated:
+
+> "The ANOVA approach can identify appraiser-part interaction but it can also evaluate other
+> sources of variation which is the reason why it was included. Historically, the assumption is
+> made that the interaction is zero, in which case the results of both approaches are equivalent."
+
+The manual's own "Average and Range Method" subsection repeats the limitation:
+
+> "Unlike the Range method, this approach will allow the measurement system's variation to be
+> decomposed into two separate components, repeatability and reproducibility. However, variation
+> due to the interaction between the appraiser and the part/gage is not accounted for in the
+> analysis."
+
+with footnote 43: *"The ANOVA method can be used to determine the interaction between the gage and
+appraisers, if such exists."* AIAG also states the zero-interaction assumption as a **precondition**
+of these procedures — Chapter III, Section A, "Example Test Procedures" lists *"There is no
+statistical interaction between appraisers and parts"* among the conditions under which they apply.
 
 **Rationale:** The Average-and-Range method:
 - Requires only arithmetic (no statistical distributions or software libraries).
 - Works on any balanced study (no restrictions on sample size).
 - Is widely taught in quality training and is the baseline expectation for suppliers.
+- Is equivalent to ANOVA under AIAG's own stated precondition that the interaction is zero.
 
-**Stretch (W09+):** ANOVA method for unbalanced data; bias/linearity/stability studies.
+**Limitation (declared, not hidden):** the part × appraiser interaction is **not estimated**. It is
+absorbed into the reported EV/AV/PV components rather than separated out, so `%GRR` is **biased low**
+whenever the interaction is non-zero — exactly the case AIAG's precondition excludes and this method
+cannot detect. The computed payload therefore carries `method = "average_and_range"` and a
+`method_note` stating the limitation, and both reach the results CSV, the Excel Summary sheet and
+the PDF detail table ("Method" / "Method Limitation"). ANOVA — which would separate the interaction
+term — is **not implemented here**; it is tracked as **#195**.
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()`
+**Stretch (#195):** ANOVA method (interaction term, unbalanced data); bias/linearity/stability
+studies.
+
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()`;
+`compute_gage_rr()` → `method` / `method_note` return keys; module constants `METHOD` /
+`METHOD_NOTE`. `apps/msa/msa_app/exporter.py` → `_detail_rows()` (Excel + PDF) and
+`export_results_csv()` "Method" / "Method Limitation" rows/columns.
+`apps/msa/msa_app/pages/gage_study.py` → the caption under "Gage R&R Results".
+**Forward requirement:** the API response model for a Gage R&R study (#178 / #195-era endpoints)
+must expose these two fields — `apps/api` does not exist yet, so it is carried by #178, not done here.
+
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-07-31 (SME: Sid). Note the 4th Edition uses
+`Chapter <roman> – Section <letter>` headings; the "Section 3.2" locator previously cited here does
+not exist in it.
 
 ---
 
@@ -205,16 +257,85 @@ scale all five components identically, so it cancels exactly out of `%GRR = 100 
 
 **Decision:** Compute **%GRR vs Tolerance** (if tolerance is provided) as:
 ```
-%GRR_tolerance = (GR&R / Tolerance) × 100
-where Tolerance = USL − LSL
+%GRR_tolerance = (6 × GR&R / Tolerance) × 100      where Tolerance = USL − LSL
 ```
 
 **Source:** AIAG MSA (4th Edition), Section 3.3, "Measurement System Acceptability Criteria" (alternative criterion).
 
-**Interpretation:**
+**Why the 6 is here and not in %GRR_study:** EV/AV/GRR/PV/TV are all carried in bare 1-sigma units
+(`K = 1/d2*`) inside this engine (see RULE 6/7 and `_average_and_range_method()`'s docstring). The
+6-sigma "study variation" multiplier cancels out of `%GRR_study = GRR/TV` and of
+`ndc = 1.41 × PV/GRR` because it would scale numerator and denominator identically — so it is
+correctly omitted there. It does **not** cancel here: the denominator is a fixed spec width
+(`USL − LSL`), not another bare-sigma quantity, so the numerator must first be put on the same
+6-sigma "study variation" basis before dividing. Skipping this step understates %GRR_tolerance by
+exactly 6× (audit finding A07 / issue #190).
+
+**Provenance of the 6 — PRIMARY-SOURCE VERIFIED (upgraded 2026-07-30, issue #217).** This was
+previously carried with a ⚠ "verified against a third-party reproduction, not the paywalled manual
+itself" caveat. That caveat is now **withdrawn**: AIAG MSA 4th Ed., **Chapter III, Section B**
+states the tolerance basis outright —
+
+> "In that case, *%EV*, *%AV*, *%GRR* and *%PV* are calculated by substituting the value of
+> tolerance *divided by six* in the denominator of the calculations in place of the total
+> variation (*TV*). **Either or both approaches can be taken depending on the intended use of the
+> measurement system and the desires of the customer.**"
+
+`tolerance / 6` in the denominator is algebraically identical to `6 × GRR / tolerance` in the
+numerator, so the manual itself pins **6.00** (not 5.15) for the 4th edition. Verified against the
+primary manual (`MSA_Reference_Manual_4th_Edition.md`) on 2026-07-30 — the same copy RULE 2 and
+RULE 9 cite.
+
+The RTX / United Technologies PPAP toolbox "Study Case 1 — AIAG MSA Manual 4th Edition
+(pag 118-119)" form — built from the same reference dataset as
+`apps/msa/data/aiag_reference_study.csv` — computes
+`100 × (6.00 × SMV) / Eng. Tolerance = 100 × 1.847522 / 4.4200 = 41.80%`, labelled
+`% Tolerance (SV/Toler)`. That form is now only a **numeric cross-check** of the primary source,
+not the source of the constant. (Note: that form is a Hamilton Sundstrand / UTC customer document,
+not an AIAG reproduction — see the acceptance-band note below.)
+
+**5.15 is the superseded 3rd-edition convention** (99.0% coverage vs. 6σ's 99.73%) and is not used
+here; there is no config knob to select it — see `_STUDY_VARIATION_SIGMA` in `gage_rr_engine.py`.
+
+**Interpretation — ONE band set applies to BOTH bases:**
 - **< 10%:** Excellent.
 - **10–30%:** Marginal.
 - **> 30%:** Reject.
+
+**The tolerance basis uses the SAME acceptance bands as the study-variation basis (10 / 30).**
+This is stated here explicitly rather than left to inference; RULE 8's earlier silence on the point
+is what let audit finding A07 hide, and an explicit statement is what makes a future attempt to
+introduce a *second*, tolerance-only band set visibly wrong. Two primary passages settle it:
+
+1. **Chapter II, Section D, Table II-D 1 "GRR Criteria"** — a single table with **no
+   study-variation-vs-tolerance basis qualifier**: `Under 10 percent` → "Generally considered to
+   be an acceptable measurement system"; `10 percent to 30 percent` → "May be acceptable for
+   some applications"; `Over 30 percent` → "Considered to be unacceptable".
+   (Precision note, so a future auditor does not re-raise it: the table's lead-in *does* carry a
+   **purpose** qualifier — "For measurement systems whose purpose is to analyze a process". That
+   is a different axis from the basis, and passage 2 below closes the tolerance case explicitly.)
+2. **Chapter III, Section B**, in the same passage as the tolerance-basis text quoted above
+   (separated from it only by the intervening paragraph defining *ndc*):
+   *"Given that the graphical analysis has not indicated any special cause variation, the rule of
+   thumb for gage repeatability and reproducibility (%GRR) may be found in Chapter II,
+   Section D."* — i.e. the tolerance basis is a **denominator swap only**, and it redirects to the
+   very same Table II-D 1 for its acceptance rule of thumb.
+
+**Rejected alternative (issue #217, audit A07-b, 2026-07-30):** a proposed `0–19%` Accept /
+`20–30%` Marginal / `>30%` Reject band set *for the tolerance basis only*. **Refuted, not merely
+unverified.** Those figures come from the RTX / Hamilton Sundstrand PPAP form's own
+"Gage R&R Study Evaluation Guideline" — a **customer-specific** criterion whose *study-variation*
+row also disagrees with AIAG's published 10/30, so it cannot be an AIAG reproduction. A full-text
+search of the primary manual for `19 percent`, `0-19` and `20-30` returns no match. Minitab,
+SPC for Excel and QI Macros — all independent of that form — likewise apply one band set to
+%Study Var and %Tolerance alike. Adopting it would have implemented a third-party customer's
+criterion under an AIAG label, and loosened the product in the falsely-optimistic direction.
+**Do not reintroduce a per-basis band set without a primary-source citation that overrides
+Table II-D 1.**
+
+**Caution (AIAG MSA 4th Ed., Ch. II §D):** *"The use of the GRR guidelines as threshold criteria
+alone is NOT an acceptable practice for determining the acceptability of a measurement system."*
+The verdict this engine emits is a guideline flag, not a release decision.
 
 **Rationale:**
 - %GRR_tolerance indicates how much of the **specification window** is consumed by measurement noise.
@@ -284,8 +405,23 @@ that looks acceptable against tolerance while actually failing against study var
 versa). If only `%GRR_study` is available (no tolerance input), base the verdict on `%GRR_study`.
 `ndc` and each individual `%GRR` value are still reported separately regardless of this choice.
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (computes the effective
-`verdict_pgrr` passed to `_compute_verdict()`)
+**Note on the band set (issue #217, 2026-07-30):** `_compute_verdict(ndc, pgrr)` takes **one**
+%GRR and judges it against **one** band set (10 / 30) on purpose. Per RULE 8, AIAG MSA 4th Ed.
+applies Table II-D 1 (Ch. II §D) to the tolerance basis and the study-variation basis alike —
+Ch. III §B makes the tolerance basis a denominator swap and redirects to Ch. II §D for the rule of
+thumb. So the two-argument signature is not a simplification of the standard: there is no second
+band set to carry, and adding an accept-threshold parameter per basis would encode a
+customer-specific criterion, not AIAG's. Because both bases share the bands, `max()` above is a
+straight comparison of like with like.
+
+Where this *does* deviate from AIAG is the choice of basis, not the bands: **Ch. II §C** picks the
+basis by purpose (product control → assess %GRR to *tolerance*; process control → assess %GRR to
+*process variation*). The engine has no purpose input, so it takes the worse of the two — a
+deliberate conservative deviation, documented in the SME note above.
+
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` computes the effective
+`verdict_pgrr` (the `max()` above) and passes it as the sole `pgrr` argument to
+`_compute_verdict(ndc, pgrr)`, which applies only the ndc/threshold logic.
 
 ---
 
@@ -411,13 +547,14 @@ new export path.
 | Assumption | Implemented In |
 |-----------|---------------|
 | Average-and-Range method | `_average_and_range_method()` |
+| Method declaration / un-estimated interaction | `compute_gage_rr()`, keys `method` / `method_note`; `METHOD` / `METHOD_NOTE` |
 | K1/K2/K3 constants | `_K1`/`_K2`/`_K3` dicts, `_k_constant()` |
 | EV formula | `_average_and_range_method()`, lines: `ev = avg_range_within * k1` |
 | AV formula | `_average_and_range_method()`, lines: `av_squared = ...` |
 | GR&R formula | `compute_gage_rr()`, lines: `grr = sqrt(ev² + av²)` |
 | Part / Total variation | `_average_and_range_method()`, lines: `pv = range_parts * k3`; `compute_gage_rr()`, lines: `tv = sqrt(grr² + pv²)` |
 | %GRR_study | `compute_gage_rr()`, lines: `pgrr_study = (grr / tv) * 100` |
-| %GRR_tolerance | `compute_gage_rr()`, lines: `pgrr_tolerance = (grr / tolerance) * 100` |
+| %GRR_tolerance | `compute_gage_rr()`, lines: `pgrr_tolerance = (grr * _STUDY_VARIATION_SIGMA / tolerance) * 100` |
 | ndc | `_compute_ndc()` |
 | Verdict logic | `_compute_verdict()`, `verdict_pgrr = max(pgrr_tolerance, pgrr_study)` in `compute_gage_rr()` |
 | Balance check | `compute_gage_rr()`, lines: `is_balanced = ...` |

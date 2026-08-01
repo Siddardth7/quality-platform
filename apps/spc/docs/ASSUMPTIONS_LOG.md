@@ -132,29 +132,80 @@ marked indicative only).
 **Source:** AIAG SPC Reference Manual, 4th Ed. — capability indices assume the process is in
 statistical control; computing them on an unstable process is misleading. WE rules are used
 (rather than the fuller Nelson set) as the classic Shewhart out-of-control criterion, to
-avoid over-flagging benign trend/alternating patterns.
+avoid over-flagging benign trend/alternating patterns. Same precondition, independently
+verifiable: NIST/SEMATECH e-Handbook §6.1.6 — *"Process capability compares the output of an
+in-control process to the specification limits"*
+(https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm).
 
-**Applied In:** `spc_app/pages/process_capability.py::assess_control_chart`.
+**Applied In:** `spc_app/spc_engine/stability.py::assess_stability` (control-chart assembly +
+WE detection) and `spc_app/spc_engine/capability.py::compute_capability_study`
+(`stable` / `stability_note` on `CapabilityStudy`). The Streamlit page
+(`spc_app/pages/process_capability.py`) is now only a consumer — it holds the stream →
+chart-type map and renders the warning.
+
+**Note (2026-07-30, #191):** `stable` is tri-state `bool | None` — `None` means stability was
+**not assessed** because no control-chart context was supplied, and is never defaulted to
+`True` (that would fabricate a conformance claim). The engine does **not** derive the control
+chart from the data: I-MR on a flattened subgrouped stream understates sigma and flips
+verdicts, so the caller supplies the violation list. Indices are always returned (annotate,
+do not block).
+
+**Note (2026-07-30, #192):** the WE detector's 2σ/1σ same-side reading was corrected (RULE 8)
+— WE 2/3 are now more sensitive (an opposite-side point no longer suppresses a genuine
+same-side hit). Verified no stability-gate verdict changes on the demo dataset.
 
 ---
 
-## RULE 8 — Western Electric and Nelson Run Rules
+## RULE 8 — Western Electric and Nelson Run Rules (Two Separate Sets)
 
-**Decision:** Detect special-cause patterns using the Western Electric rules (1–4) and the
-Nelson rules (5–8), with sigma zones measured from the centerline:
+**Decision:** `rule_set` is a mutually exclusive selector (never both at once); each set is
+detected and labelled as its **own**, complete, self-consistent numbering — the Nelson set
+does **not** borrow Western Electric's labels or run length. Sigma zones are measured from the
+centerline; both sets share the same zone/limit math (`_zone_violations`), differing only in
+labels and the same-side run length:
 
+**Western Electric (WE), 4 tests, run length 8:**
 - **WE 1:** 1 point beyond ±3 sigma
 - **WE 2:** 2 of 3 consecutive beyond ±2 sigma on the same side
 - **WE 3:** 4 of 5 consecutive beyond ±1 sigma on the same side
 - **WE 4:** 8 consecutive points on the same side of the centerline
-- **Nelson 5:** 6 consecutive points steadily increasing or decreasing
-- **Nelson 6:** 14 consecutive points alternating up and down
+
+**Nelson, 8 tests, run length 9 (its own numbering, per Nelson 1984):**
+- **Nelson 1:** 1 point beyond ±3 sigma
+- **Nelson 2:** 9 consecutive points on the same side of the centerline
+- **Nelson 3:** 6 consecutive points steadily increasing or decreasing
+- **Nelson 4:** 14 consecutive points alternating up and down
+- **Nelson 5:** 2 of 3 consecutive beyond ±2 sigma on the same side
+- **Nelson 6:** 4 of 5 consecutive beyond ±1 sigma on the same side
 - **Nelson 7:** 15 consecutive points within ±1 sigma of the centerline
 - **Nelson 8:** 8 consecutive points outside ±1 sigma on both sides
 
-**Source:** Western Electric *Statistical Quality Control Handbook* (1956) for rules 1–4;
+**Source:** ⚠️ **UNVERIFIED — third-party reproduction only for both sets.**
+Western Electric *Statistical Quality Control Handbook* (1956), Part B — not in repo;
+corroborated via NIST/SEMATECH e-Handbook §6.3.2
+(`https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc32.htm`), which reproduces the WECO
+rules as used here (beyond ±3σ; 2-of-3 beyond ±2σ; 4-of-5 beyond ±1σ; 8-in-a-row same side).
 L. S. Nelson, "The Shewhart Control Chart — Tests for Special Causes," *Journal of Quality
-Technology* 16(4), 1984, for rules 5–8.
+Technology* 16(4), 1984, pp. 237-239 (DOI 10.1080/00224065.1984.11978921) — paywalled, not in
+repo; the Test 1–8 numbering above was taken from a third-party reproduction citing pp. 238-239.
+
+**Defect caught (2026-07-30, #192):** two bugs, both traced to the code contradicting this
+log's own prior wording. (1) The same-side reading ("2 of 3 … **on the same side**") had been
+implemented with an extra, unspecified condition requiring the *opposite* side to have zero
+hits — `_count_same_side` returned `(positive >= n and negative == 0) or (negative >= n and
+positive == 0)` instead of just `positive >= n or negative >= n`, so a single opposite-side
+point silently suppressed a genuine same-side signal on WE 2/3 and (before this fix) on the
+Nelson equivalents. (2) `detect_nelson_violations` started from `detect_we_violations`'s output
+verbatim, so it emitted `"Western Electric Rule 1-4"` labels (including WE 4's **8**-in-a-row)
+under the Nelson rule set, and never emitted Nelson's own Test 2 (**9**-in-a-row) at all —
+structurally incoherent with a set that is supposed to be its own eight tests.
+
+**Correctness guard:** `apps/spc/tests/test_rule_detection.py` — the F-03/F-04 regression block
+(same-side fires with an opposite-side point present for WE 2/3; negative case for one-hit-per-
+side; Nelson 8-in-a-row does not fire; Nelson 9-in-a-row fires as `"Nelson Rule 2"`; WE 4 still
+fires at 8-in-a-row) plus the renumbered Nelson 3/4/5/6 tests and the DECISION-2 guard that no
+`detect_nelson_violations` output starts with `"Western Electric"`. `apps/secom/tests/
+test_charts.py` pins the SECOM default-ruleset (`"nelson"`) label change.
 
 **Applied In:** `spc_app/spc_engine/rule_detection.py`.
 
@@ -445,7 +496,7 @@ already-validated methodology rather than skip a check).
 
 ## RULE 15 — Run-Rule Gating (WE/Nelson Restricted to Shewhart Charts)
 
-**Decision:** Western Electric (Rules 1–4) and Nelson (Rules 5–8) run-rules are valid only
+**Decision:** Western Electric (Rules 1–4) and Nelson (Tests 1–8) run-rules are valid only
 on Shewhart charts — X̄-R, X̄-S, I-MR, p, c, u — where successive plotted points are
 independent. They are **statistically invalid on EWMA and CUSUM**, whose plotted
 statistics (the EWMA z-series; the CUSUM C+/C− accumulators) are autocorrelated by
@@ -461,8 +512,8 @@ detect_violations(chart_type, points, cl, sigma, rule_set)` returns `[]` immedia
 `chart_type` outside `SHEWHART_CHART_TYPES = {"Xbar-R","Xbar-S","I-MR","p","c","u"}` (and for
 `sigma<=0`), otherwise dispatches to the existing `detect_we_violations`/
 `detect_nelson_violations` unchanged. Both page-level callers — the Control Charts page's
-per-branch rule overlay and the Process Capability page's `assess_control_chart` stability
-gate — now route through this one function, so no caller can (accidentally or otherwise) run
+per-branch rule overlay and the capability stability gate (`spc_engine/stability.py::
+assess_stability`) — now route through this one function, so no caller can (accidentally or otherwise) run
 WE/Nelson on an EWMA/CUSUM chart.
 
 **Source:** Western Electric *Statistical Quality Control Handbook* (1956) and L. S. Nelson,
@@ -475,7 +526,7 @@ introduced by this rule.
 
 **Applied In:** `spc_app/spc_engine/rule_detection.py` (`SHEWHART_CHART_TYPES`,
 `detect_violations`) → `spc_app/pages/control_charts.py::detect_rule_violations` →
-`spc_app/pages/process_capability.py::assess_control_chart`.
+`spc_app/spc_engine/stability.py::assess_stability`.
 
 ---
 

@@ -10,6 +10,8 @@ quality-core.
 from __future__ import annotations
 
 import io
+import re
+import zlib
 
 import openpyxl
 import pandas as pd
@@ -24,6 +26,7 @@ from msa_app.exporter import (
     export_results_csv,
     verdict_sentence,
 )
+from msa_app.gage_rr_engine import METHOD, METHOD_NOTE, compute_gage_rr
 
 # --- Fixtures ----------------------------------------------------------------
 
@@ -49,6 +52,8 @@ RESULTS = {
     "n_appraisers": 2,
     "n_trials": 2,
     "is_balanced": True,
+    "method": "average_and_range",
+    "method_note": "Average-and-Range method: the part x appraiser interaction is NOT estimated.",
 }
 
 
@@ -161,6 +166,8 @@ def test_export_results_csv_contains_expected_columns_and_values():
         "ndc",
         "Verdict",
         "Verdict Interpretation",
+        "Method",
+        "Method Limitation",
     ]
     assert len(frame) == 1
     row = frame.iloc[0]
@@ -241,3 +248,133 @@ def test_export_pdf_is_valid_bytes():
 def test_export_pdf_handles_tolerance_absent():
     data = export_pdf(_no_tolerance_report())
     assert data.startswith(b"%PDF")
+
+
+# --- Method declaration reaches the artifacts (#194 / audit A10) ----------------
+# The finding's harm is a consumer receiving a %GRR indistinguishable from an
+# ANOVA result. The consumer-facing surface is these four files, so the
+# declaration has to survive the trip through each of them, unaltered.
+
+
+def _production_report() -> GageStudyReport:
+    """A report carrying the *real* engine output, including the full-length METHOD_NOTE.
+
+    The module-level RESULTS fixture deliberately shortens ``method_note`` for
+    readability; this builds the genuine 351-char production string so the
+    exporters are exercised with what they will actually receive.
+    """
+    rows = [
+        {
+            "part": f"P{p}",
+            "appraiser": a,
+            "trial": t,
+            "measurement": float(p) + 0.01 * t + bias,
+        }
+        for p in range(1, 7)
+        for a, bias in [("A", 0.0), ("B", 0.02)]
+        for t in (1, 2)
+    ]
+    study = pd.DataFrame(rows)
+    return GageStudyReport(
+        study=study,
+        results=compute_gage_rr(study, tolerance=4.0),
+        usl=12.0,
+        lsl=8.0,
+    )
+
+
+def test_detail_rows_carry_the_method_declaration():
+    rows = dict(_detail_rows(_report()))
+    assert rows["Method"] == "average_and_range"
+    assert rows["Method Limitation"] == RESULTS["method_note"]
+
+
+def test_detail_rows_carry_the_method_declaration_without_tolerance():
+    """The declaration is not tolerance-conditional in the export either."""
+    rows = dict(_detail_rows(_no_tolerance_report()))
+    assert rows["Method"] == "average_and_range"
+    assert rows["Method Limitation"] == RESULTS["method_note"]
+
+
+def test_export_results_csv_carries_the_method_declaration():
+    frame = pd.read_csv(io.BytesIO(export_results_csv(_report())))
+    row = frame.iloc[0]
+    assert row["Method"] == "average_and_range"
+    assert row["Method Limitation"] == RESULTS["method_note"]
+
+
+def test_export_excel_summary_carries_the_method_declaration():
+    wb = openpyxl.load_workbook(io.BytesIO(export_excel(_report())))
+    summary = _kv_sheet_to_dict(wb["Summary"])
+    assert summary["Method"] == "average_and_range"
+    assert summary["Method Limitation"] == RESULTS["method_note"]
+
+
+def test_results_csv_round_trips_the_full_length_production_method_note():
+    """METHOD_NOTE contains embedded double quotes — it must survive CSV quoting intact."""
+    frame = pd.read_csv(io.BytesIO(export_results_csv(_production_report())))
+    assert frame.iloc[0]["Method"] == METHOD
+    assert frame.iloc[0]["Method Limitation"] == METHOD_NOTE
+    assert len(frame) == 1  # the quoted note did not spill into a second row
+
+
+def test_export_excel_carries_the_full_length_production_method_note():
+    wb = openpyxl.load_workbook(io.BytesIO(export_excel(_production_report())))
+    summary = _kv_sheet_to_dict(wb["Summary"])
+    assert summary["Method"] == METHOD
+    assert summary["Method Limitation"] == METHOD_NOTE
+
+
+def _pdf_text(data: bytes) -> str:
+    """Recover the visible text of a PDF by inflating its content streams.
+
+    fpdf2 Flate-compresses page content, so a substring search over the raw
+    bytes finds nothing. Text is emitted as `(...) Tj`. The literal parentheses
+    inside METHOD_NOTE are escaped as `\\(` / `\\)` in the stream, so the chunk
+    regex must skip escaped characters rather than stop at the first `)`, and
+    the escapes are undone afterwards. Used to assert the note's own characters
+    reached the page instead of merely growing the file.
+    """
+    chunk_re = re.compile(rb"\((?P<body>(?:[^\\()]|\\.)*)\)\s*Tj", re.S)
+    out = []
+    for raw in re.findall(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
+        try:
+            body = zlib.decompress(raw)
+        except zlib.error:
+            body = raw
+        out.append(b"".join(m.group("body") for m in chunk_re.finditer(body)))
+    joined = b"".join(out)
+    joined = joined.replace(rb"\(", b"(").replace(rb"\)", b")")
+    return joined.decode("latin-1")
+
+
+def test_export_pdf_renders_with_the_full_length_production_method_note():
+    """fpdf2/latin-1 guard: the real 351-char note must not raise or truncate the file.
+
+    The baseline is the SAME report with only ``method_note`` emptied. An earlier
+    version built it from the short module-level RESULTS fixture — a different
+    report with different metrics and a different verdict — so the length delta
+    did not isolate the note, and truncating or deleting the method rows passed
+    the test anyway.
+    """
+    report = _production_report()
+    baseline = export_pdf(
+        GageStudyReport(
+            study=report.study,
+            results={**report.results, "method_note": ""},
+            usl=report.usl,
+            lsl=report.lsl,
+        )
+    )
+    data = export_pdf(report)
+    assert data.startswith(b"%PDF")
+    # Same report, same everything but the note -> the delta IS the note.
+    assert len(data) > len(baseline)
+
+    # A length delta only proves SOMETHING was added, so it survives the note
+    # being truncated. Assert the note's own text is in the page stream: every
+    # character has to reach the PDF, not just enough of them to grow the file.
+    text = _pdf_text(data)
+    assert METHOD in text
+    assert METHOD_NOTE in text
+    assert METHOD_NOTE not in _pdf_text(baseline)
