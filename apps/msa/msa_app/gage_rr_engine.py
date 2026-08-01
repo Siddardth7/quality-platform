@@ -41,7 +41,12 @@ _K3: dict[int, float] = {  # by number of parts (n)
 # AIAG MSA 4th Ed. study-variation multiplier: 6 sigma = 99.73% coverage. EV/AV/GRR/PV/TV are
 # carried in bare 1-sigma units (K = 1/d2*), so the tolerance basis — a full spec width, not a
 # sigma — must scale the numerator by this before dividing. (5.15 sigma / 99.0% is the older
-# 3rd-edition convention; SME decision 2026-07-26 pins 6.)
+# 3rd-edition convention; SME decision 2026-07-26 pins 6.) Primary-source verified (#217,
+# 2026-07-30): AIAG MSA 4th Ed. Ch. III Sec. B — "%EV, %AV, %GRR and %PV are calculated by
+# substituting the value of tolerance divided by six in the denominator ... in place of the total
+# variation (TV)"; tolerance/6 in the denominator == 6*GRR/tolerance. Same section redirects to
+# Ch. II Sec. D Table II-D 1 for the acceptance bands, so ONE band set (10/30) covers both the
+# tolerance and study-variation bases -- see ASSUMPTIONS_LOG RULE 8.
 _STUDY_VARIATION_SIGMA = 6.0
 
 

@@ -6,6 +6,30 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- **MSA acceptance bands: the disputed tolerance-basis band set was investigated and refuted; no
+  code change, and the ×6 multiplier's provenance is upgraded to primary source (audit A07-b,
+  #217, follow-up to #190).** #217 asserted that AIAG MSA 4th Ed. applies a *separate* `0–19%` /
+  `20–30%` / `>30%` band set to the tolerance basis. It does not: **Table II-D 1 (Ch. II §D)** is a
+  single "GRR Criteria" table with no basis qualifier (`Under 10 percent` / `10 percent to 30
+  percent` / `Over 30 percent`), and **Ch. III §B** makes the tolerance basis a denominator swap
+  only ("substituting the value of tolerance *divided by six* in the denominator … in place of the
+  total variation (TV)") before redirecting acceptance back to Ch. II §D ("the rule of thumb for
+  gage repeatability and reproducibility (%GRR) may be found in Chapter II, Section D"). The
+  `0–19/20–30` figures trace to a Hamilton Sundstrand / UTC customer form whose own study-variation
+  row also contradicts AIAG's 10/30. `_compute_verdict(ndc, pgrr)` is therefore correct as written
+  and is unchanged — #190's F-12 collapse to two arguments stands. `ASSUMPTIONS_LOG.md` RULE 8 and
+  RULE 10 now state **explicitly** that one band set (10/30) governs both the study-variation and
+  tolerance bases, with the citations above and the rejected alternative recorded, so a future
+  attempt to add a second band set is visibly wrong instead of silently plausible — RULE 8's
+  silence on this is what let A07 hide. Separately, RULE 8's ⚠ "verified against a third-party
+  reproduction, not the paywalled manual itself" caveat on `_STUDY_VARIATION_SIGMA = 6.0` (#190) is
+  **withdrawn**: Ch. III §B's "tolerance divided by six" confirms 6.00 (not the 3rd-edition 5.15)
+  from the primary manual, so the RTX PPAP form is now only a numeric cross-check. The same upgrade
+  is applied to the `_STUDY_VARIATION_SIGMA` comment in `gage_rr_engine.py` and to the AIAG
+  reference-study test's docstring. Documentation and comments only — no `.py` behaviour changed.
+
 ### Fixed
 
 - **The SPC capability stability gate now lives in the engine, not only in the Streamlit page

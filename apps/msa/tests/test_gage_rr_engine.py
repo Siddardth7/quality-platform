@@ -375,6 +375,12 @@ def test_compute_gage_rr_aiag_reference_study():
     the manual's own published components for this study, not a snapshot of
     the current engine output.
 
+    The ×6 tolerance-basis multiplier itself is primary-source verified
+    (#217): AIAG MSA 4th Ed. Ch. III §B substitutes "the value of tolerance
+    divided by six in the denominator ... in place of the total variation
+    (TV)". The RTX form below is a numeric cross-check of that, not the
+    source of the constant.
+
     `pgrr_tolerance` and `verdict` are engine output, not manual-published
     numbers, checked against the same source form's tolerance-basis figure:
     the RTX PPAP toolbox reproduction of this study computes
