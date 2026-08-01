@@ -271,19 +271,71 @@ correctly omitted there. It does **not** cancel here: the denominator is a fixed
 6-sigma "study variation" basis before dividing. Skipping this step understates %GRR_tolerance by
 exactly 6× (audit finding A07 / issue #190).
 
-⚠ **Verified against a reproduction of the AIAG report form, not the paywalled manual itself:** the
-RTX / United Technologies PPAP toolbox "Study Case 1 — AIAG MSA Manual 4th Edition (pag 118-119)"
-reproduction — built from the same reference dataset as `apps/msa/data/aiag_reference_study.csv` —
-computes `100 × (6.00 × SMV) / Eng. Tolerance = 100 × 1.847522 / 4.4200 = 41.80%`, labelled
-`% Tolerance (SV/Toler)`. This confirms **6.00** (not 5.15) for the 4th edition.
+**Provenance of the 6 — PRIMARY-SOURCE VERIFIED (upgraded 2026-07-30, issue #217).** This was
+previously carried with a ⚠ "verified against a third-party reproduction, not the paywalled manual
+itself" caveat. That caveat is now **withdrawn**: AIAG MSA 4th Ed., **Chapter III, Section B**
+states the tolerance basis outright —
+
+> "In that case, *%EV*, *%AV*, *%GRR* and *%PV* are calculated by substituting the value of
+> tolerance *divided by six* in the denominator of the calculations in place of the total
+> variation (*TV*). **Either or both approaches can be taken depending on the intended use of the
+> measurement system and the desires of the customer.**"
+
+`tolerance / 6` in the denominator is algebraically identical to `6 × GRR / tolerance` in the
+numerator, so the manual itself pins **6.00** (not 5.15) for the 4th edition. Verified against the
+primary manual (`MSA_Reference_Manual_4th_Edition.md`) on 2026-07-30 — the same copy RULE 2 and
+RULE 9 cite.
+
+The RTX / United Technologies PPAP toolbox "Study Case 1 — AIAG MSA Manual 4th Edition
+(pag 118-119)" form — built from the same reference dataset as
+`apps/msa/data/aiag_reference_study.csv` — computes
+`100 × (6.00 × SMV) / Eng. Tolerance = 100 × 1.847522 / 4.4200 = 41.80%`, labelled
+`% Tolerance (SV/Toler)`. That form is now only a **numeric cross-check** of the primary source,
+not the source of the constant. (Note: that form is a Hamilton Sundstrand / UTC customer document,
+not an AIAG reproduction — see the acceptance-band note below.)
 
 **5.15 is the superseded 3rd-edition convention** (99.0% coverage vs. 6σ's 99.73%) and is not used
 here; there is no config knob to select it — see `_STUDY_VARIATION_SIGMA` in `gage_rr_engine.py`.
 
-**Interpretation:**
+**Interpretation — ONE band set applies to BOTH bases:**
 - **< 10%:** Excellent.
 - **10–30%:** Marginal.
 - **> 30%:** Reject.
+
+**The tolerance basis uses the SAME acceptance bands as the study-variation basis (10 / 30).**
+This is stated here explicitly rather than left to inference; RULE 8's earlier silence on the point
+is what let audit finding A07 hide, and an explicit statement is what makes a future attempt to
+introduce a *second*, tolerance-only band set visibly wrong. Two primary passages settle it:
+
+1. **Chapter II, Section D, Table II-D 1 "GRR Criteria"** — a single table with **no
+   study-variation-vs-tolerance basis qualifier**: `Under 10 percent` → "Generally considered to
+   be an acceptable measurement system"; `10 percent to 30 percent` → "May be acceptable for
+   some applications"; `Over 30 percent` → "Considered to be unacceptable".
+   (Precision note, so a future auditor does not re-raise it: the table's lead-in *does* carry a
+   **purpose** qualifier — "For measurement systems whose purpose is to analyze a process". That
+   is a different axis from the basis, and passage 2 below closes the tolerance case explicitly.)
+2. **Chapter III, Section B**, in the same passage as the tolerance-basis text quoted above
+   (separated from it only by the intervening paragraph defining *ndc*):
+   *"Given that the graphical analysis has not indicated any special cause variation, the rule of
+   thumb for gage repeatability and reproducibility (%GRR) may be found in Chapter II,
+   Section D."* — i.e. the tolerance basis is a **denominator swap only**, and it redirects to the
+   very same Table II-D 1 for its acceptance rule of thumb.
+
+**Rejected alternative (issue #217, audit A07-b, 2026-07-30):** a proposed `0–19%` Accept /
+`20–30%` Marginal / `>30%` Reject band set *for the tolerance basis only*. **Refuted, not merely
+unverified.** Those figures come from the RTX / Hamilton Sundstrand PPAP form's own
+"Gage R&R Study Evaluation Guideline" — a **customer-specific** criterion whose *study-variation*
+row also disagrees with AIAG's published 10/30, so it cannot be an AIAG reproduction. A full-text
+search of the primary manual for `19 percent`, `0-19` and `20-30` returns no match. Minitab,
+SPC for Excel and QI Macros — all independent of that form — likewise apply one band set to
+%Study Var and %Tolerance alike. Adopting it would have implemented a third-party customer's
+criterion under an AIAG label, and loosened the product in the falsely-optimistic direction.
+**Do not reintroduce a per-basis band set without a primary-source citation that overrides
+Table II-D 1.**
+
+**Caution (AIAG MSA 4th Ed., Ch. II §D):** *"The use of the GRR guidelines as threshold criteria
+alone is NOT an acceptable practice for determining the acceptability of a measurement system."*
+The verdict this engine emits is a guideline flag, not a release decision.
 
 **Rationale:**
 - %GRR_tolerance indicates how much of the **specification window** is consumed by measurement noise.
@@ -352,6 +404,20 @@ numbers and does not mandate which single number drives the verdict; using the m
 that looks acceptable against tolerance while actually failing against study variation (or vice
 versa). If only `%GRR_study` is available (no tolerance input), base the verdict on `%GRR_study`.
 `ndc` and each individual `%GRR` value are still reported separately regardless of this choice.
+
+**Note on the band set (issue #217, 2026-07-30):** `_compute_verdict(ndc, pgrr)` takes **one**
+%GRR and judges it against **one** band set (10 / 30) on purpose. Per RULE 8, AIAG MSA 4th Ed.
+applies Table II-D 1 (Ch. II §D) to the tolerance basis and the study-variation basis alike —
+Ch. III §B makes the tolerance basis a denominator swap and redirects to Ch. II §D for the rule of
+thumb. So the two-argument signature is not a simplification of the standard: there is no second
+band set to carry, and adding an accept-threshold parameter per basis would encode a
+customer-specific criterion, not AIAG's. Because both bases share the bands, `max()` above is a
+straight comparison of like with like.
+
+Where this *does* deviate from AIAG is the choice of basis, not the bands: **Ch. II §C** picks the
+basis by purpose (product control → assess %GRR to *tolerance*; process control → assess %GRR to
+*process variation*). The engine has no purpose input, so it takes the worse of the two — a
+deliberate conservative deviation, documented in the SME note above.
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` computes the effective
 `verdict_pgrr` (the `max()` above) and passes it as the sole `pgrr` argument to

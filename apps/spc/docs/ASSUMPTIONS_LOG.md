@@ -132,9 +132,23 @@ marked indicative only).
 **Source:** AIAG SPC Reference Manual, 4th Ed. — capability indices assume the process is in
 statistical control; computing them on an unstable process is misleading. WE rules are used
 (rather than the fuller Nelson set) as the classic Shewhart out-of-control criterion, to
-avoid over-flagging benign trend/alternating patterns.
+avoid over-flagging benign trend/alternating patterns. Same precondition, independently
+verifiable: NIST/SEMATECH e-Handbook §6.1.6 — *"Process capability compares the output of an
+in-control process to the specification limits"*
+(https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm).
 
-**Applied In:** `spc_app/pages/process_capability.py::assess_control_chart`.
+**Applied In:** `spc_app/spc_engine/stability.py::assess_stability` (control-chart assembly +
+WE detection) and `spc_app/spc_engine/capability.py::compute_capability_study`
+(`stable` / `stability_note` on `CapabilityStudy`). The Streamlit page
+(`spc_app/pages/process_capability.py`) is now only a consumer — it holds the stream →
+chart-type map and renders the warning.
+
+**Note (2026-07-30, #191):** `stable` is tri-state `bool | None` — `None` means stability was
+**not assessed** because no control-chart context was supplied, and is never defaulted to
+`True` (that would fabricate a conformance claim). The engine does **not** derive the control
+chart from the data: I-MR on a flattened subgrouped stream understates sigma and flips
+verdicts, so the caller supplies the violation list. Indices are always returned (annotate,
+do not block).
 
 **Note (2026-07-30, #192):** the WE detector's 2σ/1σ same-side reading was corrected (RULE 8)
 — WE 2/3 are now more sensitive (an opposite-side point no longer suppresses a genuine
@@ -498,8 +512,8 @@ detect_violations(chart_type, points, cl, sigma, rule_set)` returns `[]` immedia
 `chart_type` outside `SHEWHART_CHART_TYPES = {"Xbar-R","Xbar-S","I-MR","p","c","u"}` (and for
 `sigma<=0`), otherwise dispatches to the existing `detect_we_violations`/
 `detect_nelson_violations` unchanged. Both page-level callers — the Control Charts page's
-per-branch rule overlay and the Process Capability page's `assess_control_chart` stability
-gate — now route through this one function, so no caller can (accidentally or otherwise) run
+per-branch rule overlay and the capability stability gate (`spc_engine/stability.py::
+assess_stability`) — now route through this one function, so no caller can (accidentally or otherwise) run
 WE/Nelson on an EWMA/CUSUM chart.
 
 **Source:** Western Electric *Statistical Quality Control Handbook* (1956) and L. S. Nelson,
@@ -512,7 +526,7 @@ introduced by this rule.
 
 **Applied In:** `spc_app/spc_engine/rule_detection.py` (`SHEWHART_CHART_TYPES`,
 `detect_violations`) → `spc_app/pages/control_charts.py::detect_rule_violations` →
-`spc_app/pages/process_capability.py::assess_control_chart`.
+`spc_app/spc_engine/stability.py::assess_stability`.
 
 ---
 
