@@ -6,7 +6,7 @@ See docs/ASSUMPTIONS_LOG.md RULE 14 for standards attribution.
 from __future__ import annotations
 
 import math
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, Mapping, Sequence, TypedDict
 
 import numpy as np
 from scipy import special, stats
@@ -22,6 +22,7 @@ from spc_app.spc_engine.constants import (
     PERCENTILE_FIT_CANDIDATES,
 )
 from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r
+from spc_app.spc_engine.stability import stability_fields
 
 
 class CapabilityStudy(TypedDict):
@@ -47,6 +48,8 @@ class CapabilityStudy(TypedDict):
     normal_before: bool
     normal_after: bool | None  # None if not transformed
     note: str  # soft-warn method/assumption note
+    stable: bool | None  # None = not assessed (no control-chart context supplied)
+    stability_note: str | None  # None only when stable is True
 
 
 def compute_capability(
@@ -117,6 +120,7 @@ def compute_capability_study(
     alpha: float = CAPABILITY_ALPHA,
     allow_yeojohnson: bool = True,
     force_method: Literal["auto", "normal", "boxcox", "percentile"] = "auto",
+    violations: Sequence[Mapping[str, int | str]] | None = None,
 ) -> CapabilityStudy:
     """Same as before, plus a user-override `force_method` (SME Q1, W10-5 #145):
 
@@ -128,6 +132,11 @@ def compute_capability_study(
       Shapiro-Wilk (non-positive data still honors `allow_yeojohnson`).
     - "percentile": force the fitted-distribution percentile + bootstrap CI method
       directly on the original data, skipping both the normal and transform paths.
+
+    `violations` is the caller's control-chart out-of-control signal list (RULE 7
+    stability gate, #191). Omit it and the study reports `stable=None` — "not
+    assessed" — never a fabricated in-control claim; pass `[]` to state that the
+    chart was assessed and is in control. Indices are annotated, never suppressed.
     """
     if not 0.0 < alpha < 1.0:
         raise ValueError("alpha must be in (0, 1).")
@@ -143,11 +152,15 @@ def compute_capability_study(
 
     n = int(flat.size)
     normal_before = bool(normality_test(flat)["is_normal"])
+    # Stability is assessed by the caller on the ORIGINAL data, so the same verdict
+    # rides every return path — a transform cannot change it.
+    stable, stability_note = stability_fields(violations)
 
     if force_method == "percentile":
         return _percentile_study(
             flat, shaped, lsl, usl, alpha, n, normal_before,
             note_prefix="Method user-forced to 'percentile' (force_method). ",
+            stable=stable, stability_note=stability_note,
         )
 
     use_normal_path = force_method == "normal" or (force_method == "auto" and normal_before)
@@ -173,6 +186,8 @@ def compute_capability_study(
             normal_before=normal_before,
             normal_after=None,
             note=note,
+            stable=stable,
+            stability_note=stability_note,
         )
 
     # Non-normal (or force_method="boxcox" forcing the transform path): transform (Decision 2).
@@ -244,6 +259,8 @@ def compute_capability_study(
             normal_before=normal_before,
             normal_after=True,
             note=note,
+            stable=stable,
+            stability_note=stability_note,
         )
 
     # E5 — still non-normal after transform: fitted-percentile fallback on the ORIGINAL data.
@@ -253,6 +270,7 @@ def compute_capability_study(
         lambda_used=lambda_used, lambda_mle=lambda_mle, lambda_ci=lambda_ci, shift=shift,
         note_prefix=forced_prefix + f"Data remained non-normal after {method} transform "
         "(Shapiro-Wilk p<=0.05); ",
+        stable=stable, stability_note=stability_note,
     )
 
 
@@ -271,6 +289,8 @@ def _percentile_study(
     lambda_ci: tuple[float, float] | None = None,
     shift: float = 0.0,
     note_prefix: str = "",
+    stable: bool | None,
+    stability_note: str | None,
 ) -> CapabilityStudy:
     """Fitted-distribution percentile method (ISO 22514-2) on the ORIGINAL data.
 
@@ -312,6 +332,8 @@ def _percentile_study(
             "lognorm/weibull_min/gamma/johnsonsu). cpk_lower is the two-sided bootstrap "
             "cpk_ci lower bound." + _small_n_note(n)
         ),
+        "stable": stable,
+        "stability_note": stability_note,
     }
 
 
@@ -329,6 +351,8 @@ def _build_transform_study(
     normal_before: bool,
     normal_after: bool | None,
     note: str,
+    stable: bool | None,
+    stability_note: str | None,
 ) -> CapabilityStudy:
     return {
         "method": method,
@@ -353,6 +377,8 @@ def _build_transform_study(
         "normal_before": normal_before,
         "normal_after": normal_after,
         "note": note,
+        "stable": stable,
+        "stability_note": stability_note,
     }
 
 

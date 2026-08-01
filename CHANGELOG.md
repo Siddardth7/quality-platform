@@ -32,6 +32,21 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Fixed
 
+- **The SPC capability stability gate now lives in the engine, not only in the Streamlit page
+  (audit A09, #191).** `assess_control_chart` (page-only, outside the coverage gate) moved to
+  `spc_app/spc_engine/stability.py::assess_stability`; the page keeps only its stream →
+  chart-type map. `CapabilityStudy` gains two keys — `stable: bool | None` and
+  `stability_note: str | None` — populated on all four method paths (normal / boxcox /
+  yeojohnson / percentile), and `compute_capability_study` gains a keyword-only
+  `violations` parameter carrying the caller's out-of-control signal list. **`stable is None`
+  means stability was *not assessed*** (no control-chart context supplied) and is never
+  defaulted to `True`; `violations=[]` means assessed and in control. The engine does not
+  derive the control chart itself — I-MR on flattened subgrouped data understates sigma and
+  flips verdicts (RULE 7 / D3). Indices are annotated, never suppressed (SME: annotate, do not
+  block). **`compute_capability` is unchanged** — same signature, same return keys (SECOM
+  depends on it directly). No behavior change on the demo streams: all 7 report the same
+  signal counts as before.
+
 - **SPC run-rule fidelity: WE 2/3 same-side logic and Nelson's own 1–8 numbering (#192,
   F-03/F-04).** `_count_same_side` (Western Electric rules 2/3, and their Nelson
   equivalents) required the *opposite* side to have zero hits before counting a same-side

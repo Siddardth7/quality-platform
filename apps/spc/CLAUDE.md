@@ -69,10 +69,14 @@ spc_app/pages/live_simulation.py     render_simulation — live subgroup stream
 spc_app/spc_engine/             pure SPC computation (fully unit-tested):
     control_charts.py             compute_xbar_r/_s, compute_imr, compute_p/c/u
                                   (each returns a precise TypedDict result)
-    capability.py                 compute_capability (Cp/Cpk/Pp/Ppk), normality_test
+    capability.py                 compute_capability (Cp/Cpk/Pp/Ppk), normality_test,
+                                  compute_capability_study (+ stable/stability_note)
+    stability.py                  assess_stability (chart + WE detection), stability_fields
     rule_detection.py             detect_we_violations, detect_nelson_violations
     constants.py                  AIAG SPC chart constants (see ASSUMPTIONS_LOG.md)
-    data_generator.py             deterministic 6-stream demo dataset
+    data_generator.py             7-stream demo dataset. `_RNG` is module-level, so
+                                  only the FIRST generate_demo_dataset() call in a
+                                  process is reproducible; reseed to pin a baseline
     utils.py                      subgroup_rows
 spc_app/simulation/engine.py    SimulationEngine — mean shift / spike / drift injection
 spc_app/visualizer.py           Plotly builders: control chart, capability histogram, Cpk gauge
@@ -84,10 +88,14 @@ spc_app/fmea_feedback.py        SPC OOC signal -> candidate FMEA occurrence feed
 → `compute_*` (engine) → `detect_we/nelson_violations` → `build_control_chart` with rule
 overlays → `summarize_metrics` for the metric tiles.
 
-**Capability stability gate:** the Capability page runs `assess_control_chart` first —
-Western Electric rule detection on the stream's control chart — and shows a prominent
-warning when the process is out of statistical control, because Cp/Cpk are only
-meaningful on a stable process.
+**Capability stability gate:** lives in the engine (`spc_engine/stability.py`). The page
+calls `assess_stability(frame, chart_type)` — Western Electric rule detection on the
+stream's control chart — passes the resulting signal list to `compute_capability_study(...,
+violations=...)`, and shows a prominent warning when the process is out of statistical
+control, because Cp/Cpk are only meaningful on a stable process. The study carries
+`stable: bool | None` / `stability_note: str | None`; `stable is None` means **not
+assessed** (no chart context supplied), never "in control". The engine never derives the
+chart type itself — the page holds the stream → chart-type map (see ASSUMPTIONS_LOG RULE 7).
 
 ## Conventions that matter here
 

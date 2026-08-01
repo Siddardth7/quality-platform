@@ -13,9 +13,7 @@ from spc_app.exporter import (
 )
 from spc_app.schema import IngestError, load_spc_csv
 from spc_app.spc_engine.capability import compute_capability_study, normality_test
-from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
-from spc_app.spc_engine.rule_detection import detect_violations
-from spc_app.spc_engine.utils import subgroup_rows
+from spc_app.spc_engine.stability import ChartType, assess_stability
 from spc_app.visualizer import build_capability_histogram, build_cpk_gauge
 
 DEMO_PATH = Path(__file__).resolve().parents[2] / "data" / "demo_composites_aerospace.csv"
@@ -38,6 +36,13 @@ FORCE_METHOD_OPTIONS: dict[str, Literal["auto", "normal", "boxcox", "percentile"
     "Force Box-Cox / Yeo-Johnson": "boxcox",
     "Force fitted-distribution percentile": "percentile",
 }
+#: The demo streams whose control chart is subgrouped; everything else (including
+#: uploads) is charted as individuals. The engine cannot infer this from the data
+#: (see spc_engine/stability.py), so the chart context lives with the caller.
+STREAM_CHART_TYPES: dict[str, ChartType] = {
+    "ply_thickness": "Xbar-R",
+    "hole_diameter": "Xbar-S",
+}
 
 
 @st.cache_data
@@ -47,49 +52,6 @@ def load_demo_data() -> pd.DataFrame:
         DEMO_PATH.parent.mkdir(parents=True, exist_ok=True)
         generate_demo_dataset().to_csv(DEMO_PATH, index=False)
     return pd.read_csv(DEMO_PATH)
-
-
-def assess_control_chart(
-    stream_name: str,
-    frame: pd.DataFrame,
-) -> tuple[float, list[dict[str, int | str]]]:
-    """Compute within-subgroup sigma_hat and detect Western Electric
-    out-of-control signals on the stream's control chart.
-
-    Capability indices are only meaningful on a stable process, so the
-    Capability page uses the signal list to gate (warn on) Cpk reporting.
-    Returns (sigma_hat, signals); an empty list means in statistical control.
-    """
-    if stream_name == "ply_thickness":
-        chart_type = "Xbar-R"
-        subgroups = subgroup_rows(frame)
-        xr = compute_xbar_r(subgroups)
-        points: list[float] = xr["subgroup_means"]
-        cl: float = xr["xbarbar"]
-        sigma_hat: float = xr["sigma_hat"]
-        # The plotted points are subgroup means, so their spread is sigma/sqrt(n).
-        sigma_points: float = sigma_hat / (len(subgroups[0]) ** 0.5)
-    elif stream_name == "hole_diameter":
-        chart_type = "Xbar-S"
-        subgroups = subgroup_rows(frame)
-        xs = compute_xbar_s(subgroups)
-        points = xs["subgroup_means"]
-        cl = xs["xbarbar"]
-        sigma_hat = xs["sigma_hat"]
-        sigma_points = sigma_hat / (len(subgroups[0]) ** 0.5)
-    else:
-        chart_type = "I-MR"
-        im = compute_imr(frame.sort_values("subgroup")["value"].tolist())
-        points = im["values"]
-        cl = im["xbar"]
-        sigma_hat = im["sigma_hat"]
-        sigma_points = sigma_hat
-
-    # Routed through the gated chokepoint (rule_detection.detect_violations) rather
-    # than calling detect_we_violations directly — same behaviour for a Shewhart
-    # chart_type (WE runs, sigma<=0 -> []), but every caller now shares one gate.
-    signals = detect_violations(chart_type, points, cl=cl, sigma=sigma_points, rule_set="Western Electric")
-    return sigma_hat, signals
 
 
 def default_limit(series: pd.Series):
@@ -150,12 +112,13 @@ def render_capability() -> None:
     # thin or degenerate stream raises ValueError. Surface it as a friendly message
     # rather than a Streamlit stack trace.
     try:
-        _, oos_signals = assess_control_chart(stream_name, stream_frame)
+        _, oos_signals = assess_stability(stream_frame, STREAM_CHART_TYPES.get(stream_name, "I-MR"))
         study = compute_capability_study(
             values,
             lsl=lsl if lsl_enabled else None,
             usl=usl if usl_enabled else None,
             force_method=force_method,
+            violations=oos_signals,
         )
         normality = normality_test(values)
     except (ValueError, KeyError) as exc:
