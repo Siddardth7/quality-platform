@@ -382,7 +382,34 @@ All notable changes to the Quality Platform are documented here. The format foll
   (`secom_app/yield_dppm.py`) and its 100% CI gate are untouched — the page was ungated and
   untested, so no covered line was lost.
 
+### Tests
+
+- **#198's escaping is now actually asserted.** The fix originally shipped with no test: the io
+  gate still read 100% because existing tests crossed the new lines incidentally, so reverting
+  the fix left all 240 tests green. Five regression tests in
+  `packages/quality-core/tests/test_export.py` cover header-label escaping, duplicate labels,
+  `write_table_sheet` header + body, `write_keyvalue_sheet` label + value, and the
+  numeric-exemption guard. All five were verified to fail against the pre-#198 code.
+
 ### Security
+
+- **`defusedxml` is now a direct dependency of `quality-core`, and Streamlit is no longer one
+  (audit A11, #202).** `quality_core.io.validate.read_table` parses uploaded `.xlsx` with
+  `pd.read_excel`, which hardens the workbook XML against entity-expansion/quadratic-blowup attacks
+  only while `openpyxl.xml.DEFUSEDXML` is true — i.e. only while `defusedxml` is importable. It was
+  true by accident, transitively via `fpdf2`, which no core code path requires; the package that
+  owns the Excel read now owns the hardening explicitly. In the same change `streamlit>=1.56.0` moved
+  from `[project.dependencies]` to a `streamlit` **optional extra**, so a base `quality-core` install
+  is exactly `pandas` + `pydantic` + `openpyxl` + `defusedxml` and no longer drags the Streamlit
+  chain (`gitpython`, `tornado`, `protobuf`, `pyarrow`, `pydeck`, `altair`, …) into every consumer of
+  the shared core — a scoped resolve of `quality-core` went from 6 of those packages to 0. Two guards
+  keep it that way: a CI step that resolves `quality-core`'s own subtree from the lock and fails on
+  any Streamlit-chain package, and `test_packaging.py`, which asserts the non-extra requirement set
+  is *exactly* those four names (so dropping `defusedxml` as "unused" also fails). `theme/style.py`
+  and its lazy `__getattr__` shim are retained deliberately — the shim is what lets a base install
+  import `quality_core.theme` tokens at all, and the five Streamlit apps each declare `streamlit`
+  themselves, so they and the README's standalone launches are unaffected. `requirements.txt` still
+  lists Streamlit for that reason; that is correct, not a failed change.
 
 - **`quality_core.io` ingest now fails closed (A05, #199).** Three findings in
   `read_table`/`load_table` fixed at the shared primitive, not in callers:
@@ -437,15 +464,6 @@ All notable changes to the Quality Platform are documented here. The format foll
   `-3.0000` into `'-3.0000` in every summary sheet. A payload that merely *starts* like a number
   (`-3.0000+cmd|' /C calc'!A0`) does not parse and is still escaped. `FORMULA_PREFIXES` is
   unchanged.
-
-### Tests
-
-- **#198's escaping is now actually asserted.** The fix originally shipped with no test: the io
-  gate still read 100% because existing tests crossed the new lines incidentally, so reverting
-  the fix left all 240 tests green. Five regression tests in
-  `packages/quality-core/tests/test_export.py` cover header-label escaping, duplicate labels,
-  `write_table_sheet` header + body, `write_keyvalue_sheet` label + value, and the
-  numeric-exemption guard. All five were verified to fail against the pre-#198 code.
 
 ## [0.7.0] - 2026-07-18
 

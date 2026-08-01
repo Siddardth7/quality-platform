@@ -7,8 +7,9 @@ One source of truth for both apps:
 - ``apply_theme()`` — the Streamlit CSS injector.
 
 Pure-data tokens are re-exported eagerly from ``palette`` (no streamlit). ``apply_theme``
-is loaded lazily so importing a tier token never drags in streamlit — keeping the
-FMEA CLI export path framework-free.
+is loaded lazily because ``streamlit`` is an **optional extra** of this package
+(``quality-core[streamlit]``): importing a token must never require it, on any install —
+which also keeps the FMEA CLI export path framework-free.
 """
 
 from __future__ import annotations
@@ -62,7 +63,9 @@ __all__ = [
 
 def __getattr__(name: str) -> object:
     # Lazy re-export so `from quality_core.theme import apply_theme` works without
-    # importing streamlit for the pure-data consumers.
+    # importing streamlit for the pure-data consumers. Load-bearing since #202 made
+    # streamlit an optional extra: without it, a base install could not import
+    # `quality_core.theme` at all (an eager `from .style import ...` would raise).
     if name == "apply_theme":
         from quality_core.theme.style import apply_theme
 
