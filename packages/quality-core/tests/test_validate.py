@@ -13,6 +13,7 @@ import io
 import os
 from typing import Annotated
 
+import openpyxl.xml
 import pandas as pd
 import pydantic
 import pytest
@@ -147,6 +148,31 @@ def test_read_table_csv_roundtrip():
 def test_read_table_xlsx_roundtrip():
     df = read_table(_xlsx_bytes(GOOD_ROWS))
     assert len(df) == 2
+
+
+def test_xlsx_ingest_has_xml_bomb_hardening_enabled():
+    """The .xlsx read path is hardened against XML-bomb payloads (#202, audit A11).
+
+    `read_table` dispatches .xlsx to `pd.read_excel` (validate.py:274), which parses the
+    workbook XML with openpyxl. openpyxl swaps in defusedxml's parser only while
+    `openpyxl.xml.DEFUSEDXML` is true, and that flag is `defusedxml_available() and
+    defusedxml_env_set()` — installed AND not disabled by `OPENPYXL_DEFUSEDXML`. It is
+    bound once at import time, so both halves are asserted as observed, not monkeypatched.
+
+    quality-core declares `defusedxml` as a direct dependency precisely because this flag
+    is the only thing hardening that read; before #202 it was true only by accident,
+    transitively via fpdf2, which no core code path requires.
+    """
+    # ponytail: assert the flag, not an XML-bomb payload — a payload fixture would be
+    # testing openpyxl's parser. Upgrade to one only if we ever parse XML ourselves.
+    assert openpyxl.xml.defusedxml_available() is True
+    assert openpyxl.xml.DEFUSEDXML is True
+    # `openpyxl/xml/functions.py` checks `if LXML is True:` *before* the defusedxml branch,
+    # so an lxml in the environment silently routes the parse away from defusedxml. That is
+    # not itself a regression (lxml is used with resolve_entities=False), but it would leave
+    # the two asserts above green while naming a path they no longer exercise. Pin it, so
+    # adding lxml is a deliberate decision that has to update this test.
+    assert openpyxl.xml.LXML is False
 
 
 def test_read_table_rejects_bytes_without_filename():

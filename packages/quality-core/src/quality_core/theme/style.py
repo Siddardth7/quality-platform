@@ -1,5 +1,9 @@
-"""Streamlit theming — the CSS injector. Imports streamlit, so it is kept
-separate from ``palette`` and loaded lazily from the package root."""
+"""Streamlit theming — the CSS injector.
+
+Requires the optional ``streamlit`` extra (``pip install quality-core[streamlit]``): this
+module is **not** importable from a base ``quality-core`` install. It imports streamlit, so
+it is kept separate from ``palette`` and loaded lazily from the package root.
+"""
 
 from __future__ import annotations
 
