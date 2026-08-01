@@ -148,6 +148,8 @@ def _detail_rows(report: GageStudyReport) -> list[tuple[str, object]]:
         ("USL", _fmt_opt(report.usl)),
         ("LSL", _fmt_opt(report.lsl)),
         ("Mean", _fmt(results["mean"])),
+        ("Method", str(results["method"])),
+        ("Method Limitation", str(results["method_note"])),
     ]
 
 
@@ -191,6 +193,8 @@ def export_results_csv(report: GageStudyReport) -> bytes:
         "ndc": results["ndc"],
         "Verdict": verdict,
         "Verdict Interpretation": verdict_sentence(verdict),
+        "Method": results["method"],
+        "Method Limitation": results["method_note"],
     }
     return _core_export_csv(pd.DataFrame([row]))
 

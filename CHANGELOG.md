@@ -6,6 +6,21 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **MSA declares which Gage R&R method it ran, and what that method cannot see (audit A10, #194).**
+  `compute_gage_rr()` now returns two additional keys — `method` (`"average_and_range"`) and
+  `method_note` — exported from `gage_rr_engine` as the `METHOD` / `METHOD_NOTE` constants, and
+  surfaced as "Method" / "Method Limitation" in the results CSV, the Excel Summary sheet and the PDF
+  detail table. The engine implements only the Average-and-Range method, which per AIAG MSA 4th Ed.,
+  Ch. III Sec. B "does not include" the operator-to-part interaction: that interaction is absorbed
+  into the reported components, so `%GRR` is biased low when it is non-zero. Previously nothing in
+  the payload or the exports said so, leaving a consumer unable to distinguish this `%GRR` from an
+  ANOVA result. ASSUMPTIONS_LOG RULE 1 is rewritten with primary-source quotations and correct
+  Chapter/Section locators (its previous "Section 3.2" citation does not exist in the 4th Edition).
+  **No computed value changed** — `%GRR`, `ndc` and `verdict` are byte-identical. The ANOVA method,
+  which would estimate the interaction, is tracked as #195 and is not implemented here.
+
 ### Changed
 
 - **MSA acceptance bands: the disputed tolerance-basis band set was investigated and refuted; no

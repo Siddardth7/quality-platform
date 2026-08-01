@@ -8,22 +8,74 @@ Each entry cites the exact AIAG MSA (4th Edition) source and explains why that s
 
 ---
 
-## RULE 1 — Average-and-Range Method (AIAG MSA, 4th Edition, Section 3.2)
+## RULE 1 — Average-and-Range Method (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
-**Decision:** Implement the **Average-and-Range method** for Gage R&R computation, not the ANOVA method (saved for W09+ stretch).
+**Decision:** Implement the **Average-and-Range method** for Gage R&R computation, not the ANOVA
+method. The choice is declared in the computed payload (`method` / `method_note`) and in every
+export, so a consumer can never mistake an Average-and-Range `%GRR` for an ANOVA one.
 
-**Source:** AIAG MSA (4th Edition), Section 3.2, "Crossed Designs — Average-and-Range Method."
-The method is the industry standard for crossed designs (every part measured by every appraiser multiple times).
-AIAG recommends it as the quickest and most intuitive for studies with balanced data.
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Variable Measurement System Study
+Guidelines." Under "Guidelines for Determining Repeatability and Reproducibility" the manual names
+three acceptable techniques:
+
+> "The Variable Gage Study can be performed using a number of differing techniques. Three
+> acceptable methods will be discussed in detail in this section. These are: Range method /
+> Average and Range method (including the Control Chart method) / ANOVA method"
+
+and states the trade-off between them directly:
+
+> "Except for the Range method, the study data design is very similar for each of these methods.
+> The ANOVA method is preferred because it measures the operator to part interaction gauge error,
+> whereas the Range and the Average and Range methods does not include this variation." [sic —
+> the manual's own grammar, quoted unaltered]
+
+The same passage is why Average-and-Range remains *acceptable* rather than merely tolerated:
+
+> "The ANOVA approach can identify appraiser-part interaction but it can also evaluate other
+> sources of variation which is the reason why it was included. Historically, the assumption is
+> made that the interaction is zero, in which case the results of both approaches are equivalent."
+
+The manual's own "Average and Range Method" subsection repeats the limitation:
+
+> "Unlike the Range method, this approach will allow the measurement system's variation to be
+> decomposed into two separate components, repeatability and reproducibility. However, variation
+> due to the interaction between the appraiser and the part/gage is not accounted for in the
+> analysis."
+
+with footnote 43: *"The ANOVA method can be used to determine the interaction between the gage and
+appraisers, if such exists."* AIAG also states the zero-interaction assumption as a **precondition**
+of these procedures — Chapter III, Section A, "Example Test Procedures" lists *"There is no
+statistical interaction between appraisers and parts"* among the conditions under which they apply.
 
 **Rationale:** The Average-and-Range method:
 - Requires only arithmetic (no statistical distributions or software libraries).
 - Works on any balanced study (no restrictions on sample size).
 - Is widely taught in quality training and is the baseline expectation for suppliers.
+- Is equivalent to ANOVA under AIAG's own stated precondition that the interaction is zero.
 
-**Stretch (W09+):** ANOVA method for unbalanced data; bias/linearity/stability studies.
+**Limitation (declared, not hidden):** the part × appraiser interaction is **not estimated**. It is
+absorbed into the reported EV/AV/PV components rather than separated out, so `%GRR` is **biased low**
+whenever the interaction is non-zero — exactly the case AIAG's precondition excludes and this method
+cannot detect. The computed payload therefore carries `method = "average_and_range"` and a
+`method_note` stating the limitation, and both reach the results CSV, the Excel Summary sheet and
+the PDF detail table ("Method" / "Method Limitation"). ANOVA — which would separate the interaction
+term — is **not implemented here**; it is tracked as **#195**.
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()`
+**Stretch (#195):** ANOVA method (interaction term, unbalanced data); bias/linearity/stability
+studies.
+
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()`;
+`compute_gage_rr()` → `method` / `method_note` return keys; module constants `METHOD` /
+`METHOD_NOTE`. `apps/msa/msa_app/exporter.py` → `_detail_rows()` (Excel + PDF) and
+`export_results_csv()` "Method" / "Method Limitation" rows/columns.
+`apps/msa/msa_app/pages/gage_study.py` → the caption under "Gage R&R Results".
+**Forward requirement:** the API response model for a Gage R&R study (#178 / #195-era endpoints)
+must expose these two fields — `apps/api` does not exist yet, so it is carried by #178, not done here.
+
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-07-31 (SME: Sid). Note the 4th Edition uses
+`Chapter <roman> – Section <letter>` headings; the "Section 3.2" locator previously cited here does
+not exist in it.
 
 ---
 
@@ -495,6 +547,7 @@ new export path.
 | Assumption | Implemented In |
 |-----------|---------------|
 | Average-and-Range method | `_average_and_range_method()` |
+| Method declaration / un-estimated interaction | `compute_gage_rr()`, keys `method` / `method_note`; `METHOD` / `METHOD_NOTE` |
 | K1/K2/K3 constants | `_K1`/`_K2`/`_K3` dicts, `_k_constant()` |
 | EV formula | `_average_and_range_method()`, lines: `ev = avg_range_within * k1` |
 | AV formula | `_average_and_range_method()`, lines: `av_squared = ...` |

@@ -5,6 +5,14 @@ using the Average-and-Range method per AIAG MSA standards. It computes Equipment
 Variation (EV), Appraiser Variation (AV), %GRR, number of distinct categories (ndc),
 and an AIAG verdict (Accept/Marginal/Reject) for crossed gage studies.
 
+Method limitation, declared in the payload as ``method`` / ``method_note``: the
+Average-and-Range method does not estimate the part x appraiser interaction (AIAG MSA
+4th Ed., Ch. III Sec. B — "the Range and the Average and Range methods does not include
+this variation" [sic]). That interaction is absorbed into the reported components, so
+%GRR is biased low whenever it is non-zero; AIAG's own procedure states "no statistical
+interaction between appraisers and parts" as a precondition. The ANOVA method, which
+separates it, is not implemented here — it is tracked as issue #195.
+
 All formulas and thresholds are verified against AIAG MSA (4th Edition) and documented
 in the ASSUMPTIONS_LOG. See apps/msa/docs/ASSUMPTIONS_LOG.md for standards references.
 """
@@ -17,6 +25,8 @@ import numpy as np
 import pandas as pd
 
 __all__ = [
+    "METHOD",
+    "METHOD_NOTE",
     "compute_gage_rr",
 ]
 
@@ -49,6 +59,22 @@ _K3: dict[int, float] = {  # by number of parts (n)
 # tolerance and study-variation bases -- see ASSUMPTIONS_LOG RULE 8.
 _STUDY_VARIATION_SIGMA = 6.0
 
+# Which of AIAG's three acceptable variable-study techniques this engine implements, and what
+# that choice costs. Declared in the payload so a consumer reading JSON/CSV can tell an
+# Average-and-Range %GRR from an ANOVA one. ASCII only ("x", not "×"): these strings flow into
+# the PDF exporter via safe_text/fpdf2, which is latin-1.
+# ponytail: two plain constants, not a TypedDict return or an `interaction_estimated` flag —
+# a consumer that must branch compares `method == "average_and_range"`. Revisit when #195 adds
+# ANOVA and `method` gains a second possible value.
+METHOD = "average_and_range"
+METHOD_NOTE = (
+    "Average-and-Range method: the part x appraiser interaction is NOT estimated. "
+    'AIAG MSA 4th Ed., Ch. III Sec. B: the Average and Range method "does not include" the '
+    "operator-to-part interaction, which is therefore absorbed into the reported components; "
+    "%GRR is biased low when that interaction is non-zero. ANOVA (which separates it) is not "
+    "implemented."
+)
+
 
 def compute_gage_rr(
     data: pd.DataFrame | list[dict],
@@ -76,6 +102,9 @@ def compute_gage_rr(
         - "n_appraisers": int (Unique appraisers)
         - "n_trials": int (Replications per (part, appraiser) cell; assumes balanced)
         - "is_balanced": bool (True if every (part, appraiser) pair has n_trials measurements)
+        - "method": str (the AIAG technique used; always ``METHOD`` == "average_and_range")
+        - "method_note": str (``METHOD_NOTE``: the part x appraiser interaction is not
+          estimated by this method, so %GRR is biased low when it is non-zero)
 
     Raises:
         ValueError: if data is empty, fewer than 2 parts/appraisers/replicates, or
@@ -180,6 +209,8 @@ def compute_gage_rr(
         "n_appraisers": n_appraisers,
         "n_trials": n_trials,
         "is_balanced": is_balanced,
+        "method": METHOD,
+        "method_note": METHOD_NOTE,
     }
 
 
@@ -190,6 +221,11 @@ def _average_and_range_method(df: pd.DataFrame) -> tuple[float, float, float]:
     sigma units (K = 1/d2*). The historical 5.15/6-sigma "study variation"
     multiplier is intentionally omitted: it would multiply EV, AV, PV, GRR,
     and TV identically, so it cancels out of %GRR = GRR/TV and ndc = 1.41*PV/GRR.
+
+    Decomposes measurement variation into repeatability and reproducibility only:
+    per AIAG MSA 4th Ed., Ch. III Sec. B ("Average and Range Method"), "variation due to
+    the interaction between the appraiser and the part/gage is not accounted for in the
+    analysis" — that interaction is absorbed into EV/AV/PV rather than estimated.
 
     Args:
         df: DataFrame with columns part, appraiser, trial, measurement.

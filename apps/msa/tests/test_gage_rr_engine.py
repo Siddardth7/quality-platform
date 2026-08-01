@@ -24,6 +24,8 @@ from msa_app.gage_rr_engine import (
     _K1,
     _K2,
     _K3,
+    METHOD,
+    METHOD_NOTE,
     _average_and_range_method,
     _compute_ndc,
     _compute_verdict,
@@ -259,6 +261,8 @@ def test_compute_gage_rr_balanced_study(balanced_10_3_3):
         "n_appraisers",
         "n_trials",
         "is_balanced",
+        "method",
+        "method_note",
     }
     assert set(results.keys()) == expected_keys
 
@@ -737,3 +741,61 @@ def test_verdict_boundary_pgrr_exactly_10():
 def test_verdict_boundary_pgrr_exactly_30():
     """Verify %GRR = 30% (boundary) with ndc ≥ 2 → Marginal (not Reject)."""
     assert _compute_verdict(ndc=5, pgrr=30.0) == "Marginal"
+
+
+# --- Method declaration (#194 / audit A10) -----------------------------------
+# The payload must say which of AIAG's three acceptable variable-study techniques
+# it ran, and what that technique cannot see. These are declarative constants, so
+# the value is pinned as a literal (not via METHOD/METHOD_NOTE) — a rename or a
+# reworded note has to show up as a failing test, not just a silent diff.
+
+
+def test_compute_gage_rr_declares_the_average_and_range_method(balanced_10_3_3):
+    """The returned payload names the technique, literally 'average_and_range'."""
+    results = compute_gage_rr(balanced_10_3_3, tolerance=1.0)
+    assert results["method"] == "average_and_range"
+    assert METHOD == "average_and_range"
+    assert results["method"] is METHOD
+
+
+def test_method_note_declares_the_un_estimated_interaction(balanced_10_3_3):
+    """The note must state the limitation AIAG names at Ch. III Sec. B, not just exist."""
+    note = compute_gage_rr(balanced_10_3_3, tolerance=1.0)["method_note"]
+    assert isinstance(note, str) and note.strip()
+    assert note == METHOD_NOTE
+    lowered = note.lower()
+    assert "interaction" in lowered
+    assert "not estimated" in lowered  # the interaction is NOT estimated
+    assert "does not include" in lowered  # AIAG's own wording, Ch. III Sec. B
+    assert "biased low" in lowered  # the direction of the error, not just its name
+    assert "anova" in lowered  # names the method that would estimate it
+
+
+def test_method_note_is_ascii_encodable():
+    """PDF guard: METHOD_NOTE reaches fpdf2 (latin-1) via safe_text — no '×', no curly quotes."""
+    METHOD_NOTE.encode("ascii")  # raises UnicodeEncodeError if anyone types an em-dash
+    METHOD.encode("ascii")
+
+
+@pytest.mark.parametrize("value", [METHOD, METHOD_NOTE])
+def test_method_fields_are_not_csv_injection_vectors(value):
+    """Both reach the results CSV unsanitized (engine constants, not user input)."""
+    assert value[0] not in "=+-@"
+
+
+def test_method_fields_are_identical_with_and_without_tolerance(balanced_10_3_3):
+    """The declaration is unconditional — nobody may make it tolerance-dependent."""
+    with_tol = compute_gage_rr(balanced_10_3_3, tolerance=1.0)
+    without_tol = compute_gage_rr(balanced_10_3_3, tolerance=None)
+    assert with_tol["pgrr_tolerance"] is not None
+    assert without_tol["pgrr_tolerance"] is None  # the two runs really did differ
+    assert with_tol["method"] == without_tol["method"] == "average_and_range"
+    assert with_tol["method_note"] == without_tol["method_note"] == METHOD_NOTE
+
+
+def test_method_declaration_is_public_api():
+    """Consumers import the one source of truth instead of retyping the strings."""
+    import msa_app.gage_rr_engine as engine
+
+    assert "METHOD" in engine.__all__
+    assert "METHOD_NOTE" in engine.__all__
