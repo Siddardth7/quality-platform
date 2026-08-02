@@ -60,7 +60,7 @@ all-NaN column, which has zero present values) is dropped unconditionally.
 
 **Source:** AIAG SPC Reference Manual, 4th ed. (2005), capability indices:
 Cp = (USL-LSL)/6*sigma is undefined at sigma=0; `compute_capability` in this
-platform (`apps/spc/spc_app/spc_engine/capability.py`) raises on `sigma_hat<=0`.
+platform (`quality_core/spc/capability.py`) raises on `sigma_hat<=0`.
 
 **Rationale:** A control chart and Cp/Cpk both require variation to be meaningful.
 This is definitional, not a tunable threshold — there is no SME choice to make.
@@ -244,7 +244,7 @@ percentile/mean±k·sigma "tolerance" from the data. Both `None` raises
 `lsl >= usl` also raises.
 
 **Source:** AIAG SPC Reference Manual, 4th ed. (2005) — Cp/Cpk/Pp/Ppk
-formulas are reused unchanged from `apps/spc/spc_app/spc_engine/capability.py`
+formulas are reused unchanged from `quality_core/spc/capability.py`
 (`compute_capability`), which already handles `lsl`/`usl == None` correctly
 (one-sided / two-sided / neither -> index `None`). **Flagged: the
 no-fabrication *policy* (reject a derived-limit shortcut) is an SME
@@ -444,7 +444,7 @@ AIAG-anchored (unlike `selection.py`'s `MIN_NON_MISSING`).
 **Rationale:** Surfaces which kept signals are most strongly associated
 with wafer failure, honestly labelled as association not causation, without
 hand-rolling t-distribution or FDR math (`scipy.stats` is already vetted and
-in the workspace lock via `spc-app`).
+declared by this app itself in `apps/secom/pyproject.toml`).
 
 **Applied In:** `apps/secom/secom_app/doe_screening.py` -> `ScreeningResult`,
 `screen_signals()`

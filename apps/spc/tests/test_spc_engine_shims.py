@@ -1,7 +1,7 @@
 """
 tests/test_spc_engine_shims.py
 `spc_app.spc_engine.*` re-exports the promoted core primitives — it does not re-declare
-them (audit A12, #205, PRs 1 and 2 of 3).
+them (audit A12, #205).
 
 These live in the SPC app suite, not the core suite, on purpose: they assert something
 about `spc_app`, and the core's tests must not import an app. #205 exists to make
@@ -13,6 +13,12 @@ from __future__ import annotations
 
 from typing import get_args
 
+from quality_core.spc.capability import (
+    CapabilityStudy,
+    compute_capability,
+    compute_capability_study,
+    normality_test,
+)
 from quality_core.spc.constants import (
     IMR_D2,
     IMR_D4,
@@ -35,6 +41,7 @@ from quality_core.spc.stability import assess_stability, stability_fields
 from quality_core.spc.utils import subgroup_rows
 
 from spc_app import control_plan_config
+from spc_app.spc_engine import capability as shim_capability
 from spc_app.spc_engine import constants as shim_constants
 from spc_app.spc_engine import control_charts as shim_control_charts
 from spc_app.spc_engine import phase as shim_phase
@@ -76,6 +83,18 @@ def test_chart_phase_and_stability_shims_are_the_same_objects_as_the_core():
     assert shim_phase.FrozenLimits is FrozenLimits
     assert shim_stability.assess_stability is assess_stability
     assert shim_stability.stability_fields is stability_fields
+
+
+def test_capability_shim_is_the_same_object_as_the_core():
+    """The PR-3 shim (#205): `is`, never `==` — a re-declared engine would pass equality.
+
+    Importing the shim module here is also what executes it during the SPC coverage
+    gate, so a shim added and left unimported fails loudly.
+    """
+    assert shim_capability.compute_capability is compute_capability
+    assert shim_capability.compute_capability_study is compute_capability_study
+    assert shim_capability.normality_test is normality_test
+    assert shim_capability.CapabilityStudy is CapabilityStudy
 
 
 def test_control_plan_config_derives_its_keys_instead_of_retyping_them():

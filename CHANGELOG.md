@@ -43,6 +43,25 @@ All notable changes to the Quality Platform are documented here. The format foll
   dependency subtree is **unchanged** (numpy 2.4.4 was already pulled in transitively via pandas)
   and the banned-package count is still 0 — only `uv.lock`'s quality-core metadata block moves.
 
+- **Process capability promoted into `quality_core.spc`, and the SECOM→SPC app boundary torn down
+  (audit A12, #205 — PR 3 of 3, closes the finding).** `capability` (`compute_capability`,
+  `normality_test`, `compute_capability_study`, `CapabilityStudy` and the non-normal Box-Cox /
+  Yeo-Johnson / ISO 22514-2 fitted-percentile machinery) now lives in `quality_core.spc.capability`;
+  `spc_app.spc_engine.capability` became a thin re-export shim like PRs 1 and 2, so every existing
+  SPC caller is unchanged. `secom_app/capability.py` imports it *downward* from `quality_core`, so
+  **`apps/secom` no longer imports `spc_app` anywhere** and the `spc-app` workspace-dependency
+  stopgap is gone from `apps/secom/pyproject.toml` — asserted as an executable fact by a new
+  clean-interpreter boundary test. **No value, formula, threshold or citation changed** — a pure
+  move; the 745-line capability suite moved with the module to
+  `packages/quality-core/tests/test_spc_capability.py` and runs under the Core SPC gate at 100%
+  line + branch. `scipy>=1.17.1` is now a declared hard dependency of `quality-core` because
+  `quality_core.spc.capability` imports it at module level; it was already in the workspace lock
+  via `spc-app`/`secom-app`, its only runtime dependency is numpy, and the banned-package count is
+  still 0. `spc_app/spc_engine/data_generator.py` deliberately stays app-local — it is the SPC
+  app's demo dataset, not shared standards math. The one remaining `sys.path` shim in
+  `apps/secom/conftest.py` serves `apps/msa` (still `package = false`), not `spc_app`, and is
+  tracked by #231.
+
 - **MSA declares which Gage R&R method it ran, and what that method cannot see (audit A10, #194).**
   `compute_gage_rr()` now returns two additional keys — `method` (`"average_and_range"`) and
   `method_note` — exported from `gage_rr_engine` as the `METHOD` / `METHOD_NOTE` constants, and
