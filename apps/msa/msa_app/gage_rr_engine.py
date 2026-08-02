@@ -324,10 +324,18 @@ def _compute_verdict(ndc: int, pgrr: float) -> str:
     Returns:
         "Accept", "Marginal", or "Reject".
 
-    Logic (AIAG MSA):
+    Logic — the %GRR bands and the ndc >= 5 threshold are AIAG's; the ndc sub-bands are not:
     - Accept: ndc >= 5 AND %GRR < 10%
-    - Marginal: (ndc 2–4) OR (10% <= %GRR <= 30%)
+    - Marginal: (ndc 2-4) OR (10% <= %GRR <= 30%)
     - Reject: ndc < 2 OR %GRR > 30%
+
+    AIAG MSA 4th Ed. publishes the 10/30 %GRR bands (Ch. II Sec. D, Table II-D 1) and a single
+    ndc rule -- "This value should be greater than or equal to 5" (Ch. II Sec. D; repeated in
+    Ch. III Sec. B). It publishes NO band between 5 and zero: the "ndc 2-4 -> Marginal" and
+    "ndc < 2 -> Reject" splits below are this platform's internal design choice, not AIAG's, and
+    were previously mislabelled here as "Logic (AIAG MSA)" (#223, audit A10-a -- wording only, the
+    branches are unchanged). Neither split loosens AIAG: nothing under ndc = 5 returns "Accept".
+    See ASSUMPTIONS_LOG RULE 9 / RULE 10.
     """
     # Hard reject conditions
     if ndc < 2:

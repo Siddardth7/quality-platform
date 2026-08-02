@@ -1,10 +1,39 @@
 # Engineering Assumptions Log
 **Project:** Gage R&R Analysis (MSA Module)
 **Author:** Siddardth | M.S. Aerospace Engineering, UIUC
-**Last Updated:** July 19, 2026
+**Last Updated:** August 2, 2026
 
-This document records every AIAG-grounded decision in the Gage R&R computation engine (W08-2).
-Each entry cites the exact AIAG MSA (4th Edition) source and explains why that standard was chosen.
+This document records every decision in the Gage R&R computation engine (W08-2) and explains why it
+was made. Entries are of two kinds and each says which it is:
+
+- **AIAG-grounded** — the decision follows AIAG MSA (4th Edition). The entry names a
+  `Chapter <roman> – Section <letter>` locator and quotes the manual verbatim.
+- **Not in AIAG MSA** — an internal design choice, a platform relaxation, or a deliberate
+  deviation. The entry says so in its `**Source:**` line and claims no standard behind it.
+
+An entry with no primary source is acceptable. An entry that *implies* one is not: a wrong number is
+falsifiable by recomputation, but a fabricated quotation looks like verified evidence and every
+decision downstream of it inherits unearned confidence.
+
+**Citation integrity (#223, audit A10-a).** Every quotation below is registered in
+[`CITATIONS.tsv`](CITATIONS.tsv) with the line of `MSA_Reference_Manual_4th_Edition.md` it came from,
+and `apps/msa/tests/test_citations.py` re-asserts each one — quote **and** line number — against the
+manual. A quotation in this file without a manifest row is a review failure. The manual is licensed
+and is not in the repo, so those tests skip unless `MSA_MANUAL_PATH` points at a local copy.
+
+**Note on locators.** The 4th Edition numbers its headings `Chapter <roman> – Section <letter>`.
+It has no `Section 3.x` / `Equation 3.x.y` scheme; citations in that form (removed by #223) pointed
+at nothing.
+
+**Blockquote convention.** Every `>` blockquote in this file is a verbatim passage from the manual
+with a `CITATIONS.tsv` row — including the manual's own grammar errors, which are reproduced
+unaltered and marked `[sic]`. Text that was **withdrawn** as fabricated is exhibited in a fenced
+code block, never in a blockquote, so a skim can never mistake a retracted quote for a live one.
+
+The manual prints footnote *markers* inline, mid-sentence (e.g. `…10 parts ⁴⁴ that represent…`).
+Quotations here drop the marker and quote the footnote separately where it is load-bearing; the
+words are otherwise unaltered. A quotation spanning a dropped marker is registered in
+`CITATIONS.tsv` as two rows — one per side — so both halves are still line-checked.
 
 ---
 
@@ -84,7 +113,15 @@ not exist in it.
 **Decision:** Convert average ranges directly to sigma estimates using AIAG's published **K1/K2/K3
 lookup tables** (`K = 1/d2*`), not a plain d2 lookup.
 
-**Source:** AIAG MSA (4th Edition), Gage R&R report form and Appendix C. Verified directly against
+**Source:** AIAG MSA (4th Edition), Gage R&R report form and Appendix C. Chapter III, Section B,
+"Analysis of Results — Numerical" states the `K = 1/d2*` relationship and where the table lives:
+
+> "*K1* depends upon the number of trials used in the gage study and is equal to the inverse of
+> *d*2\* which is obtained from Appendix C."
+
+(the *K2* and *K3* paragraphs say the same for appraisers and parts, and fix `g = 1` for both —
+"since there is only one range calculation" — which is why K2/K3 use the single-subgroup `d2*`).
+Verified directly against
 the primary manual (`MSA_Reference_Manual_4th_Edition.md`) on 2026-07-19 (SME: Sid). K1 uses the
 many-subgroup d2* (≈ plain d2); K2 and K3 use the single-subgroup d2*, which differs materially
 from plain d2 — using the K tables verbatim sidesteps that ambiguity and matches AIAG's published
@@ -128,7 +165,7 @@ extrapolating.
 
 ---
 
-## RULE 3 — Repeatability (EV) Formula (AIAG MSA, 4th Edition, Section 3.2)
+## RULE 3 — Repeatability (EV) Formula (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
 **Decision:** Compute **Equipment Variation (EV)** as:
 ```
@@ -136,8 +173,24 @@ EV = Rbar × K1(trials)
 where Rbar = mean of the within-(part, appraiser)-cell ranges
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.2, Equation 3.2.1.
-"Repeatability measures variation due to the equipment (or measurement device) when the same operator measures the same part multiple times."
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Analysis of Results — Numerical."
+The formula is stated there directly:
+
+> "The repeatability or equipment variation (*EV* or σ*E*) is determined by multiplying the average
+> range (*R̄*) by a constant (*K1*). *K1* depends upon the number of trials used in the gage study
+> and is equal to the inverse of *d*2\* which is obtained from Appendix C."
+
+and the quantity it estimates is defined in Chapter I, Section E, "Repeatability":
+
+> "Repeatability is the variation in measurements obtained with **one measurement instrument** when
+> used several times by **one appraiser** while measuring the identical characteristic on the
+> **same part.**"
+
+**Correction (#223, audit A10-a):** this entry previously cited "Section 3.2, Equation 3.2.1" and
+quoted *"Repeatability measures variation due to the equipment (or measurement device) when the same
+operator measures the same part multiple times."* Neither the locator scheme nor that sentence exists
+in the 4th Edition — the quotation was **fabricated** and has been replaced with the two passages
+above. The formula it was offered in support of was, and remains, correct.
 
 **Rationale:**
 - The range within a (part, appraiser) cell captures the "spread" of repeated measurements.
@@ -150,9 +203,12 @@ where Rbar = mean of the within-(part, appraiser)-cell ranges
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()` (lines computing `ev`)
 
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
+
 ---
 
-## RULE 4 — Reproducibility (AV) Formula (AIAG MSA, 4th Edition, Section 3.2)
+## RULE 4 — Reproducibility (AV) Formula (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
 **Decision:** Compute **Appraiser Variation (AV)** as:
 ```
@@ -160,15 +216,35 @@ AV = sqrt((Xdiff × K2(appraisers))² − (EV² / (n_parts × n_trials)))
 where Xdiff = range of appraiser grand means
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.2, Equation 3.2.2.
-"Reproducibility measures variation due to different appraisers (or operators)."
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Analysis of Results — Numerical," which
+gives both the multiplication and — this is the part that matters — the reason for the subtraction:
+
+> "The reproducibility or appraiser variation (*AV* or σ*A*) is determined by multiplying the maximum
+> average appraiser difference (*X̄*DIFF) by a constant (*K2*). ... Since the appraiser variation is
+> contaminated by the equipment variation, it must be adjusted by subtracting a fraction of the
+> equipment variation."
+
+with *"where n = number of parts and r = number of trials"* fixing the divisor of that fraction as
+`n × r`. The quantity being estimated is defined in Chapter I, Section E, "Reproducibility":
+
+> "Reproducibility is typically defined as the variation in the average of the measurements made by
+> **different appraisers** using the **same measuring instrument** when measuring the identical
+> characteristic on the **same part**."
+
+**Correction (#223, audit A10-a):** this entry previously cited "Section 3.2, Equation 3.2.2" and
+quoted *"Reproducibility measures variation due to different appraisers (or operators)."* — a
+**fabricated** quotation under a locator scheme the 4th Edition does not use. The replacement above
+is strictly better evidence than the sentence it removes: the old quote did not mention the
+`− EV²/(nr)` adjustment at all, so it never actually supported the formula it was attached to.
 
 **Rationale:**
 - The range of appraiser averages (Xdiff) captures the appraiser-to-appraiser spread.
 - K2 converts that to a sigma estimate.
 - The subtraction `− (EV² / (n_parts × n_trials))` removes the **repeatability component** already captured in EV.
-  This ensures AV reflects **only** the appraiser difference, not equipment noise.
-- If the subtraction yields a negative value (rare, high EV), clamp AV to 0 (numerical artifact).
+  This ensures AV reflects **only** the appraiser difference, not equipment noise — AIAG's
+  "contaminated by the equipment variation" sentence above is the justification for it.
+- If the subtraction yields a negative value (rare, high EV), clamp AV to 0 (numerical artifact) —
+  AIAG states this clamp explicitly; see RULE 14.
 
 **Worked example (AIAG canonical 10×3×3 study):**
 - Xdiff = 0.445, appraisers = 3, K2(3) = 0.5231, EV = 0.202, n_parts = 10, n_trials = 3.
@@ -177,17 +253,32 @@ where Xdiff = range of appraiser grand means
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()` (lines computing `av`)
 
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
+
 ---
 
-## RULE 5 — GR&R (AIAG MSA, 4th Edition, Section 3.2)
+## RULE 5 — GR&R (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
 **Decision:** Compute **Gage Repeatability & Reproducibility** as:
 ```
 GR&R = sqrt(EV² + AV²)
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.2, Equation 3.2.3.
-"The total measurement system variation is the combination (square root of sum of squares) of repeatability and reproducibility."
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Analysis of Results — Numerical":
+
+> "The measurement system variation for repeatability and reproducibility (*GRR* or σ*M*) is
+> calculated by adding the square of the equipment variation and the square of the appraiser
+> variation, and taking the square root as follows:"
+
+Chapter I, Section E states the same thing in variance terms: *"GRR is the variance equal to the sum
+of within-system and between-system variances."*
+
+**Correction (#223, audit A10-a):** previously cited "Section 3.2, Equation 3.2.3" with the
+**fabricated** quotation *"The total measurement system variation is the combination (square root of
+sum of squares) of repeatability and reproducibility."* The phrase "square root of sum of squares"
+does not occur anywhere in the manual. The formula is unchanged and is now quoted from the manual's
+own wording.
 
 **Rationale:**
 - EV and AV are independent sources of variation.
@@ -195,9 +286,12 @@ GR&R = sqrt(EV² + AV²)
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (line computing `grr`)
 
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
+
 ---
 
-## RULE 6 — Part Variation / Total Variation (AIAG MSA, 4th Edition, Section 3.2)
+## RULE 6 — Part Variation / Total Variation (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
 **Decision:** Estimate **Part Variation (PV)** and **Total Variation (TV)** as:
 ```
@@ -206,9 +300,20 @@ where Rp = range of part means
 TV = sqrt(GRR² + PV²)
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.2, Equation 3.2.4, and the Gage R&R report form.
-"Part variation represents the true part-to-part spread; total variation combines measurement
-system variation (GRR) with part variation."
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Analysis of Results — Numerical," and
+the Gage R&R report form:
+
+> "The part variation (part-to-part; part variation without measurement variation) (*PV* or σ*P*)
+> is determined by multiplying the range of part averages (*Rp*) by a constant (*K3*)."
+
+> "The total variation (*TV* or σ*T*) from the study is then calculated by summing the square of both
+> the repeatability and reproducibility variation and the part variation (*PV*) and taking the square
+> root as follows:"
+
+**Correction (#223, audit A10-a):** previously cited "Section 3.2, Equation 3.2.4" with the
+**fabricated** quotation *"Part variation represents the true part-to-part spread; total variation
+combines measurement system variation (GRR) with part variation."* Both formulas were correct; only
+the evidence for them was invented. They are now quoted from the manual.
 
 **Note (correction, W08-2):** The previous version of this document described a malformed
 `σ_study = (d2 × Rp) / (1.128 × sqrt(n_appraisers × n_trials))` and cited "1.128 = sqrt(8/π)" as
@@ -228,16 +333,38 @@ scale all five components identically, so it cancels exactly out of `%GRR = 100 
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()` (lines computing `pv`), `compute_gage_rr()` (line computing `tv`)
 
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
+
 ---
 
-## RULE 7 — %GRR vs Study Variation (AIAG MSA, 4th Edition, Section 3.3)
+## RULE 7 — %GRR vs Study Variation (AIAG MSA, 4th Edition, Ch. III Sec. B / Ch. II Sec. D)
 
 **Decision:** Compute **%GRR vs Study Variation** as:
 ```
 %GRR_study = (GR&R / TV) × 100
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.3, "Measurement System Acceptability Criteria."
+**Source — the index:** AIAG MSA (4th Edition), Chapter III, Section B, "Indices," which gives the
+`100[component/TV]` form and extends it to the other components:
+
+> "The percent the equipment variation (*%EV*) consumes of the total variation (*TV*) is calculated
+> by 100[*EV/TV*]. The percent that the other factors consume of the total variation can be
+> similarly calculated as follows:"
+
+**Source — the bands:** Chapter II, Section D, **Table II-D 1 "GRR Criteria."** Its lead-in reads
+*"For measurement systems whose purpose is to analyze a process, a general guidelines [sic — the
+manual's own grammar] for measurement system acceptability is as follows:"*, and the table gives:
+
+| GRR | Decision |
+|---|---|
+| "Under 10 percent" | "Generally considered to be an acceptable measurement system." |
+| "10 percent to 30 percent" | "May be acceptable for some applications" |
+| "Over 30 percent" | "Considered to be unacceptable" |
+
+**Correction (#223, audit A10-a):** previously cited "Section 3.3, 'Measurement System Acceptability
+Criteria.'" That locator scheme does not exist in the 4th Edition and no section carries that title;
+the interpretation bands below were left unlocated. Both are now pinned to the real passages above.
 
 **Interpretation:**
 - **< 10%:** Measurement system is excellent; variation is negligible vs part variation.
@@ -251,16 +378,25 @@ scale all five components identically, so it cancels exactly out of `%GRR = 100 
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (line computing `pgrr_study`)
 
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
+
 ---
 
-## RULE 8 — %GRR vs Tolerance (AIAG MSA, 4th Edition, Section 3.3)
+## RULE 8 — %GRR vs Tolerance (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
 **Decision:** Compute **%GRR vs Tolerance** (if tolerance is provided) as:
 ```
 %GRR_tolerance = (6 × GR&R / Tolerance) × 100      where Tolerance = USL − LSL
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.3, "Measurement System Acceptability Criteria" (alternative criterion).
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B — the tolerance-basis paragraph quoted
+verbatim under "Provenance of the 6" below (alternative criterion).
+
+**Locator correction (#223, audit A10-a):** this line previously read "Section 3.3, 'Measurement
+System Acceptability Criteria' (alternative criterion)" — a stale locator left behind when #217
+upgraded the body of this rule to the primary source. The 4th Edition has no `Section 3.x` scheme
+and no section by that title; the body's Chapter III, Section B citation was already correct.
 
 **Why the 6 is here and not in %GRR_study:** EV/AV/GRR/PV/TV are all carried in bare 1-sigma units
 (`K = 1/d2*`) inside this engine (see RULE 6/7 and `_average_and_range_method()`'s docstring). The
@@ -348,46 +484,106 @@ The verdict this engine emits is a guideline flag, not a release decision.
 
 ---
 
-## RULE 9 — Number of Distinct Categories (ndc) (AIAG MSA, 4th Edition, Section 3.3)
+## RULE 9 — Number of Distinct Categories (ndc) (AIAG MSA, 4th Edition, Ch. III Sec. B / Ch. II Sec. D)
 
 **Decision:** Compute **Number of Distinct Categories** as:
 ```
 ndc = trunc(1.41 × (PV / GR&R))
 ```
 
-**Source:** AIAG MSA (4th Edition), Section 3.3, Equation 3.3.2. Verified directly against the
-primary manual on 2026-07-19 (SME: Sid): `ndc = 1.41 × PV / GRR`.
-"ndc indicates how many distinct measurement categories can be reliably distinguished across the
-observed part variation."
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Analysis of Results — Numerical," which
+defines what ndc *is*:
+
+> "The final step in the numerical analysis is to determine the number of distinct categories that
+> can be reliably distinguished by the measurement system. This is the number of non-overlapping 97%
+> confidence intervals that will span the expected product variation."
+
+and, immediately after the formula, how it is reduced to an integer:
+
+> "For analysis, the *ndc* is the maximum of one or the calculated value truncated to the integer.
+> This result should be greater than or equal to 5."
+
+Chapter II, Section D, under "Additional Width Error Metric," states the same acceptance rule:
+
+> "This statistic indicates the number of categories into which the measurement process can be
+> divided. This value should be greater than or equal to 5."
+
+The `1.41 × PV / GRR` form is the manual's own: its glossary entry for *ndc* reads
+*"Number of distinct categories. 1.41 PV/GRR"*. Verified directly against the primary manual on
+2026-07-19 (SME: Sid).
+
+**Correction (#223, audit A10-a):** previously cited "Section 3.3, Equation 3.3.2" with the
+**fabricated** quotation *"ndc indicates how many distinct measurement categories can be reliably
+distinguished across the observed part variation."* That sentence is a paraphrase of the real
+definition above and appears nowhere in the manual.
 
 **Note (correction, W08-2):** ndc is driven by **Part Variation (PV)**, not tolerance. It is
 computed unconditionally, whether or not a tolerance is supplied — a study with no tolerance can
 still report a real ndc and reach Accept/Marginal, not just Reject.
 
-**Acceptance Criterion (AIAG):**
-- **ndc ≥ 5:** Adequate (at least 5 distinct levels detectable).
-- **ndc 2–4:** Marginal (only 2–4 levels detectable).
-- **ndc < 2:** Reject (cannot even distinguish conforming from non-conforming).
+**Acceptance criterion — what AIAG actually says:**
+- **ndc ≥ 5:** Adequate. This is AIAG's *only* published ndc criterion (Ch. II Sec. D; Ch. III
+  Sec. B). It is a single pass/fail threshold, not a graded scale.
 
-**Rationale:**
-- ndc ≥ 5 is a conservative heuristic meaning the measurement system can resolve at least 5 meaningful steps within the tolerance.
+**Sub-bands below 5 — NOT in AIAG MSA; internal design choice (#223, audit A10-a):**
+- **ndc 2–4:** Marginal (only 2–4 levels detectable).
+- **ndc < 2:** Reject (cannot distinguish one part from another at all).
+
+**Source:** Not in AIAG MSA; internal design choice built on AIAG's single `ndc ≥ 5` rule. The
+manual gives no band between 5 and zero. These two sub-bands were previously printed under an
+"**Acceptance Criterion (AIAG):**" heading, which attributed them to a standard that does not state
+them. The verdict logic is **unchanged** — only the attribution is corrected.
+
+**Rationale for the sub-bands:** AIAG's `≥ 5` alone maps every failing study to one outcome, which
+would make the verdict blind to the difference between a system that resolves four categories and
+one that resolves none. `ndc < 2` means the system cannot separate any two parts in the study, so it
+is treated as a hard reject; `2–4` is reported as Marginal rather than Reject so a borderline system
+is flagged for improvement instead of condemned. Both are this platform's choices and neither
+loosens AIAG's rule: nothing below `ndc = 5` is ever reported as Accept.
+
+**Rationale for AIAG's own threshold:**
+- ndc ≥ 5 is a conservative heuristic meaning the measurement system can resolve at least 5
+  meaningful steps within the **observed part variation** — ndc is PV-driven, not tolerance-driven
+  (see the W08-2 correction note above; this sentence previously said "within the tolerance",
+  contradicting it).
 - This ensures that accept/reject decisions are not frequently reversed due to measurement noise.
+
+**UI/export drift (#237):** `pages/gage_study.py` renders these sub-bands under an "AIAG Acceptance
+Criteria" subheader and `exporter.py`'s `VERDICT_SENTENCES` repeats them. Those strings carry the
+same misattribution and are **deliberately not changed here** (they would churn
+`test_pages_gage_study.py` and `test_exporter.py`); they are tracked as **#237**.
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_compute_ndc()` and used in `_compute_verdict()`
 
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
+
 ---
 
-## RULE 10 — AIAG Verdict (AIAG MSA, 4th Edition, Section 3.3)
+## RULE 10 — Verdict (AIAG %GRR bands + platform ndc bands)
 
-**Decision:** Assign a **verdict** (Accept / Marginal / Reject) based on the following matrix:
+**Decision:** Assign a **verdict** (Accept / Marginal / Reject) from ndc and %GRR. The two columns
+have **different provenance** and the matrix now says which is which:
 
-| ndc | %GRR | Verdict | Action |
-|-----|------|---------|--------|
-| ≥ 5 | < 10% | **Accept** | Measurement system is adequate for the intended use. |
-| 2–4 | 10–30% | **Marginal** | Acceptable for some uses; consider improvement plans. |
-| < 2 | > 30% | **Reject** | Measurement system is inadequate and must be improved. |
+| ndc | ndc source | %GRR | %GRR source | Verdict | Action |
+|-----|------------|------|-------------|---------|--------|
+| ≥ 5 | **AIAG** — Ch. II Sec. D | < 10% | **AIAG** — Table II-D 1 | **Accept** | Measurement system is adequate for the intended use. |
+| 2–4 | *platform* (RULE 9) | 10–30% | **AIAG** — Table II-D 1 | **Marginal** | Acceptable for some uses; consider improvement plans. |
+| < 2 | *platform* (RULE 9) | > 30% | **AIAG** — Table II-D 1 | **Reject** | Measurement system is inadequate and must be improved. |
 
-**Source:** AIAG MSA (4th Edition), Section 3.3, "Acceptability Criteria & Guidelines."
+**Source (%GRR bands):** AIAG MSA (4th Edition), Chapter II, Section D, **Table II-D 1 "GRR
+Criteria"** — `"Under 10 percent"` / `"10 percent to 30 percent"` / `"Over 30 percent"`, quoted in
+full under RULE 7 and RULE 8.
+
+**Source (ndc ≥ 5):** AIAG MSA (4th Edition), Chapter II, Section D — *"This value should be greater
+than or equal to 5."*
+
+**Source (ndc 2–4 and ndc < 2):** **Not in AIAG MSA; internal design choice.** See RULE 9.
+
+**Correction (#223, audit A10-a):** this rule previously cited "Section 3.3, 'Acceptability Criteria
+& Guidelines'" — a locator scheme and a section title that do not exist in the 4th Edition — and its
+matrix presented the whole ndc column as AIAG's. Only the `≥ 5` row is. **The verdict logic is
+unchanged**; the matrix now attributes each column to its actual source.
 
 **Logic in Code:**
 ```
@@ -414,30 +610,86 @@ band set to carry, and adding an accept-threshold parameter per basis would enco
 customer-specific criterion, not AIAG's. Because both bases share the bands, `max()` above is a
 straight comparison of like with like.
 
-Where this *does* deviate from AIAG is the choice of basis, not the bands: **Ch. II §C** picks the
-basis by purpose (product control → assess %GRR to *tolerance*; process control → assess %GRR to
-*process variation*). The engine has no purpose input, so it takes the worse of the two — a
-deliberate conservative deviation, documented in the SME note above.
+Where this *does* deviate from AIAG is the choice of basis, not the bands: **Chapter I, Section B**
+picks the basis by purpose —
+
+> "For product control, variability of the measurement system must be small compared to the
+> specification limits. Assess the measurement system to the feature tolerance."
+
+> "For process control, the variability of the measurement system ought to demonstrate effective
+> resolution and be small compared to manufacturing process variation. Assess the measurement system
+> to the 6-sigma process variation and/or Total Variation from the MSA study."
+
+The engine has no purpose input, so it takes the worse of the two — a deliberate conservative
+deviation, documented in the SME note above.
+
+**Locator correction (#223, audit A10-a):** the preceding paragraph previously attributed the
+basis-by-purpose rule to **Ch. II §C**. Chapter II, Section C is "Preparation for a Measurement
+System Study" and says nothing of the kind; the rule is in Chapter I, Section B, now quoted above.
+The claim was true, the pointer was wrong.
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` computes the effective
 `verdict_pgrr` (the `max()` above) and passes it as the sole `pgrr` argument to
 `_compute_verdict(ndc, pgrr)`, which applies only the ndc/threshold logic.
 
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
+
 ---
 
-## RULE 11 — Balanced Data Assumption (AIAG MSA, 4th Edition, Section 3.1)
+## RULE 11 — Balanced Data Requirement (inference from AIAG's procedure; not an AIAG statement)
 
 **Decision:** Require **balanced crossed data** for the Average-and-Range method:
 - Every part measured by every appraiser the same number of times.
 - If data is unbalanced, raise a clear error (W08-2) or log a warning and proceed with common subset (W09+ improvement).
 
-**Source:** AIAG MSA (4th Edition), Section 3.1, "Assumptions of the Average-and-Range Method."
-"The method assumes a fully replicated crossed design: each part × each appraiser × each trial."
+**WITHDRAWN QUOTATION (#223, audit A10-a).** This rule previously read (shown as an exhibit, not a
+citation — see the blockquote convention at the top of this file):
 
-**Rationale:**
-- The d2 constant and sigma estimates assume equal subgroup sizes.
-- Unbalanced data violates the normality assumptions and can bias the estimates.
-- ANOVA method (W09+ stretch) handles unbalanced data properly.
+```
+Source: AIAG MSA (4th Edition), Section 3.1, "Assumptions of the Average-and-Range Method."
+"The method assumes a fully replicated crossed design: each part x each appraiser x each trial."
+```
+
+**All three parts of that citation are fabricated.** The 4th Edition has no `Section 3.x` numbering
+scheme, no section titled "Assumptions of the Average-and-Range Method," and no such sentence — the
+word "crossed" does not occur anywhere in the manual. The quotation is withdrawn in full and is
+**not** replaced by another quotation, because no passage states this requirement.
+
+**Status: procedure-derived inference — NOT an AIAG statement.** The requirement is kept, and the
+reasoning below is this platform's, not AIAG's. AIAG never *asserts* that the Average-and-Range
+method requires balance; it *prescribes a procedure that is balanced by construction* and gives no
+procedure for anything else. The engine's requirement is inferred from that. A reader should treat
+the following as the argument for a design decision, not as a rule quoted from a standard.
+
+**Supporting passages (support for the inference, not statements of it):**
+
+1. **Chapter III, Section A, "Example Test Procedures"** — the preconditions on the whole family of
+   procedures. *"The procedures are appropriate to use when:"* … *"Only two factors or conditions of
+   measurement (i.e., appraisers and parts) plus measurement system repeatability are being
+   studied"*. A two-factor-plus-replication design with every cell filled is exactly a balanced
+   crossed layout.
+2. **Chapter III, Section B, "Conducting the Study,"** steps 1–7 — every step has each appraiser
+   measure *the same* parts *the same* number of times: *"Let appraiser A measure n parts in a random
+   order"*; *"Let appraisers B and C measure the same n parts without seeing each other's readings"*;
+   *"If three trials are needed, repeat the cycle and enter data in rows 3, 8 and 13."* No step
+   contemplates a cell with a different number of trials, and the data sheet has no place to record
+   one.
+3. **Footnote 44** — *"The total number of 'ranges' generated ought to be > 15 for a minimal level of
+   confidence in the results."* The range count is `n_parts × n_appraisers` only when every cell is
+   filled; on unbalanced data the manual's own confidence guidance stops being computable as stated.
+
+**Rationale (internal, not AIAG):**
+- The K constants are `1/d2*` values, and `d2*` is tabulated by subgroup size `m` and subgroup count
+  `g` (Appendix C). Unequal cell sizes leave no single `m` to look up, so the K-table step of the
+  method has no defined answer on unbalanced data. This is the load-bearing reason.
+- Refusing is a deliberate choice over silently analysing a common subset: dropping measurements
+  would change the study the user thinks they ran without telling them.
+- The ANOVA method (W09+ stretch, **#195**) handles unbalanced data properly and is the correct
+  upgrade path.
+
+*(The previous rationale also claimed "unbalanced data violates the normality assumptions." That
+conflates balance with normality — they are independent — and was uncited. Removed.)*
 
 **Current Implementation (W08-2):**
 - Check if every (part, appraiser) pair has the same number of trials.
@@ -446,27 +698,74 @@ deliberate conservative deviation, documented in the SME note above.
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (balance check)
 
+**Verified:** the three supporting passages above are checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid) and pinned in `CITATIONS.tsv`.
+The *requirement itself* is this platform's inference from them and carries no AIAG quotation.
+
 ---
 
-## RULE 12 — Minimum Study Size (AIAG MSA, 4th Edition, Section 3.1 — Recommendation)
+## RULE 12 — Minimum Study Size (deliberate relaxation of AIAG's recommendation)
 
-**Decision:** Enforce **minimum study sizes**:
-- At least **2 parts** (ideally 10).
-- At least **2 appraisers** (ideally 3).
-- At least **2 trials** (ideally 3) per (part, appraiser) pair.
+**Decision:** Enforce **minimum study sizes** that are **looser than AIAG recommends**:
+- At least **2 parts** (AIAG recommends `n ≥ 10`).
+- At least **2 appraisers** (AIAG's procedure uses 3: appraisers A, B, C).
+- At least **2 trials** (AIAG's procedure uses up to 3) per (part, appraiser) pair.
 
-**Source:** AIAG MSA (4th Edition), Section 3.1, "Recommended Study Design."
-"A typical crossed study for Gage R&R is 10 parts × 3 appraisers × 3 trials = 270 measurements. Smaller studies are possible but less statistically robust."
+**WITHDRAWN QUOTATION (#223, audit A10-a).** This rule previously read (exhibit, not a citation):
+
+```
+Source: AIAG MSA (4th Edition), Section 3.1, "Recommended Study Design."
+"A typical crossed study for Gage R&R is 10 parts x 3 appraisers x 3 trials = 270 measurements.
+ Smaller studies are possible but less statistically robust."
+```
+
+**Fabricated, and self-evidently so:** the 4th Edition has no `Section 3.x` scheme and no
+"Recommended Study Design" section, the sentence appears nowhere in the manual — and 10 × 3 × 3 = 90,
+not 270. The arithmetic error is the tell: a number copied from a real source would have been right.
+
+**What AIAG actually recommends** — Chapter III, Section B, "Conducting the Study":
+
+> "Although the number of appraisers, trials and parts may be varied, the subsequent discussion
+> represents the optimum conditions for conducting the study."
+
+> "Obtain a sample of *n* ≥ 10 parts that represent the actual or expected range of process
+> variation."
+
+and footnote 44:
+
+> "The total number of 'ranges' generated ought to be > 15 for a minimal level of confidence in the
+> results. Although the form was designed with a maximum of 10 parts, this approach is not limited by
+> that number. As with any statistical technique, the larger the sample size, the less sampling
+> variation and less resultant risk will be present."
+
+**Source of the 2/2/2 minimums:** **Not in AIAG MSA; internal design choice.** They are a deliberate
+platform relaxation, not a standard. The engine's floor is the point below which the arithmetic has
+no answer at all — not the point above which the answer is trustworthy.
+
+**Why relax, stated plainly:** 2/2/2 is the *computability* floor, not a quality bar. A 2 × 2 × 2
+study generates 4 ranges, well under footnote 44's `> 15`, so its EV/AV/GRR are statistically weak
+even though they are arithmetically well-defined. The engine accepts such a study so a user can run
+a trial or a teaching example without fabricating eight parts they do not have; it does **not** claim
+such a study meets AIAG's recommendation. Note that AIAG's own text explicitly permits varying the
+counts ("may be varied") while naming 10/3/3 as the *optimum* — so a smaller study is not
+non-conforming, it is sub-optimal, and the user should read a small-study verdict accordingly.
 
 **Current Implementation (W08-2):**
-- Enforce minimums: 2 parts, 2 appraisers, 2 trials per pair.
-- The bundled template (`data/gage_rr_template.csv`) uses AIAG's recommended 10×3×3 design.
+- Enforce minimums: 2 parts, 2 appraisers, 2 trials per pair. **Unchanged by #223** — this rule's
+  correction is to its documentation, not its validation.
+- The bundled template (`data/gage_rr_template.csv`) uses AIAG's recommended 10 × 3 × 3 design, so
+  the documented happy path is the standard-conforming one.
+- The K3 table is only tabulated to 10 parts, so studies above that raise `ValueError` (RULE 2) —
+  an independent ceiling from this floor.
 
-**Rationale:**
+**Rationale for the floor itself:**
 - Fewer than 2 parts or appraisers: no variation to measure.
-- Fewer than 2 trials per cell: cannot compute range within.
+- Fewer than 2 trials per cell: cannot compute a range within the cell, so EV is undefined.
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (validation checks)
+
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
 
 ---
 
@@ -477,9 +776,15 @@ deliberate conservative deviation, documented in the SME note above.
 - %GRR_study = ∞ (GRR / 0).
 - Verdict = "Reject" (measurement system cannot discriminate).
 
-**Source:** AIAG MSA (4th Edition), implicit. A measurement system that sees no variation cannot prove it is adequate.
+**Source:** **Not in AIAG MSA; internal design choice.** The manual has no passage on a
+zero-total-variation study, so there is nothing to cite. The rationale below is this platform's.
+
+**Attribution correction (#223, audit A10-a):** this line previously read *"AIAG MSA (4th Edition),
+implicit."* — a non-citation dressed as one. "Implicit" names no chapter, no section and no text; it
+borrows the standard's authority for a claim the standard does not make. The decision is unchanged.
 
 **Rationale:**
+- A measurement system that sees no variation cannot demonstrate that it is adequate.
 - This case is rare in practice (all parts truly identical is uncommon) but can occur in test scenarios.
 - The verdict "Reject" is conservative and appropriate: a system that cannot detect any part variation is unusable.
 
@@ -487,19 +792,31 @@ deliberate conservative deviation, documented in the SME note above.
 
 ---
 
-## RULE 14 — Edge Case: Negative AV² (Rare Numerical Artifact)
+## RULE 14 — Edge Case: Negative AV² (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
 **Decision:** If AV² becomes negative (due to high EV relative to appraiser variation):
 - Clamp AV to 0.
 - Log a warning (optional; low priority for W08-2).
 
-**Source:** AIAG MSA (4th Edition), implicit. AV is a standard deviation component; it cannot be negative.
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Analysis of Results — Numerical." The
+manual states this clamp explicitly, immediately after giving the AV formula:
+
+> "If a negative value is calculated under the square root sign, the appraiser variation (*AV*)
+> defaults to zero."
+
+**Attribution upgrade (#223, audit A10-a):** this entry previously read *"AIAG MSA (4th Edition),
+implicit."* It is not implicit — it is stated outright, one line below the formula RULE 4 cites.
+The clamp at `av = float(np.sqrt(max(av_squared, 0)))` is exactly what the manual prescribes, so
+this rule is now a real citation rather than an appeal to the standard's authority.
 
 **Rationale:**
 - This occurs when EV is very large compared to appraiser differences.
 - Mathematically, it indicates that appraiser variation is below the noise floor; setting AV=0 is conservative.
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()` (line: `av = float(np.sqrt(max(av_squared, 0)))`)
+
+**Verified:** quotation checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
 
 ---
 
@@ -513,6 +830,13 @@ deliberate conservative deviation, documented in the SME note above.
 - In theory, ndc can be arbitrarily large (e.g., if GRR is very small and tolerance is large).
 - For UI rendering and JSON APIs, a large ndc (e.g., 10,000) is not actionable; capping at 100 signals "more than adequate."
 - ndc ≥ 5 is the AIAG acceptance criterion; anything above that is acceptable, so capping at 100 does not affect verdicts.
+
+**Known defect in the lower bound — tracked as #224 (audit A10-b):** AIAG's floor is **one**, not
+zero. Chapter III, Section B: *"For analysis, the ndc is the maximum of one or the calculated value
+truncated to the integer."* `_compute_ndc()` floors at `0` (and returns `0` outright when
+`grr <= 0 or pv <= 0`). Correcting it would flip RULE 13's degenerate-study verdict (`ndc < 2 →
+Reject`), so it is a **behaviour change and out of scope for #223**, which is documentation-only.
+Recorded here rather than left silent — see **#224**, which carries the verified locator.
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_compute_ndc()` (line: `return max(0, min(ndc_int, 100))`)
 
