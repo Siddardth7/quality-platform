@@ -1,18 +1,18 @@
 """Pytest path setup for the SECOM app.
 
-secom-app and spc-app are both installed (editable) workspace packages (#204), so
-``secom_app`` and the remaining ``spc_app.spc_engine.capability`` reuse in
-``secom_app.capability`` resolve without any ``sys.path`` help. (``charts.py`` took
-its SPC math from ``spc_app`` until #205 PR 2 moved it to ``quality_core.spc``.)
-Confirmed at the time of #204 by running the suite with the old
-``apps/secom``-onto-``sys.path`` entry removed (130 passed then; the count has grown
-since — do not read it as current).
+secom-app is an installed (editable) workspace package (#204), so ``secom_app``
+itself needs no ``sys.path`` help, and its engine math resolves downward through
+``quality_core.spc`` (#205). Confirmed at the time of #204 by running the suite
+with the old ``apps/secom``-onto-``sys.path`` entry removed (130 passed then; the
+count has grown since — do not read it as current).
+
+The only remaining reason this file exists is ``apps/msa``:
 
 # ponytail: apps/msa is not an installable package (still `package = false`), so
 # tests/test_msa.py's `from msa_app.gage_rr_engine import compute_gage_rr` (W09-4,
 # #68) still needs the sys.path entry below. Ceiling: every app stays path-hacked
-# until made installable like spc-app/secom-app; upgrade path is #205 / a follow-up
-# to this issue that flips apps/msa the same way.
+# until made installable like secom-app; upgrade path is #231, which flips
+# apps/msa the same way and lets this file go entirely.
 """
 
 from __future__ import annotations

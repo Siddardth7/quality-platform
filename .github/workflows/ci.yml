@@ -91,8 +91,9 @@ jobs:
       # Core SPC coverage gate: quality_core.spc holds the shared SPC primitives
       # (AIAG chart constants, the chart vocabulary, WE/Nelson rule detection, the
       # chart math itself — compute_* plus the one copy of the AIAG I-MR limit
-      # formula in imr_limits — Phase I/II limit freezing, and the capability
-      # stability gate), promoted out of spc_app so SECOM and the future API import
+      # formula in imr_limits — Phase I/II limit freezing, the capability stability
+      # gate, and capability itself: Cp/Cpk/Pp/Ppk plus the non-normal Box-Cox /
+      # fitted-percentile study), promoted out of spc_app so SECOM and the future API import
       # downward instead of sideways into another app (audit A12, #205). Like io,
       # schema, and scoring, it must be fully covered by its OWN tests, not only
       # incidentally via the SPC suite. Held at 100% from packages/quality-core.
@@ -103,8 +104,10 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=100
 
-      # SPC coverage gate: the testable SPC surface (engine, simulation logic,
-      # figure builders, report exporter) must stay highly covered so it can't
+      # SPC coverage gate: the testable SPC surface (spc_engine — now the app-local
+      # data_generator plus the quality_core.spc re-export shims, so a shim added and
+      # left unimported fails here — simulation logic, figure builders, report
+      # exporter) must stay highly covered so it can't
       # regress silently. The Streamlit `pages/` are excluded — they need a
       # runtime to exercise — mirroring how the FMEA bar covers fmea_app/ but not
       # its entry scripts.

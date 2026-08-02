@@ -93,13 +93,13 @@ manufacturing-spc-dashboard/
 │   └── 3_Live_Simulation.py        Real-time loop, disturbance injection buttons
 │
 ├── spc_app/
-│   ├── spc_engine/                 (all but capability.py / data_generator.py are
-│   │   │                            re-export shims over quality_core.spc — #205)
+│   ├── spc_engine/                 (all but data_generator.py are re-export shims
+│   │   │                            over quality_core.spc — #205)
 │   │   ├── control_charts.py       shim: UCL/LCL/CL math for all five chart types
 │   │   ├── phase.py                shim: Phase I/II limit freezing
 │   │   ├── stability.py            shim: capability stability gate
 │   │   ├── rule_detection.py       shim: Western Electric (1–4) + Nelson (5–8)
-│   │   ├── capability.py           Cp/Cpk/Pp/Ppk + Shapiro-Wilk
+│   │   ├── capability.py           shim: Cp/Cpk/Pp/Ppk + Shapiro-Wilk
 │   │   ├── constants.py            shim: AIAG SPC constants (A2 d2 D3 D4 c4 B3 B4 E2)
 │   │   ├── data_generator.py       Deterministic demo CSV generator (seed=42)
 │   │   └── utils.py                shim: shared subgroup_rows() groupby helper
@@ -109,14 +109,14 @@ manufacturing-spc-dashboard/
 │       └── theme.py                CSS injection + Plotly layout constants
 │
 ├── tests/
-│   ├── test_capability.py          Cp/Cpk/Pp/Ppk + normality edge cases
 │   ├── test_data_generator.py      Schema and value range checks
 │   ├── test_spc_engine_shims.py    spc_engine re-exports the core, no shadow copies
 │   ├── test_stability.py           the two #191 baselines that read the demo CSV
 │   └── test_visualizer.py          Gauge figure guard for None cpk
 │   (test_rule_detection.py, test_utils.py, test_control_charts.py, test_phase.py,
-│    test_ewma.py, test_cusum.py and the rest of test_stability.py moved to
-│    packages/quality-core/tests/ with their modules — audit A12, #205)
+│    test_ewma.py, test_cusum.py, test_capability.py and the rest of
+│    test_stability.py moved to packages/quality-core/tests/ with their modules
+│    — audit A12, #205)
 │
 ├── data/
 │   └── demo_composites_aerospace.csv   370-row committed demo dataset (auto-regenerates)
@@ -193,7 +193,7 @@ Each returns `list[{"index": int, "rule": str}]`.
 - p chart → `sqrt(pbar * (1 - pbar) / avg_n)`
 - u chart → `sqrt(ubar / avg_n)`
 
-### `spc_app/spc_engine/capability.py`
+### `quality_core/spc/capability.py` (via the `spc_app/spc_engine/capability.py` shim)
 
 ```python
 result = compute_capability(values, lsl=9.5, usl=10.5, sigma_hat=0.1)
@@ -347,7 +347,7 @@ pytest tests/ --cov=src --cov-report=term-missing
 ### Test inventory
 
 > `test_rule_detection.py`, `test_utils.py`, `test_control_charts.py`, `test_phase.py`,
-> `test_ewma.py`, `test_cusum.py` and most of `test_stability.py` now live in
+> `test_ewma.py`, `test_cusum.py`, `test_capability.py` and most of `test_stability.py` now live in
 > `packages/quality-core/tests/` (with a `test_spc_` prefix), alongside the modules they
 > cover after the audit A12 (#205) promotion. Run them from the
 > repo root with `pytest packages/quality-core` (the commands above are relative to `apps/spc`).
@@ -355,9 +355,9 @@ pytest tests/ --cov=src --cov-report=term-missing
 | File | Tests | What it covers |
 |---|---|---|
 | `packages/quality-core/tests/test_spc_control_charts.py` | 63 | UCL/LCL/CL formulas, AIAG constant accuracy, clamp behaviour |
-| `test_capability.py` | 14 | Cp/Cpk/Pp/Ppk formulas, unilateral spec, both-None spec, Cpk < 0 |
+| `packages/quality-core/tests/test_spc_capability.py` | 71 | Cp/Cpk/Pp/Ppk formulas, unilateral spec, both-None spec, Cpk < 0, non-normal study |
 | `test_data_generator.py` | 7 | Schema presence, stream membership, value ranges |
-| `test_spc_engine_shims.py` | 3 | `spc_engine.*` re-export the core objects; `_VALID_CHART_KEYS` is derived |
+| `test_spc_engine_shims.py` | 4 | `spc_engine.*` re-export the core objects; `_VALID_CHART_KEYS` is derived |
 | `test_stability.py` | 2 | the #191 demo-CSV baselines (19 signals, sigma_hat) |
 | `test_visualizer.py` | 3 | build_cpk_gauge valid + None guard |
 

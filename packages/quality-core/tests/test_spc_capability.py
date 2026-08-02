@@ -1,18 +1,26 @@
+"""Tests for the capability engine (quality_core/spc/capability.py).
+
+Moved here with the module itself when it was promoted out of
+`apps/spc/spc_app/spc_engine/capability.py` (audit A12, #205 PR 3). The file has
+no app path and no app-data dependency, so the whole suite moved; nothing stayed
+app-side. Shim identity is asserted separately in
+`apps/spc/tests/test_spc_engine_shims.py`, because the core suite imports no app.
+"""
+
 import math
 
 import numpy as np
 import pytest
-from scipy import special, stats
-from scipy.stats import chi2, norm
-
-import spc_app.spc_engine.capability as capability
-from spc_app.spc_engine.capability import (
+import quality_core.spc.capability as capability
+from quality_core.spc.capability import (
     _bootstrap_percentile_ci,
     _fit_percentile_capability,
     compute_capability,
     compute_capability_study,
     normality_test,
 )
+from scipy import special, stats
+from scipy.stats import chi2, norm
 
 DATA = np.array([9.9, 10.0, 10.1, 10.0, 10.2])
 SIGMA_HAT = 0.1
