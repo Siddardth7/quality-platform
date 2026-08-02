@@ -107,11 +107,12 @@ manufacturing-spc-dashboard/
 │
 ├── tests/
 │   ├── test_control_charts.py      UCL/LCL/CL formula correctness
-│   ├── test_rule_detection.py      All rule fire / no-fire cases
 │   ├── test_capability.py          Cp/Cpk/Pp/Ppk + normality edge cases
 │   ├── test_data_generator.py      Schema and value range checks
-│   ├── test_utils.py               subgroup_rows helper
+│   ├── test_spc_engine_shims.py    spc_engine re-exports the core, no shadow copies
 │   └── test_visualizer.py          Gauge figure guard for None cpk
+│   (test_rule_detection.py and test_utils.py moved to
+│    packages/quality-core/tests/ with their modules — audit A12, #205)
 │
 ├── data/
 │   └── demo_composites_aerospace.csv   370-row committed demo dataset (auto-regenerates)
@@ -133,7 +134,7 @@ CSV on disk / uploaded file
                                       compute_xbar_r / compute_p / …
                                                    │
                                                    ▼
-                                      spc_engine/rule_detection.py
+                                   quality_core/spc/rule_detection.py
                                       detect_we_violations / detect_nelson_violations
                                                    │
                                                    ▼
@@ -162,7 +163,11 @@ All functions accept Python lists and return a `dict` of scalars and lists.
 
 All functions raise `ValueError` for invalid inputs (wrong dimensionality, unsupported subgroup size, mismatched arrays, non-positive sample sizes).
 
-### `spc_app/spc_engine/rule_detection.py`
+### `quality_core/spc/rule_detection.py`
+
+> Promoted out of this app by audit A12 (#205) so SECOM, the Control Plan app and the
+> future API share one copy. `spc_app.spc_engine.rule_detection` re-exports it, so the
+> import below keeps working — but edit the core module, never the shim.
 
 ```python
 violations = detect_we_violations(points, cl=centerline, sigma=sigma_xbar)
@@ -322,7 +327,7 @@ Nelson set never emits a `"Western Electric …"` label.
 pytest tests/ -v
 
 # Single file
-pytest tests/test_rule_detection.py -v
+pytest tests/test_control_charts.py -v
 
 # With line coverage
 pip install pytest-cov
@@ -331,13 +336,17 @@ pytest tests/ --cov=src --cov-report=term-missing
 
 ### Test inventory
 
+> `test_rule_detection.py` and `test_utils.py` now live in
+> `packages/quality-core/tests/` (as `test_spc_rule_detection.py` / `test_spc_utils.py`),
+> alongside the modules they cover after the audit A12 (#205) promotion. Run them from the
+> repo root with `pytest packages/quality-core` (the commands above are relative to `apps/spc`).
+
 | File | Tests | What it covers |
 |---|---|---|
 | `test_control_charts.py` | 23 | UCL/LCL/CL formulas, AIAG constant accuracy, clamp behaviour |
-| `test_rule_detection.py` | 22 | Every rule fires and does-not-fire with minimal synthetic series |
 | `test_capability.py` | 14 | Cp/Cpk/Pp/Ppk formulas, unilateral spec, both-None spec, Cpk < 0 |
 | `test_data_generator.py` | 7 | Schema presence, stream membership, value ranges |
-| `test_utils.py` | 3 | subgroup_rows sort order and shape |
+| `test_spc_engine_shims.py` | 2 | `spc_engine.*` re-export the core objects; `_VALID_CHART_KEYS` is derived |
 | `test_visualizer.py` | 3 | build_cpk_gauge valid + None guard |
 
 ---

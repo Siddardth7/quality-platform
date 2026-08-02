@@ -8,6 +8,18 @@ constant or threshold — used in the SPC app. Each entry explains what was chos
 and where it is applied. It is the defense against any methodology question and the
 reason a constant should never be edited in isolation.
 
+> **Where the code lives (audit A12, #205).** `constants.py`, `rule_detection.py` and
+> `utils.py` were promoted out of `spc_app/spc_engine/` into **`quality_core/spc/`** so
+> SECOM, the Control Plan app and the future API share one copy instead of importing
+> sideways into this app. The `spc_app.spc_engine.*` modules of those three names are now
+> **re-export shims** — edit the constant in `quality_core/spc/`, never in the shim. The
+> "Applied In" lines below name the real home; `packages/quality-core/tests/
+> test_spc_constants.py` pins the AIAG tables whole and
+> `apps/spc/tests/test_spc_engine_shims.py` asserts the shims are the same objects, so a
+> shadow copy fails rather than silently drifting. Modules not yet promoted
+> (`control_charts.py`, `capability.py`, `phase.py`, `stability.py`) still say
+> `spc_app/spc_engine/` and still live there — PRs 2 and 3 of #205 move them.
+
 ---
 
 ## RULE 1 — X-bar / R Chart Constants (A2, D3, D4, d2)
@@ -23,7 +35,7 @@ range of normal samples.
 **Formulas applied:** `UCL/LCL_x = Xbarbar ± A2·Rbar`; `UCL_r = D4·Rbar`,
 `LCL_r = max(0, D3·Rbar)`; `sigma_hat = Rbar / d2`.
 
-**Applied In:** `spc_app/spc_engine/constants.py::XBAR_R_CONSTANTS` →
+**Applied In:** `quality_core/spc/constants.py::XBAR_R_CONSTANTS` →
 `control_charts.py::compute_xbar_r`.
 
 ---
@@ -41,7 +53,7 @@ unbiasing constant for the sample standard deviation of a normal sample.
 **Formulas applied:** `UCL/LCL_x = Xbarbar ± A3·Sbar`; `UCL_s = B4·Sbar`,
 `LCL_s = max(0, B3·Sbar)`; `sigma_hat = Sbar / c4`.
 
-**Applied In:** `spc_app/spc_engine/constants.py::XBAR_S_CONSTANTS` →
+**Applied In:** `quality_core/spc/constants.py::XBAR_S_CONSTANTS` →
 `control_charts.py::compute_xbar_s`.
 
 ---
@@ -58,7 +70,7 @@ length 2. `E2 = 3 / d2(2)` gives 3-sigma individuals limits from the average mov
 **Formulas applied:** `UCL/LCL_x = Xbar ± E2·MRbar`; `UCL_mr = D4·MRbar`, `LCL_mr = 0`;
 `sigma_hat = MRbar / 1.128`.
 
-**Applied In:** `spc_app/spc_engine/constants.py` (`IMR_E2`, `IMR_D4`, `IMR_D2`) →
+**Applied In:** `quality_core/spc/constants.py` (`IMR_E2`, `IMR_D4`, `IMR_D2`) →
 `control_charts.py::compute_imr`.
 
 ---
@@ -207,7 +219,7 @@ fires at 8-in-a-row) plus the renumbered Nelson 3/4/5/6 tests and the DECISION-2
 `detect_nelson_violations` output starts with `"Western Electric"`. `apps/secom/tests/
 test_charts.py` pins the SECOM default-ruleset (`"nelson"`) label change.
 
-**Applied In:** `spc_app/spc_engine/rule_detection.py`.
+**Applied In:** `quality_core/spc/rule_detection.py`.
 
 ---
 
@@ -302,7 +314,7 @@ supporting SPC evidence for the analyst's control-based rating.
 
 **Applied In:** `spc_app/spc_engine/phase.py` (`freeze_xbar_r`, `freeze_xbar_s`, `freeze_imr`,
 `FrozenLimits`, `ExcludedPoint`) → `spc_app/spc_engine/control_charts.py::compute_xbar_r/_s/_imr`
-(`frozen=` parameter) → `spc_app/spc_engine/constants.py` (`MIN_BASELINE_SUBGROUPS`,
+(`frozen=` parameter) → `quality_core/spc/constants.py` (`MIN_BASELINE_SUBGROUPS`,
 `MIN_BASELINE_INDIVIDUALS`).
 
 ---
@@ -347,7 +359,7 @@ Phase I estimate — never derived from the z-series itself):
   Rule 11 used for the Montgomery individuals-baseline floor).
 
 **Applied In:** `spc_app/spc_engine/control_charts.py::compute_ewma` (`EWMAResult`),
-`spc_app/spc_engine/constants.py` (`EWMA_DEFAULT_LAMBDA`, `EWMA_DEFAULT_L`, `EWMA_L_BY_LAMBDA`),
+`quality_core/spc/constants.py` (`EWMA_DEFAULT_LAMBDA`, `EWMA_DEFAULT_L`, `EWMA_L_BY_LAMBDA`),
 `spc_app/visualizer.py::build_ewma_chart`.
 
 ---
@@ -389,7 +401,7 @@ crossings signal; run-rule gating for CUSUM is deferred to W10-5.
   paywalled — checked against the reproduction in Montgomery §9.1.4, not cell-verified against
   the 1982 original (same treatment as Rule 12's Lucas & Saccucci citation).
 
-**Applied In:** `spc_app/spc_engine/constants.py` (`CUSUM_DEFAULT_K`, `CUSUM_DEFAULT_H`,
+**Applied In:** `quality_core/spc/constants.py` (`CUSUM_DEFAULT_K`, `CUSUM_DEFAULT_H`,
 `CUSUM_FIR_FRACTION`); `spc_app/spc_engine/control_charts.py::compute_cusum` (`CUSUMResult`);
 `spc_app/visualizer.py::build_cusum_chart`.
 
@@ -478,7 +490,7 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
 **Applied In:** `spc_app/spc_engine/capability.py` (`compute_capability` CI fields,
 `CapabilityStudy`, `compute_capability_study`, `_within_sigma`, `_fit_percentile_capability`,
 `_percentile_cpk`, `_bootstrap_percentile_ci`, `_cp_chi2_ci`, `_cpk_bissell_ci`);
-`spc_app/spc_engine/constants.py` (`CAPABILITY_ALPHA`, `BOXCOX_LAMBDA_CANDIDATES`,
+`quality_core/spc/constants.py` (`CAPABILITY_ALPHA`, `BOXCOX_LAMBDA_CANDIDATES`,
 `NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`, `PERCENTILE_FIT_CANDIDATES`, `BOOTSTRAP_SEED`,
 `BOOTSTRAP_RESAMPLES`).
 
@@ -524,7 +536,7 @@ accumulators are explicitly serially correlated by their recursive definitions, 
 noted (without the gating enforcement) in RULE 12/13. No new external citation is
 introduced by this rule.
 
-**Applied In:** `spc_app/spc_engine/rule_detection.py` (`SHEWHART_CHART_TYPES`,
+**Applied In:** `quality_core/spc/rule_detection.py` (`SHEWHART_CHART_TYPES`,
 `detect_violations`) → `spc_app/pages/control_charts.py::detect_rule_violations` →
 `spc_app/spc_engine/stability.py::assess_stability`.
 

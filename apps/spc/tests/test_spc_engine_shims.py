@@ -1,0 +1,59 @@
+"""
+tests/test_spc_engine_shims.py
+`spc_app.spc_engine.*` re-exports the promoted core primitives — it does not re-declare
+them (audit A12, #205, PR 1 of 3).
+
+These live in the SPC app suite, not the core suite, on purpose: they assert something
+about `spc_app`, and the core's tests must not import an app. #205 exists to make
+imports point downward, so a core test reaching up into `spc_app` would contradict the
+change it is verifying.
+"""
+
+from __future__ import annotations
+
+from typing import get_args
+
+from quality_core.spc.constants import (
+    IMR_D2,
+    IMR_D4,
+    IMR_E2,
+    XBAR_R_CONSTANTS,
+    XBAR_S_CONSTANTS,
+    SPCChart,
+)
+from quality_core.spc.rule_detection import SHEWHART_CHART_TYPES, detect_we_violations
+from quality_core.spc.utils import subgroup_rows
+
+from spc_app import control_plan_config
+from spc_app.spc_engine import constants as shim_constants
+from spc_app.spc_engine import rule_detection as shim_rule_detection
+from spc_app.spc_engine import utils as shim_utils
+
+
+def test_spc_engine_shims_are_the_same_objects_as_the_core():
+    """Identity, not equality: a shadow copy in `spc_engine` would still be equal.
+
+    This is the assertion that keeps the duplication #205 removed from creeping back.
+    A re-declared constant with the correct value passes an `==` check and fails here.
+    """
+    assert shim_constants.IMR_E2 is IMR_E2
+    assert shim_constants.IMR_D4 is IMR_D4
+    assert shim_constants.IMR_D2 is IMR_D2
+    assert shim_constants.XBAR_R_CONSTANTS is XBAR_R_CONSTANTS
+    assert shim_constants.XBAR_S_CONSTANTS is XBAR_S_CONSTANTS
+    assert shim_constants.SPCChart is SPCChart
+    assert shim_rule_detection.detect_we_violations is detect_we_violations
+    assert shim_rule_detection.SHEWHART_CHART_TYPES is SHEWHART_CHART_TYPES
+    assert shim_utils.subgroup_rows is subgroup_rows
+
+
+def test_control_plan_config_derives_its_keys_instead_of_retyping_them():
+    """`_VALID_CHART_KEYS` must BE `get_args(SPCChart)`, not merely equal it.
+
+    `typing.get_args` on a Literal returns the alias's cached `__args__` tuple — the
+    same object on every call — so an `is` check passes only while the derivation is
+    live. Re-hardcoding the tuple in `control_plan_config` produces an equal but
+    distinct object and fails here, which value equality alone would not catch.
+    """
+    assert control_plan_config._VALID_CHART_KEYS is get_args(SPCChart)
+    assert control_plan_config._VALID_CHART_KEYS == ("Xbar-R", "Xbar-S", "I-MR", "p", "c", "u")
