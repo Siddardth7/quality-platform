@@ -1,7 +1,6 @@
 import pytest
-
-from spc_app.spc_engine.constants import CUSUM_DEFAULT_H, CUSUM_DEFAULT_K, CUSUM_FIR_FRACTION
-from spc_app.spc_engine.control_charts import compute_cusum
+from quality_core.spc.constants import CUSUM_DEFAULT_H, CUSUM_DEFAULT_K, CUSUM_FIR_FRACTION
+from quality_core.spc.control_charts import compute_cusum
 
 CUSUM_RESULT_KEYS = {
     "values",

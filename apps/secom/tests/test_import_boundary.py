@@ -1,10 +1,18 @@
 """Prove secom_app imports outside pytest, with no conftest.py sys.path help (#204).
 
-``secom_app.charts`` / ``.capability`` import ``spc_app.spc_engine`` (W09-2, #66).
-Before #204, that import only worked under pytest because ``apps/secom/conftest.py``
-path-hacked ``spc_app`` onto ``sys.path``. This test runs a clean, non-pytest
-interpreter (which never loads ``conftest.py``) to prove the import now resolves via
-the installed (editable) ``spc-app`` / ``secom-app`` workspace packages, not the hack.
+``secom_app.capability`` imports ``spc_app.spc_engine.capability`` — the sole remaining
+``spc_app`` consumer in this app, since #205 PR 2 moved ``charts.py``'s SPC math to
+``quality_core.spc``. Before #204, that import only worked under pytest because
+``apps/secom/conftest.py`` path-hacked ``spc_app`` onto ``sys.path``.
+
+This test runs a clean, non-pytest interpreter (which never loads ``conftest.py``) to
+prove the import resolves via the installed (editable) ``spc-app`` / ``secom-app``
+workspace packages, not the hack.
+
+**For #205 PR 3:** when ``capability.py`` is promoted, the last ``spc_app`` import goes
+with it — but do NOT delete this test. Retarget it at ``quality_core``: the property it
+proves (``secom_app`` imports outside pytest, with no ``sys.path`` help) is what #204
+bought, and is independent of *which* package supplies the engine.
 """
 
 from __future__ import annotations

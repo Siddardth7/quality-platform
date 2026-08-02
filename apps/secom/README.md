@@ -4,8 +4,9 @@
 dataset — consumed by its own suite and, from P3 onward, by the platform API — and
 is deliberately **not** mounted in the unified Streamlit shell: there is no `app.py`
 here and no `st.navigation` entry, unlike FMEA, SPC, Control Plan, and MSA. It is a
-full workspace member (`pyproject.toml`) sharing `quality_core` and reusing
-`spc_app`'s engine.
+full workspace member (`pyproject.toml`) sharing `quality_core`. Chart math comes from
+`quality_core.spc` (promoted by #205 PR 2); capability still reuses `spc_app`'s engine
+until #205 PR 3 promotes `capability.py` too.
 
 SECOM (UCI ML Repository, dataset 179) is real semiconductor fab process data:
 1567 production runs x 590 sensor readings, with a pass/fail label and a
@@ -35,8 +36,10 @@ standard-vs-heuristic labelling of every screening rule.
 
 - **`secom_app/charts.py`** (W09-2, #66) — `control_chart_for_signal()` /
   `control_charts_for_selection()` run every `select_signals()`-kept signal
-  through the *existing* SPC I-MR engine (`apps/spc/spc_app/spc_engine/`,
-  reused read-only, no reimplemented control-limit math). Handles SECOM's
+  through the shared SPC I-MR engine (`quality_core.spc.control_charts`, reused
+  read-only). The AIAG limit formula is not reimplemented here: SECOM feeds its
+  own gap-aware pooled `mrbar` into `imr_limits()`, the single place that formula
+  is written (#205 PR 2). Handles SECOM's
   honest missingness by splitting each signal into gap-free runs before any
   moving-range math (a moving range never spans a missing cell), and attaches
   a per-signal lag-1 autocorrelation diagnostic flag (never a filter/gate).

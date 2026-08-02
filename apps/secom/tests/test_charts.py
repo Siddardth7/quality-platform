@@ -24,6 +24,7 @@ import math
 import numpy as np
 import pandas as pd
 import pytest
+from quality_core.spc.control_charts import compute_imr, imr_limits
 from secom_app.charts import (
     SignalControlChart,
     _lag1_autocorrelation,
@@ -33,8 +34,6 @@ from secom_app.charts import (
     control_charts_for_selection,
 )
 from secom_app.selection import select_signals
-
-from spc_app.spc_engine.control_charts import compute_imr
 
 _IN_CONTROL = [10.0, 10.1, 9.9, 10.2, 9.8, 10.0, 10.1, 9.9, 10.0, 10.0, 9.9, 10.1]
 _WITH_SPIKE = [10.0, 10.1, 9.9, 10.2, 9.8, 10.0, 10.1, 9.9, 30.0, 10.0, 9.9, 10.1]
@@ -422,3 +421,65 @@ def test_no_capability_keys_reachable_from_result():
 
     assert forbidden.isdisjoint(imr_keys)
     assert forbidden.isdisjoint(field_names)
+
+
+# --- #205 PR 2: SECOM charts through the ONE copy of the AIAG I-MR formula ---
+
+
+def test_gap_containing_signal_limits_equal_imr_limits_exactly():
+    """The de-duplication is live: SECOM's five limit fields ARE `imr_limits()` output.
+
+    Exact `==`, not approx, and on a GAP-CONTAINING signal — the case where SECOM's
+    pooled `mrbar` (OQ5, moving ranges never spanning a NaN) differs from the one
+    `compute_imr` would derive from the same values. That difference is an *input*
+    difference; the formula must be the shared one. If `secom_app.charts` ever grows
+    its own copy of `xbar +/- E2*mrbar`, this fails even while every existing SECOM
+    assertion stays green (audit A12 MEDIUM, #205).
+    """
+    values = [10.0, 12.0, np.nan, 20.0, 24.0, 28.0, np.nan, np.nan, 40.0, 44.0]
+    df = pd.DataFrame({"s": values})
+
+    result = control_chart_for_signal(df, "s")
+    expected = imr_limits(result.imr["xbar"], result.imr["mrbar"])
+
+    assert result.imr["ucl_x"] == expected["ucl_x"]
+    assert result.imr["lcl_x"] == expected["lcl_x"]
+    assert result.imr["ucl_mr"] == expected["ucl_mr"]
+    assert result.imr["lcl_mr"] == expected["lcl_mr"]
+    assert result.imr["sigma_hat"] == expected["sigma_hat"]
+
+
+def test_gap_pooled_mrbar_actually_differs_from_the_gap_spanning_one():
+    """Guards the test above from being vacuous.
+
+    If the fixture's gaps happened not to change `mrbar`, the equality above would
+    hold for a SECOM that ignored OQ5 and just returned `compute_imr(values)`. This
+    pins that the shared formula is being fed a genuinely different, run-broken input.
+    """
+    values = [10.0, 12.0, np.nan, 20.0, 24.0, 28.0, np.nan, np.nan, 40.0, 44.0]
+    df = pd.DataFrame({"s": values})
+
+    result = control_chart_for_signal(df, "s")
+    gap_spanning = compute_imr([v for v in values if not math.isnan(v)])
+
+    assert result.imr["mrbar"] != gap_spanning["mrbar"]
+    assert result.imr["ucl_x"] != gap_spanning["ucl_x"]
+
+
+def test_gap_free_signal_limits_also_equal_imr_limits_exactly():
+    """The other direction of the same rule: no gaps -> the pooled mrbar is the plain one.
+
+    Together with the test above this covers both branches of OQ5's pooling while
+    asserting the same single formula in each.
+    """
+    df = pd.DataFrame({"s": _IN_CONTROL})
+
+    result = control_chart_for_signal(df, "s")
+    engine = compute_imr(_IN_CONTROL)
+    expected = imr_limits(engine["xbar"], engine["mrbar"])
+
+    assert result.imr["ucl_x"] == expected["ucl_x"] == engine["ucl_x"]
+    assert result.imr["lcl_x"] == expected["lcl_x"] == engine["lcl_x"]
+    assert result.imr["ucl_mr"] == expected["ucl_mr"] == engine["ucl_mr"]
+    assert result.imr["lcl_mr"] == expected["lcl_mr"] == engine["lcl_mr"]
+    assert result.imr["sigma_hat"] == expected["sigma_hat"] == engine["sigma_hat"]

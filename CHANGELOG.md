@@ -26,6 +26,23 @@ All notable changes to the Quality Platform are documented here. The format foll
   numpy-dependent chart engine (#205 PR 2) and scipy-dependent capability (PR 3) follow;
   `apps/secom` still depends on `spc-app` until then.
 
+- **SPC chart math, Phase I/II freezing and the stability gate promoted into `quality_core.spc`
+  (audit A12, #205 — PR 2 of 3).** `control_charts` (the `compute_xbar_r/_s`, `compute_imr`,
+  `compute_p/c/u`, `compute_ewma`, `compute_cusum` family and their TypedDict results), `phase`
+  (`freeze_xbar_r/_s/_imr`, `FrozenLimits`) and `stability` (`assess_stability`,
+  `stability_fields`) now live in `quality_core.spc`; `spc_app.spc_engine.control_charts` /
+  `.phase` / `.stability` became thin re-export shims like PR 1's, so every existing SPC caller
+  is unchanged. New **`imr_limits(xbar, mrbar)`** writes the AIAG I-MR limit formula
+  (`Xbar ± E2·MRbar`, `D4·MRbar`, `LCL_mr = 0`, `MRbar/d2`) exactly once: both `compute_imr` and
+  SECOM's `control_chart_for_signal` consume it, removing the duplicated copy SECOM carried for
+  its OQ5 gap-pooled `mrbar` (the input differs, the formula no longer does). `secom_app/charts.py`
+  now has no `spc_app` import at all. **No value, formula, threshold or citation changed** — the
+  #191 baseline (19 signals on `ply_misalignment`, `sigma_hat 0.24489039329464862`) is
+  byte-identical. `numpy>=2.4.4` is now a declared hard dependency of `quality-core` because
+  `quality_core.spc.control_charts` imports it at module level; measured fact: the resolved
+  dependency subtree is **unchanged** (numpy 2.4.4 was already pulled in transitively via pandas)
+  and the banned-package count is still 0 — only `uv.lock`'s quality-core metadata block moves.
+
 - **MSA declares which Gage R&R method it ran, and what that method cannot see (audit A10, #194).**
   `compute_gage_rr()` now returns two additional keys — `method` (`"average_and_range"`) and
   `method_note` — exported from `gage_rr_engine` as the `METHOD` / `METHOD_NOTE` constants, and

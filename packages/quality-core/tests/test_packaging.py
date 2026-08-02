@@ -43,8 +43,12 @@ def test_core_hard_dependencies_are_only_the_data_path() -> None:
     Exact equality, not membership: this must fail both when a UI dependency creeps
     back in *and* when `defusedxml` is dropped as "unused" (it is never imported by
     our code — see test_validate.test_xlsx_ingest_has_xml_bomb_hardening_enabled).
+
+    `numpy` is hard because `quality_core.spc.control_charts` imports it at module
+    level (#205 PR 2); it was already resolved transitively via pandas, so declaring
+    it is honesty about a real import, not a new install.
     """
-    assert _hard_requirements() == {"pandas", "pydantic", "openpyxl", "defusedxml"}
+    assert _hard_requirements() == {"pandas", "pydantic", "openpyxl", "defusedxml", "numpy"}
 
 
 def test_streamlit_is_optional_not_required() -> None:

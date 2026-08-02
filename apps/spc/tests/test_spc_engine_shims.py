@@ -1,7 +1,7 @@
 """
 tests/test_spc_engine_shims.py
 `spc_app.spc_engine.*` re-exports the promoted core primitives — it does not re-declare
-them (audit A12, #205, PR 1 of 3).
+them (audit A12, #205, PRs 1 and 2 of 3).
 
 These live in the SPC app suite, not the core suite, on purpose: they assert something
 about `spc_app`, and the core's tests must not import an app. #205 exists to make
@@ -21,12 +21,25 @@ from quality_core.spc.constants import (
     XBAR_S_CONSTANTS,
     SPCChart,
 )
+from quality_core.spc.control_charts import (
+    ImrResult,
+    compute_cusum,
+    compute_ewma,
+    compute_imr,
+    compute_xbar_r,
+    imr_limits,
+)
+from quality_core.spc.phase import FrozenLimits, freeze_imr
 from quality_core.spc.rule_detection import SHEWHART_CHART_TYPES, detect_we_violations
+from quality_core.spc.stability import assess_stability, stability_fields
 from quality_core.spc.utils import subgroup_rows
 
 from spc_app import control_plan_config
 from spc_app.spc_engine import constants as shim_constants
+from spc_app.spc_engine import control_charts as shim_control_charts
+from spc_app.spc_engine import phase as shim_phase
 from spc_app.spc_engine import rule_detection as shim_rule_detection
+from spc_app.spc_engine import stability as shim_stability
 from spc_app.spc_engine import utils as shim_utils
 
 
@@ -45,6 +58,24 @@ def test_spc_engine_shims_are_the_same_objects_as_the_core():
     assert shim_rule_detection.detect_we_violations is detect_we_violations
     assert shim_rule_detection.SHEWHART_CHART_TYPES is SHEWHART_CHART_TYPES
     assert shim_utils.subgroup_rows is subgroup_rows
+
+
+def test_chart_phase_and_stability_shims_are_the_same_objects_as_the_core():
+    """The PR-2 shims (#205): `is`, never `==` — a wrapper `def` would pass equality.
+
+    Importing the three shim modules here is also what guarantees they are executed
+    during the SPC coverage gate.
+    """
+    assert shim_control_charts.compute_imr is compute_imr
+    assert shim_control_charts.compute_xbar_r is compute_xbar_r
+    assert shim_control_charts.compute_ewma is compute_ewma
+    assert shim_control_charts.compute_cusum is compute_cusum
+    assert shim_control_charts.imr_limits is imr_limits
+    assert shim_control_charts.ImrResult is ImrResult
+    assert shim_phase.freeze_imr is freeze_imr
+    assert shim_phase.FrozenLimits is FrozenLimits
+    assert shim_stability.assess_stability is assess_stability
+    assert shim_stability.stability_fields is stability_fields
 
 
 def test_control_plan_config_derives_its_keys_instead_of_retyping_them():

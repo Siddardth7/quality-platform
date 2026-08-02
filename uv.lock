@@ -1604,6 +1604,7 @@ version = "0.7.0"
 source = { editable = "packages/quality-core" }
 dependencies = [
     { name = "defusedxml" },
+    { name = "numpy" },
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "pydantic" },
@@ -1617,6 +1618,7 @@ streamlit = [
 [package.metadata]
 requires-dist = [
     { name = "defusedxml", specifier = ">=0.7.1" },
+    { name = "numpy", specifier = ">=2.4.4" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.2" },
     { name = "pydantic", specifier = ">=2.13.4" },

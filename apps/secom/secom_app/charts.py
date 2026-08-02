@@ -3,13 +3,12 @@ secom_app/charts.py
 SECOM signal -> existing SPC I-MR engine (W09-2, #66).
 
 Wires SECOM sensor columns into the platform's already-tested SPC engine. The
-chart constants and the WE/Nelson rule detectors now come from
-`quality_core.spc` (promoted out of the SPC app by audit A12, #205 — a downward
-import, not an app-to-app hop); `compute_imr` is still read from
-`spc_app.spc_engine.control_charts` until it is promoted too. This module does
-NOT reimplement control-limit math or rule detection; it only adapts the SECOM
-data shape (NaN-preserving, one column per sensor) into the shape the engine
-expects.
+chart math (`compute_imr`, `imr_limits`) and the WE/Nelson rule detectors all come
+from `quality_core.spc` (promoted out of the SPC app by audit A12, #205 — a
+downward import, not an app-to-app hop). Nothing in this module is imported from
+another app any more. It does NOT reimplement control-limit math or rule
+detection; it only adapts the SECOM data shape (NaN-preserving, one column per
+sensor) into the shape the engine expects.
 
 SME resolutions (`.pipeline/spec-66.md`, locked 2026-07-21), each labelled:
 
@@ -48,10 +47,8 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-from quality_core.spc.constants import IMR_D2, IMR_D4, IMR_E2
+from quality_core.spc.control_charts import ImrResult, compute_imr, imr_limits
 from quality_core.spc.rule_detection import detect_nelson_violations, detect_we_violations
-
-from spc_app.spc_engine.control_charts import ImrResult, compute_imr
 
 __all__ = [
     "SignalControlChart",
@@ -155,18 +152,18 @@ def control_chart_for_signal(
     mrbar = float(np.mean(moving_ranges)) if moving_ranges else 0.0
     xbar = engine_imr["xbar"]
 
-    # Same AIAG constants/formula compute_imr applies (control_charts.py),
-    # just fed the OQ5-pooled mrbar instead of a single gap-spanning diff.
+    # OQ5: same imr_limits() the SPC engine uses, fed the run-broken pooled mrbar.
+    limits = imr_limits(xbar, mrbar)
     imr: ImrResult = {
         "values": engine_imr["values"],
         "moving_ranges": moving_ranges,
         "xbar": xbar,
         "mrbar": mrbar,
-        "ucl_x": xbar + (IMR_E2 * mrbar),
-        "lcl_x": xbar - (IMR_E2 * mrbar),
-        "ucl_mr": IMR_D4 * mrbar,
-        "lcl_mr": 0.0,
-        "sigma_hat": mrbar / IMR_D2,
+        "ucl_x": limits["ucl_x"],
+        "lcl_x": limits["lcl_x"],
+        "ucl_mr": limits["ucl_mr"],
+        "lcl_mr": limits["lcl_mr"],
+        "sigma_hat": limits["sigma_hat"],
     }
 
     detect = detect_nelson_violations if ruleset == "nelson" else detect_we_violations
