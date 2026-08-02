@@ -6,8 +6,9 @@ plus `SPCChart` — the platform's one chart vocabulary. `rule_detection` holds 
 Western Electric / Nelson run-rule detectors and the Shewhart chart set they are
 valid on. `utils` holds `subgroup_rows`. `control_charts` holds the chart math
 (`compute_*` plus `imr_limits`, the one copy of the AIAG I-MR limit formula),
-`phase` the Phase I/II limit freezing, and `stability` the capability stability
-gate.
+`phase` the Phase I/II limit freezing, `stability` the capability stability
+gate, and `capability` the Cp/Cpk/Pp/Ppk indices and the non-normal
+(Box-Cox / Yeo-Johnson / fitted-percentile) capability study.
 
 Promoted out of `spc_app.spc_engine` (audit A12, #205) so SECOM, the Control Plan
 app and the future API import *downward* into `quality_core` instead of sideways
@@ -19,6 +20,12 @@ Every constant, threshold and citation comment moved verbatim: nothing here is a
 new or re-derived standards rule (see `apps/spc/docs/ASSUMPTIONS_LOG.md`).
 """
 
+from quality_core.spc.capability import (
+    CapabilityStudy,
+    compute_capability,
+    compute_capability_study,
+    normality_test,
+)
 from quality_core.spc.constants import (
     BOOTSTRAP_RESAMPLES,
     BOOTSTRAP_SEED,
@@ -86,6 +93,10 @@ from quality_core.spc.stability import (
 from quality_core.spc.utils import subgroup_rows
 
 __all__ = [
+    "CapabilityStudy",
+    "compute_capability",
+    "compute_capability_study",
+    "normality_test",
     "BOOTSTRAP_RESAMPLES",
     "BOOTSTRAP_SEED",
     "BOXCOX_LAMBDA_CANDIDATES",

@@ -1608,6 +1608,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "pydantic" },
+    { name = "scipy" },
 ]
 
 [package.optional-dependencies]
@@ -1622,6 +1623,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.2" },
     { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "scipy", specifier = ">=1.17.1" },
     { name = "streamlit", marker = "extra == 'streamlit'", specifier = ">=1.56.0" },
 ]
 provides-extras = ["streamlit"]
@@ -1941,7 +1943,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "quality-core" },
     { name = "scipy" },
-    { name = "spc-app" },
     { name = "streamlit" },
 ]
 
@@ -1952,7 +1953,6 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0" },
     { name = "quality-core", editable = "packages/quality-core" },
     { name = "scipy", specifier = ">=1.17.1" },
-    { name = "spc-app", editable = "apps/spc" },
     { name = "streamlit", specifier = ">=1.56.0" },
 ]
 

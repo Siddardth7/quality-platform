@@ -47,8 +47,19 @@ def test_core_hard_dependencies_are_only_the_data_path() -> None:
     `numpy` is hard because `quality_core.spc.control_charts` imports it at module
     level (#205 PR 2); it was already resolved transitively via pandas, so declaring
     it is honesty about a real import, not a new install.
+
+    `scipy` is hard because `quality_core.spc.capability` imports it at module level
+    (#205 PR 3); it was already in the workspace lock via `spc-app`/`secom-app`, so
+    declaring it is likewise honesty about a real import, not a new install.
     """
-    assert _hard_requirements() == {"pandas", "pydantic", "openpyxl", "defusedxml", "numpy"}
+    assert _hard_requirements() == {
+        "pandas",
+        "pydantic",
+        "openpyxl",
+        "defusedxml",
+        "numpy",
+        "scipy",
+    }
 
 
 def test_streamlit_is_optional_not_required() -> None:

@@ -4,9 +4,8 @@
 dataset — consumed by its own suite and, from P3 onward, by the platform API — and
 is deliberately **not** mounted in the unified Streamlit shell: there is no `app.py`
 here and no `st.navigation` entry, unlike FMEA, SPC, Control Plan, and MSA. It is a
-full workspace member (`pyproject.toml`) sharing `quality_core`. Chart math comes from
-`quality_core.spc` (promoted by #205 PR 2); capability still reuses `spc_app`'s engine
-until #205 PR 3 promotes `capability.py` too.
+full workspace member (`pyproject.toml`) sharing `quality_core`. All SPC chart and
+capability math comes from `quality_core.spc` (#205) — this app imports no other app.
 
 SECOM (UCI ML Repository, dataset 179) is real semiconductor fab process data:
 1567 production runs x 590 sensor readings, with a pass/fail label and a
@@ -47,7 +46,7 @@ standard-vs-heuristic labelling of every screening rule.
 
 - **`secom_app/capability.py`** (W09-3, #67) — Cp/Cpk/Pp/Ppk against
   caller-supplied limits, stability-gated: `capability_for_signal()` reuses
-  the existing SPC `compute_capability` (never re-derives Cp/Cpk math) fed
+  `quality_core.spc.capability`'s `compute_capability` (never re-derives Cp/Cpk math) fed
   the W09-2 control chart's present values and within-process σ̂; still
   computes indices on an unstable process but flags `stable=False` with a
   `stability_warning` rather than fabricating a limit or hard-suppressing.

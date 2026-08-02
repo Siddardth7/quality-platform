@@ -15,6 +15,8 @@ dependencies = [
     # tests/test_validate.py asserts the resulting flag (audit A11, #202).
     "defusedxml>=0.7.1",
     "numpy>=2.4.4",       # quality_core.spc.control_charts: array math for the chart statistics
+    "scipy>=1.17.1",      # quality_core.spc.capability: Shapiro-Wilk, Box-Cox/Yeo-Johnson,
+                          # chi2/norm CIs, stats.bootstrap, distribution fits
 ]
 
 [project.optional-dependencies]

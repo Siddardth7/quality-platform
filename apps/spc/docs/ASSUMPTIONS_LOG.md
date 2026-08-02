@@ -17,10 +17,10 @@ reason a constant should never be edited in isolation.
 > test_spc_constants.py` pins the AIAG tables whole and
 > `apps/spc/tests/test_spc_engine_shims.py` asserts the shims are the same objects, so a
 > shadow copy fails rather than silently drifting. PR 2 of #205 promoted
-> `control_charts.py`, `phase.py` and `stability.py` the same way (their
-> `spc_app/spc_engine/` modules are shims too). The only module not yet promoted
-> (`capability.py`) still says `spc_app/spc_engine/` and still lives there — PR 3
-> of #205 moves it.
+> `control_charts.py`, `phase.py` and `stability.py`, and PR 3 promoted
+> `capability.py`, all the same way (their `spc_app/spc_engine/` modules are shims
+> too). `data_generator.py` is the one engine module that stays app-resident — it
+> is the app's demo dataset, not shared standards math.
 
 ---
 
@@ -115,7 +115,7 @@ limits are present; one-sided specs report only the relevant Cpk/Ppk side.
 indices. The within-vs-overall distinction (Cp/Cpk vs Pp/Ppk) is the standard short-term
 vs long-term capability split.
 
-**Applied In:** `spc_app/spc_engine/capability.py::compute_capability`.
+**Applied In:** `quality_core/spc/capability.py::compute_capability`.
 
 ---
 
@@ -154,7 +154,7 @@ in-control process to the specification limits"*
 (https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm).
 
 **Applied In:** `quality_core/spc/stability.py::assess_stability` (control-chart assembly +
-WE detection) and `spc_app/spc_engine/capability.py::compute_capability_study`
+WE detection) and `quality_core/spc/capability.py::compute_capability_study`
 (`stable` / `stability_note` on `CapabilityStudy`). The Streamlit page
 (`spc_app/pages/process_capability.py`) is now only a consumer — it holds the stream →
 chart-type map and renders the warning.
@@ -237,7 +237,7 @@ non-normal review.
 significance level is the conventional default. Capability indices assume an approximately
 normal distribution, so the check is advisory context for the Cpk numbers.
 
-**Applied In:** `spc_app/spc_engine/capability.py::normality_test`.
+**Applied In:** `quality_core/spc/capability.py::normality_test`.
 
 ---
 
@@ -491,7 +491,7 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
   `scipy.stats.bootstrap(method="percentile")`. The fixed seed/resample count is an engineering
   reproducibility choice, not part of the cited method itself.
 
-**Applied In:** `spc_app/spc_engine/capability.py` (`compute_capability` CI fields,
+**Applied In:** `quality_core/spc/capability.py` (`compute_capability` CI fields,
 `CapabilityStudy`, `compute_capability_study`, `_within_sigma`, `_fit_percentile_capability`,
 `_percentile_cpk`, `_bootstrap_percentile_ci`, `_cp_chi2_ci`, `_cpk_bissell_ci`);
 `quality_core/spc/constants.py` (`CAPABILITY_ALPHA`, `BOXCOX_LAMBDA_CANDIDATES`,

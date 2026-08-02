@@ -45,8 +45,9 @@ CI (`.github/workflows/ci.yml`, job id `gate`) runs exactly these on Python 3.11
 
 ### Single test
 ```bash
-uv run pytest apps/spc/tests/test_capability.py -q              # one module
+uv run pytest apps/spc/tests/test_visualizer.py -q              # one module
 uv run pytest packages/quality-core/tests/test_spc_control_charts.py -q   # chart math (core)
+uv run pytest packages/quality-core/tests/test_spc_capability.py -q       # capability (core)
 uv run pytest apps/spc -k "capability" -q                       # by keyword
 ```
 
@@ -68,13 +69,14 @@ spc_app/pages/live_simulation.py     render_simulation — live subgroup stream
         │
         ▼
 spc_app/spc_engine/             pure SPC computation (fully unit-tested). Everything
-                                except capability.py and data_generator.py is now a
-                                re-export shim over quality_core.spc (#205):
+                                except data_generator.py is now a re-export shim over
+                                quality_core.spc (#205):
     control_charts.py             shim -> quality_core.spc.control_charts:
                                   compute_xbar_r/_s, compute_imr, compute_p/c/u,
                                   compute_ewma/_cusum, imr_limits (each compute_*
                                   returns a precise TypedDict result)
-    capability.py                 compute_capability (Cp/Cpk/Pp/Ppk), normality_test,
+    capability.py                 shim -> quality_core.spc.capability:
+                                  compute_capability (Cp/Cpk/Pp/Ppk), normality_test,
                                   compute_capability_study (+ stable/stability_note)
     phase.py                      shim -> quality_core.spc.phase: freeze_xbar_r/_s/_imr
     stability.py                  shim -> quality_core.spc.stability: assess_stability
@@ -113,12 +115,12 @@ chart type itself — the page holds the stream → chart-type map (see ASSUMPTI
   `apps/spc/pyproject.toml`) together at release.
 - **AIAG constants** live in **`quality_core/spc/constants.py`** (promoted out of this app
   by audit A12, #205); `spc_app/spc_engine/constants.py` is a **re-export shim** — editing
-  it is always wrong. Same for `rule_detection.py`, `utils.py`, and (PR 2 of #205)
-  `control_charts.py`, `phase.py` and `stability.py`: change the code in
-  `quality_core/spc/`, never in the shim. Every value is cited in
+  it is always wrong. Same for `rule_detection.py`, `utils.py`, (PR 2 of #205)
+  `control_charts.py`, `phase.py`, `stability.py` and (PR 3) `capability.py`: change
+  the code in `quality_core/spc/`, never in the shim. Every value is cited in
   `docs/ASSUMPTIONS_LOG.md`; don't change one without updating the other.
-  `capability.py` and `data_generator.py` are the only app-resident engine modules left
-  (PR 3 of #205 covers `capability.py`; `data_generator.py` stays here).
+  `data_generator.py` is the only app-resident engine module left — it is the app's
+  demo dataset, not shared standards math.
 - **The AIAG I-MR limit formula** is written exactly once, in
   `quality_core.spc.control_charts.imr_limits()`; `compute_imr` and SECOM's
   `control_chart_for_signal` both consume it (#205 PR 2). Do not re-derive it.
