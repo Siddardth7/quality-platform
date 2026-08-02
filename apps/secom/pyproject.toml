@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "quality-core",
-    "spc-app",  # secom_app.charts/.capability reuse spc_app.spc_engine read-only (#204)
+    "spc-app",  # secom_app.capability reuses spc_app.spc_engine.capability read-only
+                # (#204). charts.py no longer needs it — #205 PR 2 moved that math to
+                # quality_core.spc. Drop this line when #205 PR 3 promotes capability.py.
     "streamlit>=1.56.0",
     "pandas>=3.0.2",
     "pydantic>=2.0",

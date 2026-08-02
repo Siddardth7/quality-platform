@@ -4,7 +4,10 @@
 Phase-I baseline minimums, EWMA/CUSUM defaults, non-normal capability settings)
 plus `SPCChart` — the platform's one chart vocabulary. `rule_detection` holds the
 Western Electric / Nelson run-rule detectors and the Shewhart chart set they are
-valid on. `utils` holds `subgroup_rows`.
+valid on. `utils` holds `subgroup_rows`. `control_charts` holds the chart math
+(`compute_*` plus `imr_limits`, the one copy of the AIAG I-MR limit formula),
+`phase` the Phase I/II limit freezing, and `stability` the capability stability
+gate.
 
 Promoted out of `spc_app.spc_engine` (audit A12, #205) so SECOM, the Control Plan
 app and the future API import *downward* into `quality_core` instead of sideways
@@ -39,6 +42,33 @@ from quality_core.spc.constants import (
     XBAR_S_CONSTANTS,
     SPCChart,
 )
+from quality_core.spc.control_charts import (
+    CResult,
+    CUSUMResult,
+    EWMAResult,
+    ImrLimits,
+    ImrResult,
+    PResult,
+    UResult,
+    XbarRResult,
+    XbarSResult,
+    compute_c,
+    compute_cusum,
+    compute_ewma,
+    compute_imr,
+    compute_p,
+    compute_u,
+    compute_xbar_r,
+    compute_xbar_s,
+    imr_limits,
+)
+from quality_core.spc.phase import (
+    ExcludedPoint,
+    FrozenLimits,
+    freeze_imr,
+    freeze_xbar_r,
+    freeze_xbar_s,
+)
 from quality_core.spc.rule_detection import (
     NELSON_LABELS,
     SHEWHART_CHART_TYPES,
@@ -46,6 +76,12 @@ from quality_core.spc.rule_detection import (
     detect_nelson_violations,
     detect_violations,
     detect_we_violations,
+)
+from quality_core.spc.stability import (
+    NOT_ASSESSED_NOTE,
+    ChartType,
+    assess_stability,
+    stability_fields,
 )
 from quality_core.spc.utils import subgroup_rows
 
@@ -78,4 +114,31 @@ __all__ = [
     "detect_violations",
     "detect_we_violations",
     "subgroup_rows",
+    "CResult",
+    "CUSUMResult",
+    "EWMAResult",
+    "ImrLimits",
+    "ImrResult",
+    "PResult",
+    "UResult",
+    "XbarRResult",
+    "XbarSResult",
+    "compute_c",
+    "compute_cusum",
+    "compute_ewma",
+    "compute_imr",
+    "compute_p",
+    "compute_u",
+    "compute_xbar_r",
+    "compute_xbar_s",
+    "imr_limits",
+    "ExcludedPoint",
+    "FrozenLimits",
+    "freeze_imr",
+    "freeze_xbar_r",
+    "freeze_xbar_s",
+    "NOT_ASSESSED_NOTE",
+    "ChartType",
+    "assess_stability",
+    "stability_fields",
 ]

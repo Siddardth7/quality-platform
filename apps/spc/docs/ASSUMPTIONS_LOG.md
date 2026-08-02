@@ -16,9 +16,11 @@ reason a constant should never be edited in isolation.
 > "Applied In" lines below name the real home; `packages/quality-core/tests/
 > test_spc_constants.py` pins the AIAG tables whole and
 > `apps/spc/tests/test_spc_engine_shims.py` asserts the shims are the same objects, so a
-> shadow copy fails rather than silently drifting. Modules not yet promoted
-> (`control_charts.py`, `capability.py`, `phase.py`, `stability.py`) still say
-> `spc_app/spc_engine/` and still live there — PRs 2 and 3 of #205 move them.
+> shadow copy fails rather than silently drifting. PR 2 of #205 promoted
+> `control_charts.py`, `phase.py` and `stability.py` the same way (their
+> `spc_app/spc_engine/` modules are shims too). The only module not yet promoted
+> (`capability.py`) still says `spc_app/spc_engine/` and still lives there — PR 3
+> of #205 moves it.
 
 ---
 
@@ -36,7 +38,7 @@ range of normal samples.
 `LCL_r = max(0, D3·Rbar)`; `sigma_hat = Rbar / d2`.
 
 **Applied In:** `quality_core/spc/constants.py::XBAR_R_CONSTANTS` →
-`control_charts.py::compute_xbar_r`.
+`quality_core/spc/control_charts.py::compute_xbar_r`.
 
 ---
 
@@ -54,7 +56,7 @@ unbiasing constant for the sample standard deviation of a normal sample.
 `LCL_s = max(0, B3·Sbar)`; `sigma_hat = Sbar / c4`.
 
 **Applied In:** `quality_core/spc/constants.py::XBAR_S_CONSTANTS` →
-`control_charts.py::compute_xbar_s`.
+`quality_core/spc/control_charts.py::compute_xbar_s`.
 
 ---
 
@@ -71,7 +73,9 @@ length 2. `E2 = 3 / d2(2)` gives 3-sigma individuals limits from the average mov
 `sigma_hat = MRbar / 1.128`.
 
 **Applied In:** `quality_core/spc/constants.py` (`IMR_E2`, `IMR_D4`, `IMR_D2`) →
-`control_charts.py::compute_imr`.
+`quality_core/spc/control_charts.py::imr_limits` → `quality_core/spc/
+control_charts.py::compute_imr` and `secom_app/charts.py::control_chart_for_signal`.
+`imr_limits` is the single place this formula is written (#205 PR 2).
 
 ---
 
@@ -90,7 +94,7 @@ distributions, with the lower limit clamped at 0 (and the p-chart upper limit cl
 Poisson. The c-chart requires a **constant area of opportunity** — hence the demo
 `panel_defects` stream fixes the sample size at 1 inspected panel.
 
-**Applied In:** `control_charts.py::compute_p / compute_c / compute_u`.
+**Applied In:** `quality_core/spc/control_charts.py::compute_p / compute_c / compute_u`.
 
 ---
 
@@ -149,7 +153,7 @@ verifiable: NIST/SEMATECH e-Handbook §6.1.6 — *"Process capability compares t
 in-control process to the specification limits"*
 (https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm).
 
-**Applied In:** `spc_app/spc_engine/stability.py::assess_stability` (control-chart assembly +
+**Applied In:** `quality_core/spc/stability.py::assess_stability` (control-chart assembly +
 WE detection) and `spc_app/spc_engine/capability.py::compute_capability_study`
 (`stable` / `stability_note` on `CapabilityStudy`). The Streamlit page
 (`spc_app/pages/process_capability.py`) is now only a consumer — it holds the stream →
@@ -312,8 +316,8 @@ supporting SPC evidence for the analyst's control-based rating.
   Phase I/Phase II terminology also appears explicitly in NIST §6.5.4.3 (multivariate); NIST's
   univariate sections call Phase I "retrospective."
 
-**Applied In:** `spc_app/spc_engine/phase.py` (`freeze_xbar_r`, `freeze_xbar_s`, `freeze_imr`,
-`FrozenLimits`, `ExcludedPoint`) → `spc_app/spc_engine/control_charts.py::compute_xbar_r/_s/_imr`
+**Applied In:** `quality_core/spc/phase.py` (`freeze_xbar_r`, `freeze_xbar_s`, `freeze_imr`,
+`FrozenLimits`, `ExcludedPoint`) → `quality_core/spc/control_charts.py::compute_xbar_r/_s/_imr`
 (`frozen=` parameter) → `quality_core/spc/constants.py` (`MIN_BASELINE_SUBGROUPS`,
 `MIN_BASELINE_INDIVIDUALS`).
 
@@ -358,7 +362,7 @@ Phase I estimate — never derived from the z-series itself):
   not the original Technometrics table cell-by-cell (same "secondary, not primary-quotable" flag
   Rule 11 used for the Montgomery individuals-baseline floor).
 
-**Applied In:** `spc_app/spc_engine/control_charts.py::compute_ewma` (`EWMAResult`),
+**Applied In:** `quality_core/spc/control_charts.py::compute_ewma` (`EWMAResult`),
 `quality_core/spc/constants.py` (`EWMA_DEFAULT_LAMBDA`, `EWMA_DEFAULT_L`, `EWMA_L_BY_LAMBDA`),
 `spc_app/visualizer.py::build_ewma_chart`.
 
@@ -402,7 +406,7 @@ crossings signal; run-rule gating for CUSUM is deferred to W10-5.
   the 1982 original (same treatment as Rule 12's Lucas & Saccucci citation).
 
 **Applied In:** `quality_core/spc/constants.py` (`CUSUM_DEFAULT_K`, `CUSUM_DEFAULT_H`,
-`CUSUM_FIR_FRACTION`); `spc_app/spc_engine/control_charts.py::compute_cusum` (`CUSUMResult`);
+`CUSUM_FIR_FRACTION`); `quality_core/spc/control_charts.py::compute_cusum` (`CUSUMResult`);
 `spc_app/visualizer.py::build_cusum_chart`.
 
 ---
@@ -524,7 +528,7 @@ detect_violations(chart_type, points, cl, sigma, rule_set)` returns `[]` immedia
 `chart_type` outside `SHEWHART_CHART_TYPES = {"Xbar-R","Xbar-S","I-MR","p","c","u"}` (and for
 `sigma<=0`), otherwise dispatches to the existing `detect_we_violations`/
 `detect_nelson_violations` unchanged. Both page-level callers — the Control Charts page's
-per-branch rule overlay and the capability stability gate (`spc_engine/stability.py::
+per-branch rule overlay and the capability stability gate (`quality_core/spc/stability.py::
 assess_stability`) — now route through this one function, so no caller can (accidentally or otherwise) run
 WE/Nelson on an EWMA/CUSUM chart.
 
@@ -538,7 +542,7 @@ introduced by this rule.
 
 **Applied In:** `quality_core/spc/rule_detection.py` (`SHEWHART_CHART_TYPES`,
 `detect_violations`) → `spc_app/pages/control_charts.py::detect_rule_violations` →
-`spc_app/spc_engine/stability.py::assess_stability`.
+`quality_core/spc/stability.py::assess_stability`.
 
 ---
 

@@ -89,8 +89,10 @@ jobs:
           --cov-fail-under=100
 
       # Core SPC coverage gate: quality_core.spc holds the shared SPC primitives
-      # (AIAG chart constants, WE/Nelson rule detection, and — from #205 — the chart
-      # vocabulary), promoted out of spc_app so SECOM and the future API import
+      # (AIAG chart constants, the chart vocabulary, WE/Nelson rule detection, the
+      # chart math itself — compute_* plus the one copy of the AIAG I-MR limit
+      # formula in imr_limits — Phase I/II limit freezing, and the capability
+      # stability gate), promoted out of spc_app so SECOM and the future API import
       # downward instead of sideways into another app (audit A12, #205). Like io,
       # schema, and scoring, it must be fully covered by its OWN tests, not only
       # incidentally via the SPC suite. Held at 100% from packages/quality-core.
