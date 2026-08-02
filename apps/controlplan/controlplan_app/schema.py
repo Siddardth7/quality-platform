@@ -36,12 +36,20 @@ with no source is simply ``None``.
 
 from __future__ import annotations
 
-from typing import Annotated, BinaryIO, Literal
+from typing import Annotated, BinaryIO
 
 import pandas as pd
 import pydantic
 from quality_core.io import IngestError, TableSchema, load_table, load_table_from_path
 from quality_core.schema._base import find_duplicates
+
+# SPC engine chart keys a control method may recommend — the variable charts
+# (`apps/spc/spc_app/pages/control_charts.py`) plus the attribute charts SPC's
+# engine computes (`compute_p`/`compute_c`/`compute_u`). Internal SPC keys, not a
+# standard — see the module docstring. Declared once in `quality_core.spc.constants`
+# (#205) and re-exported here (it stays in `__all__`), so `connector.py`'s
+# `from controlplan_app.schema import SPCChart` keeps working unchanged.
+from quality_core.spc.constants import SPCChart
 
 __all__ = [
     "SPCChart",
@@ -51,12 +59,6 @@ __all__ = [
     "load_control_plan_csv",
     "IngestError",
 ]
-
-#: SPC engine chart keys a control method may recommend — the variable charts
-#: (`apps/spc/spc_app/pages/control_charts.py`) plus the attribute charts SPC's
-#: engine computes (`compute_p`/`compute_c`/`compute_u`). Internal SPC keys, not a
-#: standard — see the module docstring.
-SPCChart = Literal["Xbar-R", "Xbar-S", "I-MR", "p", "c", "u"]
 
 
 class ControlPlanRow(pydantic.BaseModel):

@@ -2,11 +2,14 @@
 secom_app/charts.py
 SECOM signal -> existing SPC I-MR engine (W09-2, #66).
 
-Wires SECOM sensor columns into the platform's already-tested SPC engine
-(`apps/spc/spc_app/spc_engine/`, reused read-only — see `apps/secom/CLAUDE.md`
-sys.path shim in `conftest.py`). This module does NOT reimplement control-limit
-math or rule detection; it only adapts the SECOM data shape (NaN-preserving,
-one column per sensor) into the shape the engine expects.
+Wires SECOM sensor columns into the platform's already-tested SPC engine. The
+chart constants and the WE/Nelson rule detectors now come from
+`quality_core.spc` (promoted out of the SPC app by audit A12, #205 — a downward
+import, not an app-to-app hop); `compute_imr` is still read from
+`spc_app.spc_engine.control_charts` until it is promoted too. This module does
+NOT reimplement control-limit math or rule detection; it only adapts the SECOM
+data shape (NaN-preserving, one column per sensor) into the shape the engine
+expects.
 
 SME resolutions (`.pipeline/spec-66.md`, locked 2026-07-21), each labelled:
 
@@ -45,10 +48,10 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
+from quality_core.spc.constants import IMR_D2, IMR_D4, IMR_E2
+from quality_core.spc.rule_detection import detect_nelson_violations, detect_we_violations
 
-from spc_app.spc_engine.constants import IMR_D2, IMR_D4, IMR_E2
 from spc_app.spc_engine.control_charts import ImrResult, compute_imr
-from spc_app.spc_engine.rule_detection import detect_nelson_violations, detect_we_violations
 
 __all__ = [
     "SignalControlChart",
