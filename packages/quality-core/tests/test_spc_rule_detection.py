@@ -1,6 +1,5 @@
 import pytest
-
-from spc_app.spc_engine.rule_detection import (
+from quality_core.spc.rule_detection import (
     SHEWHART_CHART_TYPES,
     detect_nelson_violations,
     detect_violations,

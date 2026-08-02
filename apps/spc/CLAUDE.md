@@ -101,8 +101,12 @@ chart type itself — the page holds the stream → chart-type map (see ASSUMPTI
 
 - **Version SSOT** is `spc_app/__init__.py::__version__`, read by `app.py`. Bump it (and
   `apps/spc/pyproject.toml`) together at release.
-- **AIAG constants** live in `spc_app/spc_engine/constants.py`; every value is cited in
-  `docs/ASSUMPTIONS_LOG.md`. Don't change one without updating the other.
+- **AIAG constants** live in **`quality_core/spc/constants.py`** (promoted out of this app
+  by audit A12, #205); `spc_app/spc_engine/constants.py` is a **re-export shim** — editing
+  it is always wrong. Same for `rule_detection.py` and `utils.py`. Every value is cited in
+  `docs/ASSUMPTIONS_LOG.md`; don't change one without updating the other.
+  `control_charts.py`, `capability.py`, `phase.py` and `stability.py` are still app-resident
+  (PRs 2–3 of #205 move them).
 - **Engine returns TypedDicts** (`XbarRResult`, … `UResult` in `control_charts.py`). Page
   dispatch variables that span chart types are typed `Mapping[str, Any]` (honest read-only
   union surface); engine functions keep their exact types.

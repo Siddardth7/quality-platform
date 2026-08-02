@@ -88,6 +88,19 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=100
 
+      # Core SPC coverage gate: quality_core.spc holds the shared SPC primitives
+      # (AIAG chart constants, WE/Nelson rule detection, and — from #205 — the chart
+      # vocabulary), promoted out of spc_app so SECOM and the future API import
+      # downward instead of sideways into another app (audit A12, #205). Like io,
+      # schema, and scoring, it must be fully covered by its OWN tests, not only
+      # incidentally via the SPC suite. Held at 100% from packages/quality-core.
+      - name: Core SPC coverage gate
+        run: >
+          uv run pytest packages/quality-core
+          --cov=quality_core.spc
+          --cov-report=term-missing
+          --cov-fail-under=100
+
       # SPC coverage gate: the testable SPC surface (engine, simulation logic,
       # figure builders, report exporter) must stay highly covered so it can't
       # regress silently. The Streamlit `pages/` are excluded — they need a

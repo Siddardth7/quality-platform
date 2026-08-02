@@ -8,6 +8,24 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Shared SPC primitives promoted into `quality_core.spc` (audit A12, #205 — PR 1 of 3).**
+  The AIAG SPC chart constants, the Western Electric / Nelson rule detectors
+  (`detect_we_violations`, `detect_nelson_violations`, `detect_violations`,
+  `SHEWHART_CHART_TYPES`) and `subgroup_rows` now live in `quality_core.spc`, with the
+  platform's chart vocabulary `SPCChart` alongside them in `quality_core.spc.constants`.
+  `spc_app.spc_engine.constants` / `.rule_detection` / `.utils` became thin re-export shims
+  (the `fmea_app.ap_engine` pattern), so every existing SPC caller is unchanged. SECOM's
+  `charts.py` now imports the constants and the rule detectors *downward* from
+  `quality_core` instead of sideways into `spc_app`; `controlplan_app.schema` and
+  `spc_app.control_plan_config` consume the one `SPCChart` (the latter via
+  `typing.get_args`), removing two of the four hand-typed copies of the chart key list.
+  A new **Core SPC coverage gate** holds `quality_core.spc` at 100% line + branch from
+  `packages/quality-core`'s own tests. **No values, formulas or citations changed** — a
+  pure move — and **no new dependencies**: `quality-core`'s hard dependency set is still
+  exactly `{pandas, pydantic, openpyxl, defusedxml}` and `uv.lock` is untouched. The
+  numpy-dependent chart engine (#205 PR 2) and scipy-dependent capability (PR 3) follow;
+  `apps/secom` still depends on `spc-app` until then.
+
 - **MSA declares which Gage R&R method it ran, and what that method cannot see (audit A10, #194).**
   `compute_gage_rr()` now returns two additional keys — `method` (`"average_and_range"`) and
   `method_note` — exported from `gage_rr_engine` as the `METHOD` / `METHOD_NOTE` constants, and
