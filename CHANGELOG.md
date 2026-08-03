@@ -8,6 +8,21 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **MSA reports %EV, %AV and %PV on both AIAG bases alongside %GRR (audit A10-c, #225).**
+  `compute_gage_rr()` gains six keys — `pev_study` / `pav_study` / `ppv_study` and
+  `pev_tolerance` / `pav_tolerance` / `ppv_tolerance` — completing the
+  `p{ev,av,grr,pv}_{study,tolerance}` family and giving parity with the AIAG Gage R&R Report
+  Form (MSA 4th Ed., Ch. III §B, Figure III-B 16), whose published %EV = 17.62%,
+  %AV = 20.04%, %GRR = 26.68% and %PV = 96.38% are now asserted as an oracle. All eight
+  percentages reach the Excel/PDF detail table, the results CSV and the Gage R&R page.
+  Every tolerance-basis figure routes through `_STUDY_VARIATION_SIGMA` on its own line
+  (RULE 8 / #190), so the ×6 that #190 restored for %GRR cannot be dropped from a sibling.
+  The new figures are **reporting-only — no verdict changes for any input** — and the six
+  keys are **purely additive**: no existing key is renamed or removed. #225's suspected
+  recurrence of #190 in %EV/%AV/%PV is **refuted**: those three were never computed at all.
+  New **RULE 16** in `apps/msa/docs/ASSUMPTIONS_LOG.md` records both the refutation and the
+  now-enforced ×6 guard.
+
 - **Shared SPC primitives promoted into `quality_core.spc` (audit A12, #205 — PR 1 of 3).**
   The AIAG SPC chart constants, the Western Electric / Nelson rule detectors
   (`detect_we_violations`, `detect_nelson_violations`, `detect_violations`,
@@ -59,8 +74,9 @@ All notable changes to the Quality Platform are documented here. The format foll
   via `spc-app`/`secom-app`, its only runtime dependency is numpy, and the banned-package count is
   still 0. `spc_app/spc_engine/data_generator.py` deliberately stays app-local — it is the SPC
   app's demo dataset, not shared standards math. The one remaining `sys.path` shim in
-  `apps/secom/conftest.py` serves `apps/msa` (still `package = false`), not `spc_app`, and is
-  tracked by #231.
+  `apps/secom/conftest.py` served `apps/msa`, not `spc_app` — it was tracked as #231 and is
+  **removed in this same release** (see "`apps/msa` is an installable workspace package" under
+  Changed); `apps/secom/conftest.py` no longer exists.
 
 - **MSA declares which Gage R&R method it ran, and what that method cannot see (audit A10, #194).**
   `compute_gage_rr()` now returns two additional keys — `method` (`"average_and_range"`) and
@@ -76,6 +92,28 @@ All notable changes to the Quality Platform are documented here. The format foll
   which would estimate the interaction, is tracked as #195 and is not implemented here.
 
 ### Changed
+
+- **`apps/msa` is now an installable workspace package, removing the last cross-app `sys.path`
+  shim (audit A03 follow-up, #231).** `msa-app` drops `[tool.uv] package = false` for the same
+  hatchling `[build-system]` + `[tool.hatch.build.targets.wheel] packages = ["msa_app"]` shape
+  `spc-app` and `secom-app` have carried since #204, so `uv` installs it **editable** into
+  `.venv` (`uv.lock`: `virtual` → `editable`). `apps/secom/conftest.py` — which existed only to
+  insert `apps/msa` onto `sys.path` so `tests/test_msa.py` could `import msa_app.gage_rr_engine`
+  (#68) — is **deleted**; `apps/secom` now has no `conftest.py` at all. The edge is recorded in
+  `apps/secom/pyproject.toml` as a **dev-group** dependency (`[dependency-groups] dev =
+  ["msa-app"]` + `[tool.uv.sources]`), deliberately *not* a `[project]` dependency: the import is
+  test-only, and a runtime entry would re-create the cross-app coupling #205 PR 3 removed.
+  `apps/secom/tests/test_import_boundary.py` gains
+  `test_msa_app_is_an_installed_distribution`, which imports `msa_app.gage_rr_engine` **and**
+  `msa_app.pages` in a clean non-pytest interpreter run from the workspace root, so neither cwd
+  nor a conftest can supply the package. `apps/msa/conftest.py` **stays**, matching
+  `apps/spc/conftest.py`, which #204 kept for the same reason: it puts the app directory on
+  `sys.path` so the top-level `app` module — deliberately outside the wheel — stays importable.
+  Removing it was measured, not assumed: the MSA gate still passes at 100% with byte-identical
+  coverage paths, because no MSA test imports `app` today. It is kept as a live seam for tests
+  that will, not because anything currently depends on it. **No engine math, threshold, table or citation changed**, and the
+  CI coverage invocations are byte-identical — the editable install is a plain-path `.pth`, so
+  `--cov=msa_app.*` still measures `apps/msa/msa_app/...` at 100% line + branch.
 
 - **MSA acceptance bands: the disputed tolerance-basis band set was investigated and refuted; no
   code change, and the ×6 multiplier's provenance is upgraded to primary source (audit A07-b,
@@ -100,6 +138,23 @@ All notable changes to the Quality Platform are documented here. The format foll
   reference-study test's docstring. Documentation and comments only — no `.py` behaviour changed.
 
 ### Fixed
+
+- **MSA `ndc` now floors at one, not zero, per AIAG MSA 4th Edition (audit A10-b, #224).**
+  `_compute_ndc()` truncated `1.41 × (PV / GRR)` and clamped to `[0, 100]`, so a valid study with
+  positive GRR and PV but a calculated `ndc` below 1.0 reported **`ndc = 0`**. The manual is
+  explicit (Ch. III §B): *"For analysis, the ndc is the maximum of one or the calculated value
+  truncated to the integer. This result should be greater than or equal to 5."* — and names this
+  exact failure a line later: *"To avoid a ndc = 0, which is possible with truncation alone…"* So
+  the floor is the standard's, not a rounding preference. The non-positive guard
+  (`grr <= 0 or pv <= 0 → 0`) is **retained**: that path is a degenerate-input sentinel, not a
+  calculated `ndc`, so AIAG's floor does not govern it. **No verdict changes for any input** —
+  `_compute_verdict()` rejects on `ndc < 2` and both `0` and `1` sit below that threshold, which
+  refutes the concern recorded under #223 that this correction would flip RULE 13's
+  degenerate-study verdict. The `ASSUMPTIONS_LOG.md` entry is rewritten accordingly and its section
+  retitled from "ndc Clamping to [0, 100]" to "ndc Upper Clamp at 100": the lower bound is no
+  longer a deviation from AIAG, only the upper clamp is. Coverage alone did not catch this defect —
+  no test exercised `1.41 × PV/GRR < 1.0` — so `test_ndc_minimum_one` pins it, and reverting
+  `max(1, …)` to `max(0, …)` turns it red.
 
 - **Six fabricated AIAG quotations removed from the MSA assumptions log; every surviving citation
   is now machine-checked (audit A10-a, #223).** `apps/msa/docs/ASSUMPTIONS_LOG.md` attributed
@@ -204,8 +259,9 @@ All notable changes to the Quality Platform are documented here. The format foll
   `packages/quality-core`'s `src/` block), and `secom-app` declares `spc-app` as a
   `{ workspace = true }` dependency. `apps/secom/conftest.py`'s `sys.path` hacks for
   `apps/spc` (redundant — spc_app is now installed) and for `apps/secom` itself
-  (redundant — secom_app is now installed) are removed; the `apps/msa` entry stays (msa-app
-  is not yet an installable package). New
+  (redundant — secom_app is now installed) are removed; the `apps/msa` entry stayed at the time,
+  because `msa-app` was not yet installable — **#231, in this same release, makes it installable
+  and deletes `apps/secom/conftest.py` outright.** New
   `apps/secom/tests/test_import_boundary.py` proves both imports in a clean,
   non-pytest interpreter with no conftest involved. This remains a stopgap — #205
   (promoting the SPC engine into `quality_core`) is the real fix.
@@ -366,10 +422,11 @@ All notable changes to the Quality Platform are documented here. The format foll
   `part`/`appraiser`/`trial` columns and return/raise a standards-anchored
   verdict — no Gage R&R math (EV/AV/%GRR/ndc/verdict) is reimplemented;
   a real study still runs through the existing `apps/msa` app
-  (`compute_gage_rr`). `apps/secom/conftest.py` gains an `apps/msa`
+  (`compute_gage_rr`). `apps/secom/conftest.py` gained an `apps/msa`
   `sys.path` shim (mirroring the existing `apps/spc` block) so the test
-  suite can import the real AIAG engine and prove it also rejects
-  SECOM-shaped frames. `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
+  suite could import the real AIAG engine and prove it also rejects
+  SECOM-shaped frames — **superseded by #231 in this same release, which
+  makes `msa-app` installable and deletes that conftest entirely.** `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
   the finding. SECOM CI coverage gate extended to `secom_app.msa` (100%
   line+branch).
 

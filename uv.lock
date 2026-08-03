@@ -964,7 +964,7 @@ wheels = [
 [[package]]
 name = "msa-app"
 version = "0.7.0"
-source = { virtual = "apps/msa" }
+source = { editable = "apps/msa" }
 dependencies = [
     { name = "fpdf2" },
     { name = "openpyxl" },
@@ -1655,7 +1655,7 @@ dev = [
 requires-dist = [
     { name = "controlplan-app", virtual = "apps/controlplan" },
     { name = "fmea-app", virtual = "apps/fmea" },
-    { name = "msa-app", virtual = "apps/msa" },
+    { name = "msa-app", editable = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
     { name = "secom-app", editable = "apps/secom" },
     { name = "spc-app", editable = "apps/spc" },
@@ -1946,6 +1946,11 @@ dependencies = [
     { name = "streamlit" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "msa-app" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=2.4.4" },
@@ -1955,6 +1960,9 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.17.1" },
     { name = "streamlit", specifier = ">=1.56.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "msa-app", editable = "apps/msa" }]
 
 [[package]]
 name = "six"

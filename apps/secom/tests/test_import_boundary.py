@@ -1,14 +1,16 @@
-"""Prove secom_app imports outside pytest, with no conftest.py sys.path help (#204,
-retargeted by #205 PR 3).
+"""Prove secom_app and msa_app import outside pytest, with no sys.path help (#204,
+retargeted by #205 PR 3, extended by #231).
 
 ``secom_app.capability`` and ``secom_app.charts`` now take their engine math from
 ``quality_core.spc``; no ``spc_app`` import survives anywhere in this app (#205). Before
 #204, the engine import only worked under pytest because ``apps/secom/conftest.py``
-path-hacked the engine onto ``sys.path`` — which is why this test exists at all.
+path-hacked the engine onto ``sys.path`` — which is why this test exists at all. That
+conftest survived only to path-hack ``apps/msa``; #231 made ``msa-app`` installable and
+deleted it, so ``apps/secom`` now has **no ``conftest.py`` at all**.
 
-These tests run a clean, non-pytest interpreter (which never loads ``conftest.py``) to
-prove the imports resolve via the installed (editable) ``quality-core`` / ``secom-app``
-workspace packages, not the hack.
+These tests run a clean, non-pytest interpreter to prove the imports resolve via the
+installed (editable) ``quality-core`` / ``secom-app`` / ``msa-app`` workspace packages,
+not the hack.
 """
 
 from __future__ import annotations
@@ -86,5 +88,31 @@ def test_secom_app_is_an_installed_distribution() -> None:
     )
     assert result.returncode == 0, (
         f"secom_app is not an installed distribution:\n"
+        f"stdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+
+def test_msa_app_is_an_installed_distribution() -> None:
+    """msa-app must be installed (editable), not reachable via a conftest sys.path hack (#231).
+
+    tests/test_msa.py imports ``msa_app.gage_rr_engine`` (#68); until #231 that only
+    worked because ``apps/secom/conftest.py`` inserted ``apps/msa`` onto ``sys.path`` —
+    a hack invisible to every gate. Runs from the workspace root so ``msa_app`` cannot
+    resolve through cwd, and imports ``msa_app.pages`` so a wheel that silently drops
+    the subpackage fails here.
+    """
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import importlib.util; import msa_app.gage_rr_engine, msa_app.pages; "
+            "assert importlib.util.find_spec('msa_app'); print('IMPORT OK')",
+        ],
+        cwd=_SECOM_APP_DIR.parent.parent,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"msa_app is not an installed distribution:\n"
         f"stdout={result.stdout}\nstderr={result.stderr}"
     )
