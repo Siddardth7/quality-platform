@@ -101,6 +101,38 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Fixed
 
+- **Six fabricated AIAG quotations removed from the MSA assumptions log; every surviving citation
+  is now machine-checked (audit A10-a, #223).** `apps/msa/docs/ASSUMPTIONS_LOG.md` attributed
+  quotations to the AIAG MSA 4th Edition under RULES 3, 4, 5, 6, 9, 11 and 12 that do not appear
+  in the manual, using a `Section 3.x` / `Equation 3.x.y` locator scheme the 4th Edition does not
+  have (its scheme is `Chapter <roman> – Section <letter>`). RULE 12's invented quote was also
+  arithmetically wrong (`10 × 3 × 3 = 270`; it is 90). A wrong number is falsifiable by
+  recomputation — a fabricated quotation looks like verified evidence, so every decision
+  downstream of it inherits unearned confidence. Each fabricated quote is **withdrawn** and, where
+  the manual does support the decision, replaced with the real passage quoted verbatim: EV/AV/GRR/
+  PV/TV are now cited to Ch. III Sec. B "Analysis of Results — Numerical", repeatability and
+  reproducibility to their Ch. I Sec. E definitions, and the ndc definition to Ch. III Sec. B.
+  **RULE 11** (balanced crossed data) keeps its requirement but withdraws the quotation entirely
+  and is relabelled a **procedure-derived inference** — AIAG prescribes a balanced procedure but
+  never states the requirement, and the word "crossed" does not occur in the manual. **RULE 14**
+  is *upgraded* from `"AIAG MSA, implicit"` to a real citation (Ch. III Sec. B states the negative-
+  AV² clamp outright); **RULE 13** is relabelled an internal design choice, which is what it is.
+  Three wrong locators are corrected — most notably the basis-by-purpose rule, which is in
+  **Ch. I Sec. B**, not Ch. II Sec. C. The ndc bands `2–4 Marginal` / `< 2 Reject` are relabelled
+  an **internal design choice**: AIAG publishes only `ndc ≥ 5`, and they were printed under an
+  "Acceptance Criterion (AIAG)" heading. New **`apps/msa/docs/CITATIONS.tsv`** manifests every
+  surviving quotation against the line of the primary manual it came from, and new
+  `apps/msa/tests/test_citations.py` re-asserts each row — quote **and** line number (±2), so it is
+  a citation index rather than a substring test. Matching is formatting-tolerant: the genuine
+  passage renders as `tolerance _divided by six_`, which a naive search reports as fabricated, and
+  a false "fabricated" verdict is the same sin in the opposite direction. The manual is licensed
+  and not in the repo, so those tests **skip** (never fail) unless `MSA_MANUAL_PATH` is set.
+  **Documentation only: no computation, constant, formula, threshold or branch changed** — the sole
+  production edit is a docstring in `_compute_verdict`, and the MSA coverage gate stays at 100%.
+  Two defects found while verifying are tracked, not hidden: `_compute_ndc`'s floor of zero
+  contradicts AIAG's floor of one (**#224**, a behaviour change), and the same non-AIAG ndc bands
+  still appear in the UI subheader and exporter sentences (**#237**).
+
 - **The SPC capability stability gate now lives in the engine, not only in the Streamlit page
   (audit A09, #191).** `assess_control_chart` (page-only, outside the coverage gate) moved to
   `spc_app/spc_engine/stability.py::assess_stability`; the page keeps only its stream →
