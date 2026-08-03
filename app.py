@@ -1,8 +1,10 @@
 """Quality Platform — unified Streamlit shell.
 
 One app, one URL: a single ``st.navigation`` sidebar mounts the landing page,
-the FMEA Risk Analyzer, and the three SPC workflows (Control Charts, Process
-Capability, Live Simulation). This module owns the platform chrome —
+the FMEA Risk Analyzer, the three SPC workflows (Control Charts, Process
+Capability, Live Simulation), the Control Plan, and the MSA Gage R&R study.
+(SECOM is engine-only — issue #206 — so it mounts no page.) This module owns
+the platform chrome —
 ``st.set_page_config`` and ``apply_theme`` are called here exactly once; every
 mounted page is a render callable that draws into the current container and
 sets no page config of its own.
