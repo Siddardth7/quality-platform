@@ -14,6 +14,7 @@ import re
 import zlib
 from typing import Any
 
+import msa_app.exporter as exporter
 import openpyxl
 import pandas as pd
 import pytest
@@ -44,8 +45,14 @@ RESULTS = {
     "grr": 0.036,
     "pv": 0.5,
     "tv": 0.501,
+    "pev_study": 5.99,
+    "pav_study": 3.99,
     "pgrr_study": 7.19,
+    "ppv_study": 99.80,
+    "pev_tolerance": 10.0,
+    "pav_tolerance": 8.0,
     "pgrr_tolerance": 12.0,
+    "ppv_tolerance": 150.0,
     "ndc": 6,
     "verdict": "Accept",
     "mean": 10.0,
@@ -73,7 +80,13 @@ def _report(**overrides: Any) -> GageStudyReport:
 def _no_tolerance_report() -> GageStudyReport:
     return GageStudyReport(
         study=pd.DataFrame(STUDY_ROWS),
-        results={**RESULTS, "pgrr_tolerance": None},
+        results={
+            **RESULTS,
+            "pev_tolerance": None,
+            "pav_tolerance": None,
+            "pgrr_tolerance": None,
+            "ppv_tolerance": None,
+        },
         usl=None,
         lsl=None,
     )
@@ -164,8 +177,14 @@ def test_export_results_csv_contains_expected_columns_and_values():
         "GRR",
         "PV",
         "TV",
+        "%EV Study",
+        "%AV Study",
         "%GRR Study",
+        "%PV Study",
+        "%EV Tolerance",
+        "%AV Tolerance",
         "%GRR Tolerance",
+        "%PV Tolerance",
         "ndc",
         "Verdict",
         "Verdict Interpretation",
@@ -381,3 +400,145 @@ def test_export_pdf_renders_with_the_full_length_production_method_note():
     assert METHOD in text
     assert METHOD_NOTE in text
     assert METHOD_NOTE not in _pdf_text(baseline)
+
+
+# =============================================================================
+# Eight percentages reach the artifacts (#225, audit A10-c)
+# =============================================================================
+# _detail_rows went from two %GRR rows to eight; export_results_csv from two
+# columns to eight. The PDF headline strip (D-7) deliberately did NOT change.
+
+_STUDY_LABELS = ["%EV (Study)", "%AV (Study)", "%GRR (Study)", "%PV (Study)"]
+_TOLERANCE_LABELS = [
+    "%EV (Tolerance)",
+    "%AV (Tolerance)",
+    "%GRR (Tolerance)",
+    "%PV (Tolerance)",
+]
+
+
+def test_detail_rows_carry_all_eight_percentages_in_aiag_form_order():
+    """AIAG's form column reads EV, AV, GRR, PV (Figure III-B 16); study block first."""
+    labels = [label for label, _ in _detail_rows(_report())]
+    percentage_labels = [lb for lb in labels if lb.startswith("%")]
+    assert percentage_labels == _STUDY_LABELS + _TOLERANCE_LABELS
+
+
+def test_detail_rows_render_each_percentage_from_its_own_result_key():
+    """Each row shows its own metric -- no row is wired to the wrong key.
+
+    The RESULTS fixture gives all eight distinct values precisely so a copy-paste
+    of the %GRR row into the %EV slot is visible here.
+    """
+    rows = dict(_detail_rows(_report()))
+    assert rows["%EV (Study)"] == "5.99%"
+    assert rows["%AV (Study)"] == "3.99%"
+    assert rows["%GRR (Study)"] == "7.19%"
+    assert rows["%PV (Study)"] == "99.80%"
+    assert rows["%EV (Tolerance)"] == "10.00%"
+    assert rows["%AV (Tolerance)"] == "8.00%"
+    assert rows["%GRR (Tolerance)"] == "12.00%"
+    assert rows["%PV (Tolerance)"] == "150.00%"
+
+
+def test_detail_rows_tolerance_percentages_are_all_na_without_tolerance():
+    """E-2 through the export layer: four N/A, and the study four still render."""
+    rows = dict(_detail_rows(_no_tolerance_report()))
+    for label in _TOLERANCE_LABELS:
+        assert rows[label] == "N/A", label
+    for label in _STUDY_LABELS:
+        assert rows[label].endswith("%") and rows[label] != "N/A", label
+
+
+def test_percentages_over_100_are_not_clamped_by_the_exporters():
+    """E-3: %PV vs tolerance legitimately exceeds 100% and must survive verbatim."""
+    rows = dict(_detail_rows(_report()))
+    assert rows["%PV (Tolerance)"] == "150.00%"
+
+    frame = pd.read_csv(io.BytesIO(export_results_csv(_report())))
+    assert frame.iloc[0]["%PV Tolerance"] == "150.00%"
+
+    summary = _kv_sheet_to_dict(
+        openpyxl.load_workbook(io.BytesIO(export_excel(_report())))["Summary"]
+    )
+    assert summary["%PV (Tolerance)"] == "150.00%"
+
+    assert "150.00%" in _pdf_text(export_pdf(_report()))
+
+
+def test_percentages_over_100_survive_real_engine_output_end_to_end():
+    """Same as above but with figures the engine actually produced, not a fixture."""
+    report = _production_report()
+    assert report.results["ppv_tolerance"] > 100.0
+
+    frame = pd.read_csv(io.BytesIO(export_results_csv(report)))
+    expected = f"{report.results['ppv_tolerance']:.2f}%"
+    assert frame.iloc[0]["%PV Tolerance"] == expected
+    assert float(expected.rstrip("%")) > 100.0
+
+
+def test_infinite_study_percentages_render_through_the_exporters():
+    """E-5: TV == 0 gives inf; _fmt_pct emits 'inf%' rather than raising."""
+    infinite = {label: float("inf") for label in ("pev_study", "pav_study", "pgrr_study", "ppv_study")}
+    rows = dict(_detail_rows(_report(results=infinite)))
+    for label in _STUDY_LABELS:
+        assert rows[label] == "inf%", label
+
+
+def test_export_results_csv_carries_all_eight_percentage_values():
+    frame = pd.read_csv(io.BytesIO(export_results_csv(_report())))
+    row = frame.iloc[0]
+    assert row["%EV Study"] == "5.99%"
+    assert row["%AV Study"] == "3.99%"
+    assert row["%GRR Study"] == "7.19%"
+    assert row["%PV Study"] == "99.80%"
+    assert row["%EV Tolerance"] == "10.00%"
+    assert row["%AV Tolerance"] == "8.00%"
+    assert row["%GRR Tolerance"] == "12.00%"
+    assert row["%PV Tolerance"] == "150.00%"
+
+
+def test_export_results_csv_all_tolerance_percentages_na_when_absent():
+    frame = pd.read_csv(io.BytesIO(export_results_csv(_no_tolerance_report())), na_filter=False)
+    row = frame.iloc[0]
+    for column in ("%EV Tolerance", "%AV Tolerance", "%GRR Tolerance", "%PV Tolerance"):
+        assert row[column] == "N/A", column
+
+
+def test_export_excel_summary_carries_all_eight_percentages():
+    summary = _kv_sheet_to_dict(
+        openpyxl.load_workbook(io.BytesIO(export_excel(_report())))["Summary"]
+    )
+    for label in _STUDY_LABELS + _TOLERANCE_LABELS:
+        assert label in summary, label
+    assert summary["%EV (Study)"] == "5.99%"
+    assert summary["%PV (Tolerance)"] == "150.00%"
+
+
+def test_export_pdf_headline_strip_still_has_exactly_four_cells(monkeypatch):
+    """D-7: the eight percentages reach the PDF via the detail table, not the strip.
+
+    Feeding ten cells to pdf_summary_cells would wreck the fixed 4-metric layout.
+    """
+    captured = []
+    original = exporter.pdf_summary_cells
+    monkeypatch.setattr(
+        exporter,
+        "pdf_summary_cells",
+        lambda pdf, cells: (captured.append(list(cells)), original(pdf, cells))[1],
+    )
+    export_pdf(_report())
+
+    assert len(captured) == 1
+    assert [label for label, _ in captured[0]] == [
+        "%GRR (Study)",
+        "%GRR (Tol)",
+        "ndc",
+        "Verdict",
+    ]
+
+
+def test_export_pdf_detail_table_carries_all_eight_percentage_labels():
+    text = _pdf_text(export_pdf(_report()))
+    for label in _STUDY_LABELS + _TOLERANCE_LABELS:
+        assert label in text, label

@@ -8,6 +8,21 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **MSA reports %EV, %AV and %PV on both AIAG bases alongside %GRR (audit A10-c, #225).**
+  `compute_gage_rr()` gains six keys — `pev_study` / `pav_study` / `ppv_study` and
+  `pev_tolerance` / `pav_tolerance` / `ppv_tolerance` — completing the
+  `p{ev,av,grr,pv}_{study,tolerance}` family and giving parity with the AIAG Gage R&R Report
+  Form (MSA 4th Ed., Ch. III §B, Figure III-B 16), whose published %EV = 17.62%,
+  %AV = 20.04%, %GRR = 26.68% and %PV = 96.38% are now asserted as an oracle. All eight
+  percentages reach the Excel/PDF detail table, the results CSV and the Gage R&R page.
+  Every tolerance-basis figure routes through `_STUDY_VARIATION_SIGMA` on its own line
+  (RULE 8 / #190), so the ×6 that #190 restored for %GRR cannot be dropped from a sibling.
+  The new figures are **reporting-only — no verdict changes for any input** — and the six
+  keys are **purely additive**: no existing key is renamed or removed. #225's suspected
+  recurrence of #190 in %EV/%AV/%PV is **refuted**: those three were never computed at all.
+  New **RULE 16** in `apps/msa/docs/ASSUMPTIONS_LOG.md` records both the refutation and the
+  now-enforced ×6 guard.
+
 - **Shared SPC primitives promoted into `quality_core.spc` (audit A12, #205 — PR 1 of 3).**
   The AIAG SPC chart constants, the Western Electric / Nelson rule detectors
   (`detect_we_violations`, `detect_nelson_violations`, `detect_violations`,

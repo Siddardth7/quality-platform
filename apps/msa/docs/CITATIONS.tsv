@@ -55,3 +55,7 @@ gage_rr_engine.py _compute_verdict	2214	This value should be greater than or equ
 gage_rr_engine.py _average_and_range_method	2867	variation due to the interaction between the appraiser and the part/gage is not accounted for in the analysis
 test_gage_rr_engine.py	3419	the value of tolerance divided by six in the denominator
 test_gage_rr_engine.py	2809	does not include
+RULE 16	3290	%EV= 100 [EV/TV]
+RULE 16	3295	%AV= 100 [AV/TV]
+RULE 16	3300	%GRR= 100 [GRR/TV]
+RULE 16	3304	% PV= 100 [PV/TV]
