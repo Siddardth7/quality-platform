@@ -73,7 +73,8 @@ msa_app/schema.py             GageStudyRow / GageStudyDataset (Pydantic v2),
         ▼
 msa_app/gage_rr_engine.py     compute_gage_rr — the whole AIAG computation:
                               EV (repeatability), AV (reproducibility), GRR, PV, TV,
-                              %GRR vs study variation and vs tolerance, ndc, verdict.
+                              %EV/%AV/%GRR/%PV each vs study variation and vs
+                              tolerance (#225), ndc, verdict.
         │
         ▼
 msa_app/exporter.py           GageStudyReport + export_csv / export_results_csv /
