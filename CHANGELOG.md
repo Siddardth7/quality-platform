@@ -116,6 +116,23 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Fixed
 
+- **MSA `ndc` now floors at one, not zero, per AIAG MSA 4th Edition (audit A10-b, #224).**
+  `_compute_ndc()` truncated `1.41 × (PV / GRR)` and clamped to `[0, 100]`, so a valid study with
+  positive GRR and PV but a calculated `ndc` below 1.0 reported **`ndc = 0`**. The manual is
+  explicit (Ch. III §B): *"For analysis, the ndc is the maximum of one or the calculated value
+  truncated to the integer. This result should be greater than or equal to 5."* — and names this
+  exact failure a line later: *"To avoid a ndc = 0, which is possible with truncation alone…"* So
+  the floor is the standard's, not a rounding preference. The non-positive guard
+  (`grr <= 0 or pv <= 0 → 0`) is **retained**: that path is a degenerate-input sentinel, not a
+  calculated `ndc`, so AIAG's floor does not govern it. **No verdict changes for any input** —
+  `_compute_verdict()` rejects on `ndc < 2` and both `0` and `1` sit below that threshold, which
+  refutes the concern recorded under #223 that this correction would flip RULE 13's
+  degenerate-study verdict. The `ASSUMPTIONS_LOG.md` entry is rewritten accordingly and its section
+  retitled from "ndc Clamping to [0, 100]" to "ndc Upper Clamp at 100": the lower bound is no
+  longer a deviation from AIAG, only the upper clamp is. Coverage alone did not catch this defect —
+  no test exercised `1.41 × PV/GRR < 1.0` — so `test_ndc_minimum_one` pins it, and reverting
+  `max(1, …)` to `max(0, …)` turns it red.
+
 - **Six fabricated AIAG quotations removed from the MSA assumptions log; every surviving citation
   is now machine-checked (audit A10-a, #223).** `apps/msa/docs/ASSUMPTIONS_LOG.md` attributed
   quotations to the AIAG MSA 4th Edition under RULES 3, 4, 5, 6, 9, 11 and 12 that do not appear
