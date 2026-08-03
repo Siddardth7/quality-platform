@@ -171,6 +171,14 @@ def test_ndc_zero_pv():
     assert _compute_ndc(0.1, -0.1) == 0
 
 
+def test_ndc_minimum_one():
+    """Verify ndc is max(1, trunc(...)) per AIAG MSA 4th Ed. line 3427 when calculated < 1."""
+    pv = 0.05
+    grr = 0.1
+    # 1.41 * (0.05 / 0.1) = 0.705 -> truncated is 0 -> AIAG max(1, 0) = 1
+    assert _compute_ndc(grr, pv) == 1
+
+
 # --- Verdict Logic Tests -------------------------------------------------------
 
 

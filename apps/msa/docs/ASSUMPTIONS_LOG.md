@@ -820,7 +820,7 @@ this rule is now a real citation rather than an appeal to the standard's authori
 
 ---
 
-## Deviation from AIAG MSA: ndc Clamping to [0, 100]
+## Deviation from AIAG MSA: ndc Upper Clamp at 100
 
 **Decision:** Cap `ndc` at 100 for rendering and storage purposes (UI/JSON display).
 
@@ -831,14 +831,9 @@ this rule is now a real citation rather than an appeal to the standard's authori
 - For UI rendering and JSON APIs, a large ndc (e.g., 10,000) is not actionable; capping at 100 signals "more than adequate."
 - ndc ≥ 5 is the AIAG acceptance criterion; anything above that is acceptable, so capping at 100 does not affect verdicts.
 
-**Known defect in the lower bound — tracked as #224 (audit A10-b):** AIAG's floor is **one**, not
-zero. Chapter III, Section B: *"For analysis, the ndc is the maximum of one or the calculated value
-truncated to the integer."* `_compute_ndc()` floors at `0` (and returns `0` outright when
-`grr <= 0 or pv <= 0`). Correcting it would flip RULE 13's degenerate-study verdict (`ndc < 2 →
-Reject`), so it is a **behaviour change and out of scope for #223**, which is documentation-only.
-Recorded here rather than left silent — see **#224**, which carries the verified locator.
+**Lower bound resolution — #224 (audit A10-b):** AIAG MSA 4th Edition (Chapter III, Section B, line 3427) specifies: *"For analysis, the ndc is the maximum of one or the calculated value truncated to the integer."* `_compute_ndc()` was updated in #224 to floor at `1` for valid positive inputs (`grr > 0` and `pv > 0`), while non-positive inputs (`grr <= 0` or `pv <= 0`) return `0`.
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_compute_ndc()` (line: `return max(0, min(ndc_int, 100))`)
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_compute_ndc()` (line: `return max(1, min(ndc_int, 100))`)
 
 ---
 

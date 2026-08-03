@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import re
 import zlib
+from typing import Any
 
 import openpyxl
 import pandas as pd
@@ -57,13 +58,15 @@ RESULTS = {
 }
 
 
-def _report(**overrides: object) -> GageStudyReport:
-    results = {**RESULTS, **overrides.pop("results", {})}  # type: ignore[arg-type]
+def _report(**overrides: Any) -> GageStudyReport:
+    raw_res = overrides.pop("results", {})
+    results_override = raw_res if isinstance(raw_res, dict) else {}
+    results = {**RESULTS, **results_override}
     kwargs = {"usl": 10.5, "lsl": 9.5, **overrides}
     return GageStudyReport(
         study=pd.DataFrame(STUDY_ROWS),
         results=results,
-        **kwargs,
+        **kwargs,  # type: ignore[arg-type]
     )
 
 
