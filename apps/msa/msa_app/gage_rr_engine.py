@@ -84,15 +84,27 @@ def compute_gage_rr(
 
     Args:
         data: DataFrame or list of dicts with columns/keys: part, appraiser, trial, measurement.
-        tolerance: USL - LSL (study-level tolerance). If None, %GRR is computed vs study variation only.
+        tolerance: USL - LSL (study-level tolerance). If None, the four percentages are
+            computed vs study variation only. If supplied, all four (%EV, %AV, %GRR, %PV)
+            are also computed on the tolerance basis, not %GRR alone.
 
     Returns:
         dict with keys:
         - "ev": float (Repeatability / Equipment Variation)
         - "av": float (Reproducibility / Appraiser Variation)
         - "grr": float (GR&R = sqrt(EV^2 + AV^2))
-        - "pgrr_study": float (%GRR vs study variation)
-        - "pgrr_tolerance": float | None (%GRR vs tolerance; None if tolerance is None)
+        - "pev_study": float (%EV vs study variation, 100*EV/TV; inf if TV == 0)
+        - "pav_study": float (%AV vs study variation, 100*AV/TV; inf if TV == 0)
+        - "pgrr_study": float (%GRR vs study variation, 100*GRR/TV; inf if TV == 0)
+        - "ppv_study": float (%PV vs study variation, 100*PV/TV; inf if TV == 0)
+        - "pev_tolerance": float | None (%EV vs tolerance, 100*6*EV/tolerance;
+          None if tolerance is None)
+        - "pav_tolerance": float | None (%AV vs tolerance, 100*6*AV/tolerance;
+          None if tolerance is None)
+        - "pgrr_tolerance": float | None (%GRR vs tolerance, 100*6*GRR/tolerance;
+          None if tolerance is None)
+        - "ppv_tolerance": float | None (%PV vs tolerance, 100*6*PV/tolerance; may exceed
+          100% and is deliberately unclamped; None if tolerance is None)
         - "ndc": int (Number of Distinct Categories)
         - "verdict": str ("Accept", "Marginal", or "Reject")
         - "tv": float (Total Variation = sqrt(GRR^2 + PV^2))
@@ -177,13 +189,31 @@ def compute_gage_rr(
     # Overall mean
     mean = float(df["measurement"].mean())
 
-    # %GRR vs study variation
-    pgrr_study = (grr / tv) * 100 if tv > 0 else float("inf")
+    # %EV / %AV / %GRR / %PV vs study variation — AIAG's 100[component/TV] form
+    # (Ch. III Sec. B "Indices"; RULE 7 / RULE 16). tv == 0 implies every component is
+    # 0, so each ratio is 0/0 and all four are reported as inf, matching the existing
+    # %GRR behaviour (RULE 13); _compute_verdict maps a non-finite %GRR to "Reject".
+    if tv > 0:
+        pev_study = (ev / tv) * 100
+        pav_study = (av / tv) * 100
+        pgrr_study = (grr / tv) * 100
+        ppv_study = (pv / tv) * 100
+    else:
+        pev_study = pav_study = pgrr_study = ppv_study = float("inf")
 
-    # %GRR vs tolerance (if provided)
+    # %EV / %AV / %GRR / %PV vs tolerance (if provided). Each figure scales its own
+    # numerator by _STUDY_VARIATION_SIGMA — tolerance/6 in AIAG's denominator (RULE 8,
+    # #190). Never factor the constant out of an individual line: dropping it from any
+    # one of them understates that figure 6x.
+    pev_tolerance = None
+    pav_tolerance = None
     pgrr_tolerance = None
+    ppv_tolerance = None
     if tolerance is not None:
+        pev_tolerance = (ev * _STUDY_VARIATION_SIGMA / tolerance) * 100
+        pav_tolerance = (av * _STUDY_VARIATION_SIGMA / tolerance) * 100
         pgrr_tolerance = (grr * _STUDY_VARIATION_SIGMA / tolerance) * 100
+        ppv_tolerance = (pv * _STUDY_VARIATION_SIGMA / tolerance) * 100
 
     # Number of distinct categories (independent of tolerance)
     ndc_value = _compute_ndc(grr, pv)
@@ -198,8 +228,14 @@ def compute_gage_rr(
         "ev": float(ev),
         "av": float(av),
         "grr": grr,
+        "pev_study": float(pev_study),
+        "pav_study": float(pav_study),
         "pgrr_study": float(pgrr_study),
+        "ppv_study": float(ppv_study),
+        "pev_tolerance": float(pev_tolerance) if pev_tolerance is not None else None,
+        "pav_tolerance": float(pav_tolerance) if pav_tolerance is not None else None,
         "pgrr_tolerance": float(pgrr_tolerance) if pgrr_tolerance is not None else None,
+        "ppv_tolerance": float(ppv_tolerance) if ppv_tolerance is not None else None,
         "ndc": ndc_value,
         "verdict": verdict,
         "tv": tv,
@@ -295,22 +331,22 @@ def _k_constant(table: dict[int, float], m: int, label: str) -> float:
 
 
 def _compute_ndc(grr: float, pv: float) -> int:
-    """Compute Number of Distinct Categories per AIAG MSA.
+    """Compute Number of Distinct Categories per AIAG MSA 4th Edition (Ch. III Sec. B).
 
-    ndc = trunc(1.41 * (PV / GRR))
+    ndc = max(1, trunc(1.41 * (PV / GRR)))
 
     Args:
         grr: GR&R value (must be > 0).
         pv: Part Variation (must be > 0).
 
     Returns:
-        ndc as an int, clamped to [0, 100].
+        ndc as an int, clamped to [1, 100] for valid positive inputs, or 0 if inputs are non-positive.
     """
     if grr <= 0 or pv <= 0:
         return 0
     ndc_raw = 1.41 * (pv / grr)
     ndc_int = int(ndc_raw)  # truncate toward zero
-    return max(0, min(ndc_int, 100))  # Clamp to [0, 100]
+    return max(1, min(ndc_int, 100))  # Maximum of 1 or calculated value truncated, clamped to 100
 
 
 def _compute_verdict(ndc: int, pgrr: float) -> str:
