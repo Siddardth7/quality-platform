@@ -59,8 +59,9 @@ All notable changes to the Quality Platform are documented here. The format foll
   via `spc-app`/`secom-app`, its only runtime dependency is numpy, and the banned-package count is
   still 0. `spc_app/spc_engine/data_generator.py` deliberately stays app-local — it is the SPC
   app's demo dataset, not shared standards math. The one remaining `sys.path` shim in
-  `apps/secom/conftest.py` serves `apps/msa` (still `package = false`), not `spc_app`, and is
-  tracked by #231.
+  `apps/secom/conftest.py` served `apps/msa`, not `spc_app` — it was tracked as #231 and is
+  **removed in this same release** (see "`apps/msa` is an installable workspace package" under
+  Changed); `apps/secom/conftest.py` no longer exists.
 
 - **MSA declares which Gage R&R method it ran, and what that method cannot see (audit A10, #194).**
   `compute_gage_rr()` now returns two additional keys — `method` (`"average_and_range"`) and
@@ -76,6 +77,28 @@ All notable changes to the Quality Platform are documented here. The format foll
   which would estimate the interaction, is tracked as #195 and is not implemented here.
 
 ### Changed
+
+- **`apps/msa` is now an installable workspace package, removing the last cross-app `sys.path`
+  shim (audit A03 follow-up, #231).** `msa-app` drops `[tool.uv] package = false` for the same
+  hatchling `[build-system]` + `[tool.hatch.build.targets.wheel] packages = ["msa_app"]` shape
+  `spc-app` and `secom-app` have carried since #204, so `uv` installs it **editable** into
+  `.venv` (`uv.lock`: `virtual` → `editable`). `apps/secom/conftest.py` — which existed only to
+  insert `apps/msa` onto `sys.path` so `tests/test_msa.py` could `import msa_app.gage_rr_engine`
+  (#68) — is **deleted**; `apps/secom` now has no `conftest.py` at all. The edge is recorded in
+  `apps/secom/pyproject.toml` as a **dev-group** dependency (`[dependency-groups] dev =
+  ["msa-app"]` + `[tool.uv.sources]`), deliberately *not* a `[project]` dependency: the import is
+  test-only, and a runtime entry would re-create the cross-app coupling #205 PR 3 removed.
+  `apps/secom/tests/test_import_boundary.py` gains
+  `test_msa_app_is_an_installed_distribution`, which imports `msa_app.gage_rr_engine` **and**
+  `msa_app.pages` in a clean non-pytest interpreter run from the workspace root, so neither cwd
+  nor a conftest can supply the package. `apps/msa/conftest.py` **stays**, matching
+  `apps/spc/conftest.py`, which #204 kept for the same reason: it puts the app directory on
+  `sys.path` so the top-level `app` module — deliberately outside the wheel — stays importable.
+  Removing it was measured, not assumed: the MSA gate still passes at 100% with byte-identical
+  coverage paths, because no MSA test imports `app` today. It is kept as a live seam for tests
+  that will, not because anything currently depends on it. **No engine math, threshold, table or citation changed**, and the
+  CI coverage invocations are byte-identical — the editable install is a plain-path `.pth`, so
+  `--cov=msa_app.*` still measures `apps/msa/msa_app/...` at 100% line + branch.
 
 - **MSA acceptance bands: the disputed tolerance-basis band set was investigated and refuted; no
   code change, and the ×6 multiplier's provenance is upgraded to primary source (audit A07-b,
@@ -204,8 +227,9 @@ All notable changes to the Quality Platform are documented here. The format foll
   `packages/quality-core`'s `src/` block), and `secom-app` declares `spc-app` as a
   `{ workspace = true }` dependency. `apps/secom/conftest.py`'s `sys.path` hacks for
   `apps/spc` (redundant — spc_app is now installed) and for `apps/secom` itself
-  (redundant — secom_app is now installed) are removed; the `apps/msa` entry stays (msa-app
-  is not yet an installable package). New
+  (redundant — secom_app is now installed) are removed; the `apps/msa` entry stayed at the time,
+  because `msa-app` was not yet installable — **#231, in this same release, makes it installable
+  and deletes `apps/secom/conftest.py` outright.** New
   `apps/secom/tests/test_import_boundary.py` proves both imports in a clean,
   non-pytest interpreter with no conftest involved. This remains a stopgap — #205
   (promoting the SPC engine into `quality_core`) is the real fix.
@@ -366,10 +390,11 @@ All notable changes to the Quality Platform are documented here. The format foll
   `part`/`appraiser`/`trial` columns and return/raise a standards-anchored
   verdict — no Gage R&R math (EV/AV/%GRR/ndc/verdict) is reimplemented;
   a real study still runs through the existing `apps/msa` app
-  (`compute_gage_rr`). `apps/secom/conftest.py` gains an `apps/msa`
+  (`compute_gage_rr`). `apps/secom/conftest.py` gained an `apps/msa`
   `sys.path` shim (mirroring the existing `apps/spc` block) so the test
-  suite can import the real AIAG engine and prove it also rejects
-  SECOM-shaped frames. `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
+  suite could import the real AIAG engine and prove it also rejects
+  SECOM-shaped frames — **superseded by #231 in this same release, which
+  makes `msa-app` installable and deletes that conftest entirely.** `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
   the finding. SECOM CI coverage gate extended to `secom_app.msa` (100%
   line+branch).
 

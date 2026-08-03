@@ -92,10 +92,11 @@ secom_app/selection.py     select_signals(SelectionCriteria) — three filters i
   row model per row and normalises `NaN -> None`, which would destroy the dataset's defining
   trait. `ingest.py` bypasses it on purpose. Do not "fix" SECOM to use the shared loader.
 - **Imports go downward only, and a test enforces it.**
-  `tests/test_import_boundary.py` runs a **clean non-pytest interpreter** (which never loads
-  `conftest.py`) to prove `secom_app` resolves through the installed workspace packages —
-  not through the old `sys.path` hack. No `spc_app` import survives anywhere in this app
-  (#204, retargeted by #205 PR 3). If you find yourself importing another app, stop.
+  `tests/test_import_boundary.py` runs a **clean non-pytest interpreter** to prove both
+  `secom_app` and `msa_app` resolve through the installed workspace packages — not through
+  a `sys.path` hack. This app has **no `conftest.py` at all** since #231, which made
+  `msa-app` installable and let the last shim go. No `spc_app` import survives anywhere in
+  this app (#204, retargeted by #205 PR 3). If you find yourself importing another app, stop.
 - **Reuse, never reimplement.** `charts.py` and `capability.py` are adapters over
   `quality_core.spc`; `msa.py` computes no math at all. Re-deriving I-MR limits or Cp/Cpk
   here is always wrong — the AIAG I-MR formula is written exactly once, in
