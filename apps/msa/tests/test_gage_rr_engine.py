@@ -17,6 +17,7 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
+import msa_app.gage_rr_engine as gage_rr_engine
 import numpy as np
 import pandas as pd
 import pytest
@@ -250,8 +251,14 @@ def test_compute_gage_rr_balanced_study(balanced_10_3_3):
         "ev",
         "av",
         "grr",
+        "pev_study",
+        "pav_study",
         "pgrr_study",
+        "ppv_study",
+        "pev_tolerance",
+        "pav_tolerance",
         "pgrr_tolerance",
+        "ppv_tolerance",
         "ndc",
         "verdict",
         "tv",
@@ -799,3 +806,355 @@ def test_method_declaration_is_public_api():
 
     assert "METHOD" in engine.__all__
     assert "METHOD_NOTE" in engine.__all__
+
+
+# =============================================================================
+# %EV / %AV / %GRR / %PV on both AIAG bases (#225, audit A10-c)
+# =============================================================================
+# Six keys were added: p{ev,av,pv}_{study,tolerance}, joining the pre-existing
+# pgrr_study / pgrr_tolerance to form the family p{ev,av,grr,pv}_{study,tolerance}.
+# The tolerance basis is the #190 recurrence risk: each of the four must scale its
+# own numerator by _STUDY_VARIATION_SIGMA, or that figure is understated 6x.
+
+_COMPONENTS = [("ev", "pev"), ("av", "pav"), ("grr", "pgrr"), ("pv", "ppv")]
+
+# AIAG's OWN published figures for the canonical 10x3x3 study, transcribed from the
+# completed Gage Repeatability and Reproducibility Report, Figure III-B 16
+# (MSA_Reference_Manual_4th_Edition.md, SRC:3285-3311). These are the manual's
+# printed values, NOT a snapshot of this engine's output -- that is what makes them
+# an oracle. Raw data: apps/msa/data/aiag_reference_study.csv.
+_AIAG_PUBLISHED_PERCENTAGES = {
+    "pev_study": 17.62,  # SRC:3290-3292  "=17.62%"
+    "pav_study": 20.04,  # SRC:3295-3297  "=20.04%"
+    "pgrr_study": 26.68,  # SRC:3300-3302  "=26.68%"
+    "ppv_study": 96.38,  # SRC:3304-3306  "=96.38%"
+}
+_AIAG_PUBLISHED_TV = 1.14610  # SRC:3310  "=1.14610" -- the shared denominator
+
+_AIAG_TOLERANCE = 4.42
+
+
+@pytest.fixture
+def aiag_reference_results():
+    """compute_gage_rr on the AIAG reference study at the form's own tolerance."""
+    data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+    return compute_gage_rr(data, tolerance=_AIAG_TOLERANCE)
+
+
+# --- T-1: the AIAG published oracle ------------------------------------------
+
+
+def test_all_four_study_basis_percentages_match_the_aiag_published_form(
+    aiag_reference_results,
+):
+    """Every study-basis percentage reproduces AIAG's printed value (rel=1e-3).
+
+    Oracle: AIAG MSA 4th Ed., Figure III-B 16 "Gage Repeatability and
+    Reproducibility Report" (SRC:3285-3311) -- the manual's completed form for
+    this exact study. %EV 17.62, %AV 20.04, %GRR 26.68, %PV 96.38, TV 1.14610
+    are AIAG's PUBLISHED numbers, transcribed from the manual, not values read
+    back off this engine. A drift in any component, in TV, or in the 100x form
+    of the ratio moves one of these outside rel=1e-3.
+    """
+    results = aiag_reference_results
+
+    assert results["tv"] == pytest.approx(_AIAG_PUBLISHED_TV, rel=1e-3)
+    for key, published in _AIAG_PUBLISHED_PERCENTAGES.items():
+        assert results[key] == pytest.approx(published, rel=1e-3), key
+
+    # AIAG's form column reads EV, AV, GRR, PV top to bottom; %PV dominates and
+    # %EV is the smallest -- an ordering swap between keys would still satisfy
+    # a set-wise check but not this.
+    assert results["pev_study"] < results["pav_study"] < results["pgrr_study"]
+    assert results["pgrr_study"] < results["ppv_study"]
+
+
+# --- T-2: the tolerance basis on the same study -------------------------------
+
+
+def test_all_four_tolerance_basis_percentages_on_the_aiag_reference_study(
+    aiag_reference_results,
+):
+    """Tolerance-basis figures at tolerance=4.42 (engine output, NOT AIAG-published).
+
+    AIAG's form reports only the study-variation column, so these four values are
+    this engine's output under RULE 8's tolerance basis (100 * 6 * component /
+    tolerance). They are pinned here so a silent drift is caught; the load-bearing
+    check that the x6 is present per figure is T-4 below.
+    """
+    results = aiag_reference_results
+
+    assert results["pev_tolerance"] == pytest.approx(27.4014, rel=1e-3)
+    assert results["pav_tolerance"] == pytest.approx(31.1765, rel=1e-3)
+    assert results["pgrr_tolerance"] == pytest.approx(41.5067, rel=1e-3)
+    assert results["ppv_tolerance"] == pytest.approx(149.9451, rel=1e-3)
+
+
+def test_ppv_tolerance_exceeds_100_percent_and_is_not_clamped(aiag_reference_results):
+    """E-3: %PV vs tolerance is a ratio to a spec width, not a share of a total.
+
+    149.95% on the reference study. A clamp at 100 (or at 30, or a min() with
+    pgrr) would be a standards defect -- AIAG prints no ceiling on this figure.
+    """
+    assert aiag_reference_results["ppv_tolerance"] > 100.0
+    assert aiag_reference_results["ppv_tolerance"] == pytest.approx(149.945, rel=1e-3)
+
+
+# --- T-4: the #190 guard -- every tolerance figure routes through the x6 -------
+
+
+def test_study_variation_sigma_is_six():
+    """RULE 7: the 4th-edition study-variation multiplier, not the 3rd's 5.15."""
+    assert gage_rr_engine._STUDY_VARIATION_SIGMA == 6.0
+
+
+@pytest.mark.parametrize(("component", "prefix"), _COMPONENTS)
+def test_tolerance_basis_routes_through_study_variation_sigma(
+    aiag_reference_results, component, prefix
+):
+    """Each tolerance-basis figure is 100 * 6 * its own component / tolerance.
+
+    The #190 guard, now per component. Parametrised so dropping the multiplier
+    from ONE line fails exactly that case: a shared assertion would let three of
+    the four regress unnoticed. The expected value uses a literal 6, so both
+    "drop _STUDY_VARIATION_SIGMA" and "redefine it to 1.0" go red.
+    """
+    results = aiag_reference_results
+    expected = results[component] * 6 / _AIAG_TOLERANCE * 100
+
+    assert results[f"{prefix}_tolerance"] == pytest.approx(expected, rel=1e-9)
+    # A dropped x6 lands at exactly one sixth -- assert the wrong answer is not
+    # produced, so the test cannot pass by the approx window being loose.
+    assert results[f"{prefix}_tolerance"] != pytest.approx(expected / 6, rel=1e-3)
+
+
+@pytest.mark.parametrize(("component", "prefix"), _COMPONENTS)
+def test_study_basis_is_the_plain_ratio_to_tv(aiag_reference_results, component, prefix):
+    """Study basis is 100 * component / TV -- no x6 (it cancels), no tolerance."""
+    results = aiag_reference_results
+    expected = 100 * results[component] / results["tv"]
+
+    assert results[f"{prefix}_study"] == pytest.approx(expected, rel=1e-9)
+    # The study basis must NOT pick up the tolerance multiplier.
+    assert results[f"{prefix}_study"] != pytest.approx(expected * 6, rel=1e-3)
+
+
+def test_study_basis_is_independent_of_the_tolerance_supplied():
+    """Supplying a tolerance may not move a study-basis figure."""
+    data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+    without = compute_gage_rr(data, tolerance=None)
+    tight = compute_gage_rr(data, tolerance=0.5)
+    loose = compute_gage_rr(data, tolerance=1000.0)
+
+    for _component, prefix in _COMPONENTS:
+        key = f"{prefix}_study"
+        assert tight[key] == pytest.approx(without[key], rel=1e-12), key
+        assert loose[key] == pytest.approx(without[key], rel=1e-12), key
+    # The two tolerance runs really did differ, so the check above is not vacuous.
+    assert tight["pev_tolerance"] != pytest.approx(loose["pev_tolerance"])
+
+
+# --- T-3: payload shape -------------------------------------------------------
+
+
+def test_six_new_keys_are_floats_with_tolerance(aiag_reference_results):
+    """All eight percentages are plain floats when a tolerance is supplied."""
+    for _component, prefix in _COMPONENTS:
+        assert isinstance(aiag_reference_results[f"{prefix}_study"], float)
+        assert isinstance(aiag_reference_results[f"{prefix}_tolerance"], float)
+
+
+# --- T-6: None propagation (E-2) ---------------------------------------------
+
+
+def test_tolerance_basis_is_none_for_all_four_when_tolerance_is_none():
+    """E-2: no tolerance -> four Nones, and the study four are still floats."""
+    data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+    results = compute_gage_rr(data, tolerance=None)
+
+    for _component, prefix in _COMPONENTS:
+        assert results[f"{prefix}_tolerance"] is None, prefix
+        assert isinstance(results[f"{prefix}_study"], float), prefix
+        assert np.isfinite(results[f"{prefix}_study"])
+
+
+# --- T-7: tv == 0 degenerate (E-1, RULE 13) ----------------------------------
+
+
+def test_tv_zero_makes_all_four_study_percentages_infinite(identical_measurements):
+    """E-1: TV == 0 -> every study-basis ratio is 0/0 -> inf, verdict Reject.
+
+    inf (not nan, not 0.0) is the pinned convention: nan sails silently through
+    _fmt_pct and 0.0 would read as "no variation consumed".
+    """
+    results = compute_gage_rr(identical_measurements, tolerance=1.0)
+
+    assert results["tv"] == 0
+    for _component, prefix in _COMPONENTS:
+        value = results[f"{prefix}_study"]
+        assert np.isinf(value), prefix
+        assert value > 0, prefix  # +inf, not -inf
+        assert not np.isnan(value), prefix
+    assert results["verdict"] == "Reject"
+
+
+def test_tv_zero_still_gives_finite_zero_tolerance_percentages(identical_measurements):
+    """The tolerance basis has no degenerate case: 0 * 6 / tol == 0, not inf."""
+    results = compute_gage_rr(identical_measurements, tolerance=1.0)
+
+    for _component, prefix in _COMPONENTS:
+        assert results[f"{prefix}_tolerance"] == 0.0, prefix
+
+
+# --- T-8: av == 0 (E-4, RULE 14) ---------------------------------------------
+
+
+_AV_CLAMPED_DATA = pd.DataFrame([
+    {"part": "P1", "appraiser": "A", "trial": 1, "measurement": 10.0},
+    {"part": "P1", "appraiser": "A", "trial": 2, "measurement": 10.5},
+    {"part": "P1", "appraiser": "B", "trial": 1, "measurement": 10.1},
+    {"part": "P1", "appraiser": "B", "trial": 2, "measurement": 10.15},
+    {"part": "P2", "appraiser": "A", "trial": 1, "measurement": 10.0},
+    {"part": "P2", "appraiser": "A", "trial": 2, "measurement": 10.5},
+    {"part": "P2", "appraiser": "B", "trial": 1, "measurement": 10.1},
+    {"part": "P2", "appraiser": "B", "trial": 2, "measurement": 10.15},
+])
+
+
+def test_av_clamped_to_zero_gives_zero_percentages_not_none_or_inf():
+    """E-4 / RULE 14: a clamped AV**2 yields %AV == 0.0 on both bases."""
+    results = compute_gage_rr(_AV_CLAMPED_DATA, tolerance=1.0)
+
+    assert results["av"] == 0.0
+    assert results["pav_study"] == 0.0
+    assert results["pav_tolerance"] == 0.0
+    # Distinguishable from the two other ways a percentage can be "missing".
+    assert results["pav_study"] is not None
+    assert results["pav_tolerance"] is not None
+    assert np.isfinite(results["pav_study"])
+    # %EV is non-zero here (this fixture's parts are identical, so PV and %PV are
+    # legitimately 0 too), proving 0.0 above is AV's own value rather than a
+    # whole-payload collapse.
+    assert results["pev_study"] > 0
+    assert results["pev_tolerance"] > 0
+
+
+# --- T-5: verdict invariance (D-6, the hard invariant) ------------------------
+# The six new figures are reporting-only. Every verdict literal below was captured
+# by running the PRE-CHANGE engine (origin/test, gage_rr_engine.py before #225)
+# over the same seven studies x ten tolerances, then re-run against this branch:
+# 70 cases, zero deltas. They are pinned as literals, not re-derived, so a future
+# edit that lets a new percentage reach _compute_verdict shows up here.
+
+_VERDICT_STUDIES = {
+    "balanced_10_3_3": "balanced_10_3_3",
+    "balanced_3_2_3": "balanced_3_2_3",
+    "identical_tv0": "identical_measurements",
+}
+
+_PRE_CHANGE_VERDICTS = [
+    ("balanced_10_3_3", None, "Marginal"),
+    ("balanced_10_3_3", 0.001, "Reject"),
+    ("balanced_10_3_3", 0.05, "Reject"),
+    ("balanced_10_3_3", 0.4, "Marginal"),
+    ("balanced_10_3_3", 1.0, "Marginal"),
+    ("balanced_10_3_3", 1000.0, "Marginal"),
+    ("balanced_3_2_3", None, "Marginal"),
+    ("balanced_3_2_3", 0.001, "Reject"),
+    ("balanced_3_2_3", 0.5, "Marginal"),
+    ("balanced_3_2_3", 1000.0, "Marginal"),
+    ("identical_tv0", None, "Reject"),
+    ("identical_tv0", 1.0, "Reject"),
+    ("identical_tv0", 1000.0, "Reject"),
+    ("example_b", None, "Marginal"),
+    ("example_b", 0.4, "Reject"),
+    ("example_b", 4.42, "Reject"),
+    ("example_b", 8.0, "Marginal"),
+    ("example_b", 1000.0, "Marginal"),
+    ("a07_regression", None, "Accept"),
+    ("a07_regression", 0.001, "Reject"),
+    ("a07_regression", 0.4, "Marginal"),
+    ("a07_regression", 0.5, "Marginal"),
+    ("a07_regression", 1.0, "Accept"),
+    ("a07_regression", 1000.0, "Accept"),
+    ("av_zero", None, "Reject"),
+    ("av_zero", 1.0, "Reject"),
+    ("av_zero", 1000.0, "Reject"),
+    ("aiag_reference", None, "Marginal"),
+    ("aiag_reference", 0.5, "Reject"),
+    ("aiag_reference", 4.42, "Reject"),
+    ("aiag_reference", 8.0, "Marginal"),
+    ("aiag_reference", 36.69, "Marginal"),
+    ("aiag_reference", 1000.0, "Marginal"),
+]
+
+
+def _verdict_study(name: str, request) -> pd.DataFrame:
+    if name in _VERDICT_STUDIES:
+        return request.getfixturevalue(_VERDICT_STUDIES[name])
+    if name == "example_b":
+        return _EXAMPLE_B_DATA
+    if name == "a07_regression":
+        return _A07_REGRESSION_DATA
+    if name == "av_zero":
+        return _AV_CLAMPED_DATA
+    return load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+
+
+@pytest.mark.parametrize(("study", "tolerance", "expected"), _PRE_CHANGE_VERDICTS)
+def test_verdict_is_unchanged_by_the_new_percentages(study, tolerance, expected, request):
+    """D-6: no input produces a different verdict than the pre-#225 engine did."""
+    results = compute_gage_rr(_verdict_study(study, request), tolerance=tolerance)
+    assert results["verdict"] == expected
+
+
+@pytest.mark.parametrize(("study", "tolerance", "expected"), _PRE_CHANGE_VERDICTS)
+def test_verdict_still_driven_only_by_ndc_and_the_worse_pgrr(
+    study, tolerance, expected, request
+):
+    """The verdict is reproducible from ndc + max(%GRR) alone.
+
+    Direct statement of "the six new figures are reporting-only": recomputing the
+    verdict from only the two pre-existing inputs must reproduce the payload's
+    verdict for every case. If %EV/%AV/%PV ever leaked into the decision, one of
+    these cases would diverge.
+    """
+    results = compute_gage_rr(_verdict_study(study, request), tolerance=tolerance)
+    pgrr = (
+        max(results["pgrr_tolerance"], results["pgrr_study"])
+        if results["pgrr_tolerance"] is not None
+        else results["pgrr_study"]
+    )
+    assert _compute_verdict(results["ndc"], pgrr) == results["verdict"] == expected
+
+
+# --- Boundary: the tolerance basis crossing AIAG's 10 / 30 bands --------------
+# The breaking point sits AT the band edge, not mid-window: these pin that the
+# x6-scaled %GRR-tolerance is what the bands are applied to.
+
+
+@pytest.mark.parametrize(
+    ("target_pgrr_tolerance", "expected_verdict"),
+    [
+        (9.99, "Accept"),  # just inside Accept
+        (10.01, "Marginal"),  # one hundredth past the 10% edge
+        (29.99, "Marginal"),  # just inside Marginal
+        (30.01, "Reject"),  # one hundredth past the 30% edge
+    ],
+)
+def test_tolerance_band_edges_are_crossed_by_the_six_sigma_scaled_figure(
+    target_pgrr_tolerance, expected_verdict
+):
+    """A tolerance chosen to land %GRR-tolerance a hair either side of a band edge.
+
+    _A07_REGRESSION_DATA has ndc = 100 and %GRR-study = 0.88%, so the study basis
+    can never move these verdicts -- only the tolerance figure can. Without the
+    x6 the same tolerances would give one sixth of the target and every case would
+    verdict Accept.
+    """
+    grr = 0.0164918
+    tolerance = 6 * grr / (target_pgrr_tolerance / 100)
+    results = compute_gage_rr(_A07_REGRESSION_DATA, tolerance=tolerance)
+
+    assert results["pgrr_tolerance"] == pytest.approx(target_pgrr_tolerance, rel=1e-3)
+    assert results["verdict"] == expected_verdict

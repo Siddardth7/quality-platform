@@ -352,6 +352,10 @@ scale all five components identically, so it cancels exactly out of `%GRR = 100 
 > by 100[*EV/TV*]. The percent that the other factors consume of the total variation can be
 > similarly calculated as follows:"
 
+Since #225 that "similarly calculated as follows" is carried out in full: the study basis is computed
+for **all four** components (%EV, %AV, %GRR, %PV), not %GRR alone. The per-component formulas and
+their locator in the completed Gage R&R report form are recorded in **RULE 16**.
+
 **Source — the bands:** Chapter II, Section D, **Table II-D 1 "GRR Criteria."** Its lead-in reads
 *"For measurement systems whose purpose is to analyze a process, a general guidelines [sic — the
 manual's own grammar] for measurement system acceptability is as follows:"*, and the table gives:
@@ -376,7 +380,8 @@ the interpretation bands below were left unlocated. Both are now pinned to the r
 - If GRR is much smaller than TV, the system can discriminate between parts reliably.
 - If `TV <= 0` (degenerate zero-variation study), %GRR_study is `inf`.
 
-**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (line computing `pgrr_study`)
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (the `tv > 0` block computing
+`pev_study` / `pav_study` / `pgrr_study` / `ppv_study`)
 
 **Verified:** quotations checked verbatim against the primary manual
 (`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02 (SME: Sid), and pinned in `CITATIONS.tsv`.
@@ -866,6 +871,81 @@ new export path.
 
 ---
 
+## RULE 16 — %EV / %AV / %PV on both bases (#225, audit A10-c: hypothesis refuted, scope gap closed)
+
+**Decision:** Compute and report **all four** AIAG percentages on **both** bases — study variation
+(`100 × component / TV`) and tolerance (`component × 6 / tolerance × 100`) — as the key family
+`p{ev,av,grr,pv}_{study,tolerance}`. `%GRR` on both bases is unchanged and stays governed by
+**RULE 7** (study) and **RULE 8** (tolerance); this rule covers the three components added for the
+first time here: %EV, %AV, %PV.
+
+**Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Indices." The completed **Gage
+Repeatability and Reproducibility Report** (Figure III-B 16) carries the four formulas verbatim:
+
+> "*%EV*= 100 [*EV/TV*]"
+> "*%AV*= 100 [*AV/TV*]"
+> "*%GRR*= 100 [*GRR/TV*]"
+> "*% PV*= 100 [*PV/TV*]"
+
+The space in `% PV` on the fourth line is AIAG's own, reproduced verbatim.
+
+RULE 7's SRC:3401 blockquote supplies the generalising sentence ("The percent that the other factors
+consume of the total variation can be similarly calculated as follows:") and RULE 8's SRC:3419
+blockquote supplies the tolerance-denominator swap. Neither is re-quoted here.
+
+**Correction of a round-1 research claim:** these per-component formulas were previously believed to
+be images, because SRC 3403-3407 are blank. That is true of *that* location only — the formulas
+extract as **text** from the report form at SRC:3285-3311 (blank form: SRC:5911/5915/5920/5924).
+Recorded so a future reader does not re-inherit the false constraint. What remains **unquotable** from
+that form: anything spanning two of its table rows — the flattener interleaves the K-constant cells, so
+a cross-row concatenation is not verbatim text and must never be presented as a quotation.
+
+**Numeric oracle (plain prose, not a quotation):** for the canonical 10×3×3 study reproduced at
+`apps/msa/data/aiag_reference_study.csv`, AIAG's own completed form (Figure III-B 16, SRC:3285-3311)
+publishes %EV = 17.62%, %AV = 20.04%, %GRR = 26.68%, %PV = 96.38% and TV = 1.14610. The engine
+reproduces all five within rel = 1e-3; the assertions live in
+`apps/msa/tests/test_gage_rr_engine.py`.
+
+**Hypothesis (#225, audit A10-c) — REFUTED, not merely unverified.** #225 suspected that %EV, %AV and
+%PV shared the missing-×6 tolerance denominator that #190 fixed for %GRR. They could not: they were
+never computed. Surfaces checked 2026-08-02 against the primary manual — `gage_rr_engine.py`'s return
+dict and `_average_and_range_method()`, `exporter.py` (`_detail_rows`, `export_results_csv`,
+`export_pdf`), `pages/gage_study.py`, `schema.py`, `quality_core`, root `app.py` and
+`secom_app/msa.py`; a repo-wide grep for `%EV`/`%AV`/`%PV`/`pct_*` identifiers returned no code match,
+only doc prose. **This PR closes the scope gap that made the question askable** — the ×6 guard is now
+an implemented, test-enforced invariant rather than a note to a future reader. Do not reintroduce a
+tolerance-basis percentage that bypasses it.
+
+**The guard (now enforced):** every tolerance-basis figure routes through `_STUDY_VARIATION_SIGMA` on
+its **own** line. A literal `6.0`, a literal `6`, or a factored-out scale variable in any of the four
+is forbidden — it would reintroduce #190's 6× understatement, and in three more places than before.
+`test_tolerance_basis_routes_through_study_variation_sigma` fails if the constant is bypassed.
+
+**Degenerate case:** `TV == 0` → all four study-basis figures are `inf`, consistent with `pgrr_study`
+and RULE 13; the verdict stays "Reject". The tolerance basis has no degenerate case (`tolerance` is
+validated positive and finite on entry), so no guard is added for it. **%PV vs tolerance may exceed
+100%** (149.95% for the reference study) and is deliberately **unclamped**: it is a ratio to a spec
+width, not a share of a total.
+
+**Verdict unchanged:** the six new figures are **reporting-only**. `_compute_verdict()` remains driven
+by `ndc` and the worse of the two %GRR figures (RULE 10, SME resolution W08-2). No input produces a
+different verdict than before this change.
+
+**Not a deviation:** AIAG's *"Either or both approaches can be taken depending on the intended use of
+the measurement system and the desires of the customer"* (SRC:3419, quoted under RULE 8) places
+reporting both bases squarely within the standard.
+
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `compute_gage_rr()` (the `tv > 0` block and the
+`tolerance is not None` block); `apps/msa/msa_app/exporter.py` → `_detail_rows()`,
+`export_results_csv()`; `apps/msa/msa_app/pages/gage_study.py` → the results metrics block. Amends
+RULE 15's results-CSV payload list, which now carries all eight percentages (RULE 15's own text is
+left unedited).
+
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-02, and pinned in `CITATIONS.tsv`.
+
+---
+
 ## Summary of Files & Code Pointers
 
 | Assumption | Implemented In |
@@ -884,3 +964,5 @@ new export path.
 | Balance check | `compute_gage_rr()`, lines: `is_balanced = ...` |
 | Minimum study size | `compute_gage_rr()`, validation checks |
 | Edge cases | `compute_gage_rr()`, error handling + `_compute_verdict()` |
+| %EV / %AV / %PV vs study variation | `compute_gage_rr()`, keys `pev_study` / `pav_study` / `ppv_study` |
+| %EV / %AV / %PV vs tolerance | `compute_gage_rr()`, keys `pev_tolerance` / `pav_tolerance` / `ppv_tolerance` (each `* _STUDY_VARIATION_SIGMA / tolerance`) |

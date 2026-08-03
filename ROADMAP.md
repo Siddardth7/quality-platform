@@ -357,7 +357,8 @@ platform.
 New MSA surface over the same shared core (validated ingest, typed schema, export, theme):
 - **Gage R&R study** — repeatability (equipment variation) and reproducibility (appraiser variation)
   by the **Average-and-Range method**; the **ANOVA method** if time allows.
-- **Outputs:** %GRR vs **study variation** and vs **tolerance**, **ndc** (number of distinct
+- **Outputs:** **%EV, %AV, %GRR and %PV** each vs **study variation** and vs **tolerance**,
+  **ndc** (number of distinct
   categories), and a clear **accept / marginal / reject** verdict against AIAG thresholds
   (ndc ≥ 5; %GRR < 10% good, 10–30% marginal, > 30% reject).
 - *(stretch)* bias, linearity, and stability studies.

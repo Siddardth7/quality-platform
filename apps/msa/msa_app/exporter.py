@@ -137,8 +137,14 @@ def _detail_rows(report: GageStudyReport) -> list[tuple[str, object]]:
         ("GR&R", _fmt(results["grr"])),
         ("PV (Part Variation)", _fmt(results["pv"])),
         ("TV (Total Variation)", _fmt(results["tv"])),
+        ("%EV (Study)", _fmt_pct(results["pev_study"])),
+        ("%AV (Study)", _fmt_pct(results["pav_study"])),
         ("%GRR (Study)", _fmt_pct(results["pgrr_study"])),
+        ("%PV (Study)", _fmt_pct(results["ppv_study"])),
+        ("%EV (Tolerance)", _fmt_pct_opt(results["pev_tolerance"])),
+        ("%AV (Tolerance)", _fmt_pct_opt(results["pav_tolerance"])),
         ("%GRR (Tolerance)", _fmt_pct_opt(results["pgrr_tolerance"])),
+        ("%PV (Tolerance)", _fmt_pct_opt(results["ppv_tolerance"])),
         ("ndc", str(results["ndc"])),
         ("Verdict", verdict),
         ("Verdict Interpretation", verdict_sentence(verdict)),
@@ -174,7 +180,8 @@ def export_csv(report: GageStudyReport) -> bytes:
 
 
 def export_results_csv(report: GageStudyReport) -> bytes:
-    """Export a flat, one-row results table (EV/AV/GRR/PV/TV, %GRR, ndc, verdict).
+    """Export a flat, one-row results table (EV/AV/GRR/PV/TV, %EV/%AV/%GRR/%PV on both
+    the study-variation and tolerance bases, ndc, verdict).
 
     Values are app-formatted numbers/strings computed by the engine, not user
     input, so (matching the SPC exporter's convention) they are not routed
@@ -188,8 +195,14 @@ def export_results_csv(report: GageStudyReport) -> bytes:
         "GRR": _fmt(results["grr"]),
         "PV": _fmt(results["pv"]),
         "TV": _fmt(results["tv"]),
+        "%EV Study": _fmt_pct(results["pev_study"]),
+        "%AV Study": _fmt_pct(results["pav_study"]),
         "%GRR Study": _fmt_pct(results["pgrr_study"]),
+        "%PV Study": _fmt_pct(results["ppv_study"]),
+        "%EV Tolerance": _fmt_pct_opt(results["pev_tolerance"]),
+        "%AV Tolerance": _fmt_pct_opt(results["pav_tolerance"]),
         "%GRR Tolerance": _fmt_pct_opt(results["pgrr_tolerance"]),
+        "%PV Tolerance": _fmt_pct_opt(results["ppv_tolerance"]),
         "ndc": results["ndc"],
         "Verdict": verdict,
         "Verdict Interpretation": verdict_sentence(verdict),

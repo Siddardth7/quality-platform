@@ -20,7 +20,7 @@ and prove; the pipeline fixes.
 **`domain`** — standards fidelity. Verify implemented math and thresholds against PRIMARY sources:
 - SPC: control-chart constants (A2, D3, D4, d2, E2, B3, B4), Western Electric / Nelson rule
   definitions, Cp/Cpk/Pp/Ppk formulas, the stability gate's precondition
-- MSA: Gage R&R (Average-and-Range only; ANOVA not implemented), %GRR vs study vs tolerance, `ndc`, AIAG accept /
+- MSA: Gage R&R (Average-and-Range only; ANOVA not implemented), %EV/%AV/%GRR/%PV vs study vs tolerance, `ndc`, AIAG accept /
   marginal / reject thresholds
 - FMEA: AIAG-VDA Action Priority table, S/O/D rating scales, RPN
 - Control Plan: failure-mode → characteristic / spec / method / sample-plan mapping
