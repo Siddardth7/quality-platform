@@ -14,7 +14,6 @@ Drives the compute_gage_rr() function and all internal helpers with:
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 import msa_app.gage_rr_engine as gage_rr_engine

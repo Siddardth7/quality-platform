@@ -26,7 +26,7 @@ from quality_core.schema.relational import (
     Function,
     RelationalFMEA,
 )
-from quality_core.scoring import AP_ORDER, action_priority, rpn
+from quality_core.scoring import action_priority, rpn
 
 # ---------------------------------------------------------------------------
 # Fixture builders — one link per (effect, cause, control) unless a test needs

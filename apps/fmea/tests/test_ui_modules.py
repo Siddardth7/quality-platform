@@ -3,7 +3,6 @@ tests/test_ui_modules.py
 Unit tests for pure (non-Streamlit) functions in the ui/ package.
 """
 import pandas as pd
-import pytest
 
 from ui import df_content_hash
 from ui.exports import _export_cache_key
