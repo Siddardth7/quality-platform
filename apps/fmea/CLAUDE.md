@@ -87,7 +87,7 @@ ui/filters.py | ui/charts.py | ui/exports.py    Streamlit-only helpers, consumed
 - **Version SSOT** is `fmea_app/__init__.py::__version__` (currently `0.7.0`, matching the
   workspace). `fmea_app/exporter.py` reads it as `_TOOL_VERSION = __version__` — do not
   reintroduce a hardcoded literal. `tests/test_version.py` pins it.
-- **`ruff.toml`:** target `py311`, line length 100, selects `E F W I`, ignores `E501` (formatter handles) and `F401` (re-exports). Per-file: `F811` allowed in `tests/`.
+- **`ruff.toml`:** target `py311`, line length 100, selects `E F W I`, ignores `E501` globally (formatter handles). `F401` is enforced globally (#203) with a per-file ignore on `fmea_app/exporter.py`, the one module that re-exports without `__all__`. Per-file: `F811` allowed in `tests/`.
 
 ## Engineering references
 

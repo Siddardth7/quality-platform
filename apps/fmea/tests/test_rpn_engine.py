@@ -23,7 +23,6 @@ Run with:
     python -m pytest tests/ -v
 """
 
-import numpy as np
 import pandas as pd
 import pydantic
 import pytest

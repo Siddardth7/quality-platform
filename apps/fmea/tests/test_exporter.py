@@ -7,7 +7,6 @@ import io
 
 import openpyxl
 import pandas as pd
-import pytest
 
 from fmea_app.ap_engine import calculate_ap
 from fmea_app.exporter import export_csv, export_excel, export_pdf
