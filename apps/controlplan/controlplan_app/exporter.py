@@ -43,6 +43,8 @@ from controlplan_app.schema import ControlPlanDataset
 # `source_cause_id` (OQ1, W07-2 #89) is appended last so the FMEA join key
 # survives a CSV export/reimport round trip — not part of the original AIAG
 # column set, so it goes after it rather than reordering the documented shape.
+# `sample_plan_is_placeholder` (F-10, #196) follows it for the same reason. The
+# PDF table (`_PDF_TABLE_COLS`) stays the fixed-width AIAG nine.
 _EXPORT_COLUMNS = [
     "characteristic",
     "lsl",
@@ -54,6 +56,7 @@ _EXPORT_COLUMNS = [
     "recommended_chart",
     "reaction_plan",
     "source_cause_id",
+    "sample_plan_is_placeholder",
 ]
 
 _COL_WIDTHS = {
@@ -66,6 +69,7 @@ _COL_WIDTHS = {
     "frequency": 14,
     "recommended_chart": 16,
     "reaction_plan": 40,
+    "sample_plan_is_placeholder": 24,
 }
 
 _PDF_TABLE_COLS = [

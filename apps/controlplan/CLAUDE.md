@@ -103,7 +103,8 @@ controlplan_app/exporter.py             export_csv / export_excel / export_pdf â
   fix the table, don't loosen the test.
 - **Defaults are declared, not invented.** `_DEFAULT_SAMPLE_SIZE` and `_DEFAULT_FREQUENCY`
   apply only where the FMEA supplies no source (RULE 2). They are placeholders a quality
-  engineer is expected to override, not recommendations.
+  engineer is expected to override, not recommendations â€” and every row
+  `build_control_plan` emits says so, via `sample_plan_is_placeholder=True` (F-10, #196).
 - **Export escapes formula injection.** `export_csv`/`export_excel` route through
   `quality_core.io.export`, which escapes `=`, `+`, `-`, `@` prefixes on string columns.
   There are regression tests; don't bypass the shared primitives.
