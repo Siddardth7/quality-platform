@@ -1,7 +1,7 @@
 # Engineering Assumptions Log
 **Project:** SPC Manufacturing Quality Dashboard
 **Author:** Siddardth | M.S. Aerospace Engineering, UIUC
-**Last Updated:** July 26, 2026
+**Last Updated:** August 6, 2026
 
 This document records every non-obvious engineering decision — and every published
 constant or threshold — used in the SPC app. Each entry explains what was chosen, why,
@@ -46,8 +46,12 @@ range of normal samples.
 
 **Decision:** Use the AIAG X-bar/S constants keyed by subgroup size `n` (2–12): `A3` for
 the X-bar limits, `B4`/`B3` for the S-chart limits, and `c4` to estimate sigma
-(`sigma_hat = Sbar / c4`). X-bar/S is preferred over X-bar/R for larger subgroups (n > ~10)
-because the sample standard deviation uses all observations, not just the range.
+(`sigma_hat = Sbar / c4`). X-bar/S is preferred over X-bar/R for larger subgroups (n >= 10)
+because the sample standard deviation uses all observations, not just the range. That
+boundary is stated once, in `apps/controlplan/docs/ASSUMPTIONS_LOG.md` RULE 1 (which
+`controlplan_app/connector.py::recommend_chart` implements as `2 <= n <= 9 -> Xbar-R`,
+`n >= 10 -> Xbar-S`); this line is reworded from "n > ~10" to match it (OQ-1, #196). The
+exact cell is still flagged there for primary-source (AIAG SPC 4th Ed.) confirmation.
 
 **Source:** AIAG SPC Reference Manual, 4th Ed. (2005), X-bar/S constants table. `c4` is the
 unbiasing constant for the sample standard deviation of a normal sample.

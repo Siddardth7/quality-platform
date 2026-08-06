@@ -172,6 +172,25 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Fixed
 
+- **Control Plan chart recommendation is bounded, and its placeholder rows now say so
+  (audit A18, F-07 + F-10, #196).** `controlplan_app.connector.recommend_chart` returned
+  `"Xbar-S"` for any variable subgroup size ≥ 10, including sizes the engine cannot compute —
+  `quality_core.spc.constants.XBAR_S_CONSTANTS` stops at n=12 and `compute_xbar_s` raises above
+  it. It now raises `ValueError` for variable data with `n > max(XBAR_S_CONSTANTS)`, reading the
+  ceiling from the constants table rather than a literal. Attribute data (`p`/`c`/`u`) is
+  unaffected — large sample sizes stay valid there — and no new AIAG constants were invented.
+  Separately, `ControlPlanRow` gains an **optional, additive** `sample_plan_is_placeholder`
+  boolean (default `False`), stamped `True` on every row `build_control_plan` emits, so a
+  consumer can tell the connector's declared `sample_size` / `frequency` / `reaction_plan`
+  placeholders — which the relational FMEA has no source for — from engineered values. Uploads
+  without the column, or with a blank cell, still validate; `sample_size` remains required and
+  `ge=1`. The CSV/Excel exports carry the new column, the fixed-width PDF table is unchanged.
+  `apps/controlplan/docs/ASSUMPTIONS_LOG.md` RULE 1/RULE 2 record both, and RULE 2 of
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` is reworded from "n > ~10" to "n >= 10" so both logs state
+  the same X-bar/R ↔ X-bar/S boundary the connector implements (SME decision on OQ-1). **No
+  chart-selection boundary, constant or AIAG claim changed** — the existing third-party-sourced
+  flag on n = 9 vs 10 stays flagged for primary-source confirmation.
+
 - **SPC capability CIs moved off Cp/Cpk onto Pp/Ppk, where their degrees of freedom are valid
   (audit F-05, #193).** The χ² and Bissell (1990) intervals are derived for σ estimated by the
   ddof=1 sample standard deviation with ν = n−1, but `compute_capability` attached them to
