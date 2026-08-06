@@ -137,6 +137,39 @@ All notable changes to the Quality Platform are documented here. The format foll
   is applied to the `_STUDY_VARIATION_SIGMA` comment in `gage_rr_engine.py` and to the AIAG
   reference-study test's docstring. Documentation and comments only — no `.py` behaviour changed.
 
+- **CI runs least-privilege, third-party actions are pinned to commit SHAs, and the blanket `F401`
+  ignore is narrowed (audit A14, #203).** `.github/workflows/ci.yml` declares
+  `permissions: contents: read` at workflow level — the `gate` job only checks out, resolves the
+  lock, lints, type-checks and tests, so it never needs write, and any job added later now inherits
+  least privilege by default. `actions/checkout@v5` (a moving major) and `astral-sh/setup-uv@v8.2.0`
+  are pinned to the full commit SHAs they already resolved to (`fbc6f39…` = v5.1.0,
+  `fac544c…` = v8.2.0) with the version kept in a trailing comment; this is a **freeze, not a
+  bump**. `ruff.toml` no longer ignores `F401` globally: every re-export `__init__` declares
+  `__all__`, which ruff already honours, so the ignore had been buying nothing — it is replaced by
+  a single per-file ignore on `apps/fmea/fmea_app/exporter.py`, the one module that re-exports
+  (`export_csv`) without `__all__`. Six genuinely unused test imports were removed and the
+  deliberate `_escape_source_label` smoke-import in `test_streamlit_edge_cases.py` carries an
+  explicit `# noqa: F401`. `.devcontainer/devcontainer.json` keeps
+  `--server.enableCORS false --server.enableXsrfProtection false` and now carries a comment naming
+  why: Codespaces forwards 8501 through a different-origin proxy where `st.file_uploader`'s
+  `POST /_stcore/upload_file` is rejected 403 by the XSRF cookie check, and by the cross-origin
+  check when CORS is on. The two flags are **independent**: Streamlit 1.56 warns that
+  `enableCORS` "is being overridden to `true`" when XSRF is on, but that code path only logs —
+  nothing assigns the option and `server_util.py:78` reads the raw `False`. Verified against the
+  installed 1.56.0; the warning is not implemented and must not be relied on. Dev-container only.
+  The `postAttachCommand` string is byte-identical. Also corrected a stale `ruff.toml`
+  comment: `spc` and `secom` have been installed packages since #204, so only fmea / msa /
+  controlplan are still `package = false`.
+
+### Removed
+
+- **Two dead infrastructure files deleted (audit A14, #203).** `apps/fmea/.github/workflows/ci.yml`
+  — a 51-line nested workflow that has never executed, because GitHub reads workflows only from the
+  repository-root `.github/workflows/`; it duplicated the gate with `pip`, no lock and no coverage
+  thresholds. `apps/spc/spc_app/ui/__init__.py` — a 0-byte file, the sole occupant of
+  `apps/spc/spc_app/ui/`, with no static or dynamic importer anywhere in the repo and no entry in
+  `apps/spc/pyproject.toml`'s `packages = ["spc_app"]`. Both parent directories are gone.
+
 ### Fixed
 
 - **MSA `ndc` now floors at one, not zero, per AIAG MSA 4th Edition (audit A10-b, #224).**

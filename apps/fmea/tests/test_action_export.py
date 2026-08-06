@@ -16,7 +16,6 @@ import re
 from datetime import date
 
 import openpyxl
-import pandas as pd
 from quality_core.io import export_csv
 from quality_core.schema import (
     Action,

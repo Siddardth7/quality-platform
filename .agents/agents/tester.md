@@ -39,6 +39,14 @@ If the implementation is wrong, you report it — you do not repair it.
    - **Never** restore with `git checkout` or `git restore`.
    - **A negative control that does NOT fail is a FINDING** — report it prominently. It means the
      test is vacuous and proves nothing.
+   - **Run the control through the command CI runs, not a narrowed one.** A CLI selector can
+     override the very config you are testing, so the control passes under both the fixed and the
+     broken configuration and proves nothing either way. Concretely: `ruff check --select F401`
+     overrides `ignore` in `ruff.toml`, so it reports F401 even when the config suppresses it —
+     any control on a lint-config change must use plain `ruff check .` (#203, audit A14).
+   - **A control is only valid if the mutation could actually have been hidden.** Restoring a
+     suppression proves nothing once the findings it hid have already been removed; inject a
+     *fresh* violation instead, then compare fixed vs. broken config (#203, audit A14).
 5. Before finishing, confirm no mutation residue survives:
    ```bash
    git status --short
