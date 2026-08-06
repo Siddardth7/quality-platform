@@ -348,20 +348,31 @@ def _pdf_text(data: bytes) -> str:
     """Recover the visible text of a PDF by inflating its content streams.
 
     fpdf2 Flate-compresses page content, so a substring search over the raw
-    bytes finds nothing. Text is emitted as `(...) Tj`. The literal parentheses
-    inside METHOD_NOTE are escaped as `\\(` / `\\)` in the stream, so the chunk
-    regex must skip escaped characters rather than stop at the first `)`, and
-    the escapes are undone afterwards. Used to assert the note's own characters
-    reached the page instead of merely growing the file.
+    bytes finds nothing — the stream must be inflated first. This helper is
+    deliberately insensitive to fpdf2's byte-level output, which varies by
+    platform (macOS locally vs the Linux CI runner) even at a pinned version:
+
+    - Streams are decoded with a ``decompressobj`` fed everything after the
+      ``stream`` keyword. It stops at the zlib stream's own end, so it is immune
+      to where the trailing ``endstream`` falls — unlike a ``stream...endstream``
+      delimiter regex, which truncates if the compressed bytes happen to contain
+      that marker and then loses all text to a failed decompress.
+    - Every parenthesised string literal is collected, regardless of the show
+      operator (``Tj`` vs a ``[...] TJ`` array). The literal parens inside
+      METHOD_NOTE are escaped as ``\\(`` / ``\\)``, so the regex skips escaped
+      characters rather than stopping at the first ``)``; the escapes are undone
+      afterwards. In a page content stream every ``(...)`` literal is show-text.
     """
-    chunk_re = re.compile(rb"\((?P<body>(?:[^\\()]|\\.)*)\)\s*Tj", re.S)
+    chunk_re = re.compile(rb"\((?P<body>(?:[^\\()]|\\.)*)\)", re.S)
     out = []
-    for raw in re.findall(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
+    for m in re.finditer(rb"(?<!end)stream\r?\n", data):
+        tail = data[m.end():]
         try:
-            body = zlib.decompress(raw)
+            body = zlib.decompressobj().decompress(tail)
         except zlib.error:
-            body = raw
-        out.append(b"".join(m.group("body") for m in chunk_re.finditer(body)))
+            end = tail.find(b"endstream")
+            body = tail[:end] if end != -1 else tail
+        out.append(b"".join(mm.group("body") for mm in chunk_re.finditer(body)))
     joined = b"".join(out)
     joined = joined.replace(rb"\(", b"(").replace(rb"\)", b")")
     return joined.decode("latin-1")
