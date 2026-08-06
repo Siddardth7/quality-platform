@@ -411,14 +411,14 @@ crossings signal; run-rule gating for CUSUM is deferred to W10-5.
 
 ---
 
-## RULE 14 — Non-normal capability (Box-Cox / Yeo-Johnson) + Cp/Cpk confidence intervals
+## RULE 14 — Non-normal capability (Box-Cox / Yeo-Johnson) + Pp/Ppk confidence intervals
 
 **Decision:** `compute_capability_study(data, lsl, usl, *, alpha=CAPABILITY_ALPHA,
 allow_yeojohnson=True)` extends the existing normal-path `compute_capability` (unchanged
 signature/keys, plus new CI fields) with a full non-normal capability study:
 
 - **Gate:** Shapiro-Wilk (`normality_test`) on the pooled sample. Normal → normal-theory
-  Cp/Cpk/Pp/Ppk + CIs, no transform.
+  Cp/Cpk/Pp/Ppk (parametric CIs on Pp/Ppk only), no transform.
 - **Transform (non-normal, Decision 2):** positive data → Box-Cox MLE-λ (`scipy.stats.boxcox`,
   `alpha=` for the likelihood CI); non-positive data → Yeo-Johnson by default
   (`allow_yeojohnson=True`), or an opt-in documented shift `c = 1 − min(x)` then Box-Cox on
@@ -447,19 +447,31 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
   2D subgroups → `R̄/d₂(n)` (`compute_xbar_r`'s own 2≤n≤10 guard is reused, not reimplemented).
   Overall σ is always the transformed-or-raw sample SD (`ddof=1`). This preserves the
   Cp/Cpk-within vs Pp/Ppk-overall split after a transform.
-- **Confidence intervals:** `compute_capability` gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
-  `cpk_lower`. Cp uses the exact χ² CI (`cp·sqrt(chi2.ppf(α/2, n−1)/(n−1))` to
-  `cp·sqrt(chi2.ppf(1−α/2, n−1)/(n−1))`); Cpk uses the Bissell (1990) large-sample normal
-  approximation (`se = sqrt(1/(9n) + Cpk²/(2(n−1)))`, two-sided `Cpk ± z_{1−α/2}·se`, one-sided
-  lower bound `Cpk − z_{1−α}·se`). These CIs apply to the normal and Box-Cox/Yeo-Johnson-normal
-  paths. The fitted-percentile path instead gets a **deterministic bootstrap** CI: fixed
+- **Confidence intervals:** `compute_capability` returns `alpha`, `n`, `ci_estimator`, `ci_df`,
+  `pp_ci`, `ppk_ci`, `ppk_lower`. The exact χ² interval
+  (`pp·sqrt(chi2.ppf(α/2, n−1)/(n−1))` to `pp·sqrt(chi2.ppf(1−α/2, n−1)/(n−1))`) and the
+  Bissell (1990) large-sample normal approximation (`se = sqrt(1/(9n) + Ppk²/(2(n−1)))`,
+  two-sided `Ppk ± z_{1−α/2}·se`, one-sided lower bound `Ppk − z_{1−α}·se`) are **derived for σ
+  estimated by the sample standard deviation `s` with ν = n−1**. They are therefore attached to
+  **Pp/Ppk**, which use `np.std(x, ddof=1)` — the estimator the derivation assumes
+  (`ci_estimator="sample_sd_ddof1"`, `ci_df=n−1`). This applies to the normal and
+  Box-Cox/Yeo-Johnson-normal paths.
+- **No CI is reported for Cp/Cpk.** Those use the within-subgroup estimator (R̄/d₂ or MR̄/d₂,
+  "Within-σ" bullet above), whose effective degrees of freedom are fewer than n−1; applying the
+  n−1 forms to them produces intervals that are too narrow. An effective-df correction for R̄/d₂
+  was considered and **not** adopted: no primary source is available on-machine, and this log
+  does not carry uncited constants (#193, audit F-05). `cp_ci`/`cpk_ci`/`cpk_lower` are `None`
+  on these paths.
+- **Percentile path (unchanged):** the fitted-percentile path instead gets a **deterministic
+  bootstrap** CI on the percentile indices themselves, reported in `cp_ci`/`cpk_ci`/`cpk_lower`
+  with `ci_estimator="bootstrap_percentile"`, `ci_df=None` (no df assumption): fixed
   `BOOTSTRAP_SEED = 12345`, fixed `BOOTSTRAP_RESAMPLES = 2000`,
   `scipy.stats.bootstrap(method="percentile")` — the statistic refits the candidate families
   per resample; a resample where every fit fails uses the empirical fallback statistic. A CI
   whose point estimate is `None` (one-sided spec) is skipped (`*_ci = None` on that side).
   Fixing the seed and resample count is mandatory for bit-reproducible, auditable CIs — this is
   an engineering choice, not a statistical one.
-- **Small-n caveat:** the Bissell/bootstrap CIs assume a large sample (n≈30–50). `n<30` never
+- **Small-n caveat:** the Bissell/χ²/bootstrap CIs assume a large sample (n≈30–50). `n<30` never
   raises; the study's `note` field carries a caveat instead (soft-warn, mirrors Rule 11/12's
   `*_adequate`/`*_note` pattern).
 - **Degenerate input:** constant data (zero variance) raises `ValueError` — no capability
@@ -473,12 +485,12 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
 - **Percentile index `Ĉ_Np = (USL−LSL)/(p_0.99865 − p_0.00135)`, "mimics ±3σ coverage"** —
   **NIST/SEMATECH e-Handbook §6.1.6 "What is Process Capability?"** — PRIMARY, quotable.
   Verified 2026-07-25. <https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm>
-- **Cp χ² exact CI + Cpk large-sample normal-approximation CI** — **Montgomery, *Introduction
-  to Statistical Quality Control*, Ch. 8 — SECONDARY.** Not present in NIST's capability
-  sections; standard textbook derivation, universally reproduced.
-- **Cpk CI variance `1/(9n) + Ĉpk²/(2(n−1))`** — **Bissell, A. F. (1990), "How Reliable Is Your
-  Capability Index?", *The Statistician* 39(3) — PAYWALLED primary.** Verified via the
-  Montgomery reproduction and the issue body only, not the original journal article.
+- **χ² Cp/Pp interval; Bissell (1990) large-sample Cpk/Ppk variance `1/(9n) + Ĉ²/(2(n−1))`** —
+  D. C. Montgomery, *Introduction to Statistical Quality Control*, Ch. 8; A. F. Bissell, "How
+  Reliable Is Your Capability Index?", *Applied Statistics* 39(3):331–340 (1990). Both are
+  derived for σ estimated by the sample standard deviation, ν = n−1. **Not verified
+  on-machine** — neither text is in the local reference set; the estimator/df pairing recorded
+  above is verified from the implementation, not from the primary text.
 - **Box & Cox (1964), "An Analysis of Transformations," *Journal of the Royal Statistical
   Society, Series B* 26(2) — PAYWALLED primary.** NIST §6.5.2 is the quotable stand-in used
   above; the original transformation paper was not directly consulted.
@@ -500,7 +512,7 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
 
 **Assumption note — `force_method` user override (W10-5, #145):** `compute_capability_study`
 accepts `force_method="normal"` to skip the Shapiro-Wilk gate and compute normal-theory
-Cp/Cpk/CIs on raw data regardless of the actual normality result. This is a deliberate
+Cp/Cpk (parametric CIs on Pp/Ppk) on raw data regardless of the actual normality result. This is a deliberate
 user override, not an engine claim that the data is normal — the returned `note` always
 records "user-forced," and the responsibility for that assumption's validity is the
 analyst's, mirroring how Rule 7's stability gate still renders (marked indicative) rather
@@ -567,7 +579,7 @@ introduced by this rule.
   MLE-λ, percentile-based process capability index (primary, quotable)*
 - *Montgomery, D. C. — Introduction to Statistical Quality Control, Ch. 8 — Cp χ² CI, Cpk
   large-sample CI (secondary)*
-- *Bissell, A. F. (1990) — The Statistician 39(3) — Cpk confidence interval variance (secondary,
+- *Bissell, A. F. (1990) — Applied Statistics 39(3):331–340 — Cpk confidence interval variance (secondary,
   paywalled primary)*
 - *Box, G. E. P. & Cox, D. R. (1964) — Journal of the Royal Statistical Society, Series B 26(2) —
   the Box-Cox transformation (secondary, paywalled primary; NIST §6.5.2 the quotable stand-in)*

@@ -378,7 +378,7 @@ This turns the platform from a synthetic demo into an analysis of real semicondu
 
 ### ⬜ Week 10 — Modern SPC depth · **v0.10.0** *(Phase D · full scope — next up)*
 **Phase I/II** control-limit freezing (establish from a baseline, then monitor new data against frozen
-limits); **EWMA + CUSUM** small-shift charts; **non-normal (Box-Cox) capability + Cp/Cpk confidence
+limits); **EWMA + CUSUM** small-shift charts; **non-normal (Box-Cox) capability + Pp/Ppk confidence
 intervals**. Standards-anchored (NIST/SEMATECH · Montgomery · AIAG); every new constant cited in
 `apps/spc/docs/ASSUMPTIONS_LOG.md`. Run-rules (WE/Nelson) gated to Shewhart charts only — EWMA/CUSUM
 signal on their own crossings. Issues **#141–#146**.

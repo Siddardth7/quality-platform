@@ -30,6 +30,11 @@ from quality_core.spc.constants import (
 from quality_core.spc.control_charts import compute_imr, compute_xbar_r
 from quality_core.spc.stability import stability_fields
 
+_CI_PAIRING_NOTE = (
+    " The χ²/Bissell CIs are attached to Pp/Ppk (ν=n−1), which use the ddof=1 sample SD"
+    " those intervals are derived for. No CI is reported for the within-σ Cp/Cpk."
+)
+
 __all__ = [
     "CapabilityStudy",
     "compute_capability",
@@ -45,9 +50,14 @@ class CapabilityStudy(TypedDict):
     cpk: float | None
     pp: float | None
     ppk: float | None
-    cp_ci: tuple[float, float] | None
-    cpk_ci: tuple[float, float] | None
-    cpk_lower: float | None
+    cp_ci: tuple[float, float] | None  # percentile path only (bootstrap); None otherwise
+    cpk_ci: tuple[float, float] | None  # percentile path only (bootstrap); None otherwise
+    cpk_lower: float | None  # percentile path only (bootstrap); None otherwise
+    pp_ci: tuple[float, float] | None  # χ² CI on Pp (ddof=1 sample SD, ν=n−1)
+    ppk_ci: tuple[float, float] | None  # Bissell two-sided CI on Ppk
+    ppk_lower: float | None  # Bissell one-sided lower bound on Ppk
+    ci_estimator: str  # "sample_sd_ddof1" | "bootstrap_percentile"
+    ci_df: int | None  # n−1 for the parametric CIs; None for the bootstrap
     mean: float  # in the space capability was computed in
     sigma_hat: float  # within-subgroup sigma in that space
     sigma_overall: float  # overall sigma in that space
@@ -90,11 +100,15 @@ def compute_capability(
     pp = _spread_capability(lsl=lsl, usl=usl, sigma=sigma_overall)
     ppk = _centered_capability(mean=mean, lsl=lsl, usl=usl, sigma=sigma_overall)
 
-    cp_ci = _cp_chi2_ci(cp, n, alpha) if cp is not None else None
-    if cpk is not None:
-        cpk_ci, cpk_lower = _cpk_bissell_ci(cpk, n, alpha)
+    # The χ²/Bissell intervals are derived for σ estimated by the ddof=1 sample SD with
+    # ν = n−1, so they belong to Pp/Ppk (sigma_overall), NOT to the within-σ Cp/Cpk
+    # (R̄/d₂ or MR̄/d₂, whose effective df are fewer than n−1). See ASSUMPTIONS_LOG
+    # RULE 14 "Confidence intervals" (#193, audit F-05).
+    pp_ci = _cp_chi2_ci(pp, n, alpha) if pp is not None else None
+    if ppk is not None:
+        ppk_ci, ppk_lower = _cpk_bissell_ci(ppk, n, alpha)
     else:
-        cpk_ci, cpk_lower = None, None
+        ppk_ci, ppk_lower = None, None
 
     return {
         "cp": cp,
@@ -106,9 +120,11 @@ def compute_capability(
         "sigma_overall": sigma_overall,
         "n": n,
         "alpha": alpha,
-        "cp_ci": cp_ci,
-        "cpk_ci": cpk_ci,
-        "cpk_lower": cpk_lower,
+        "pp_ci": pp_ci,
+        "ppk_ci": ppk_ci,
+        "ppk_lower": ppk_lower,
+        "ci_estimator": "sample_sd_ddof1",
+        "ci_df": n - 1,
     }
 
 
@@ -181,10 +197,13 @@ def compute_capability_study(
         within_sigma, subgroup_size = _within_sigma(shaped)
         base = compute_capability(flat, lsl, usl, within_sigma, alpha=alpha)
         note = (
-            "Normality user-forced (force_method='normal'); normal-theory Cp/Cpk/CIs "
-            "used on raw data — the analyst is responsible for this assumption."
-            if force_method == "normal"
-            else "Data passed Shapiro-Wilk (p>0.05); normal-theory Cp/Cpk/CIs used."
+            (
+                "Normality user-forced (force_method='normal'); normal-theory Cp/Cpk "
+                "reported on raw data — the analyst is responsible for this assumption."
+                if force_method == "normal"
+                else "Data passed Shapiro-Wilk (p>0.05); normal-theory Cp/Cpk reported."
+            )
+            + _CI_PAIRING_NOTE
         ) + _small_n_note(n)
         return _build_transform_study(
             method="normal",
@@ -256,8 +275,8 @@ def compute_capability_study(
         note = (
             forced_prefix
             + f"Data transformed via {method} (λ_used={lambda_used:.4g}); "
-            "transformed data passed Shapiro-Wilk; normal-theory Cp/Cpk/CIs applied in "
-            "transformed space." + _small_n_note(n)
+            "transformed data passed Shapiro-Wilk; normal-theory Cp/Cpk applied in "
+            "transformed space." + _CI_PAIRING_NOTE + _small_n_note(n)
         )
         return _build_transform_study(
             method=method,
@@ -327,6 +346,11 @@ def _percentile_study(
         "cp_ci": cp_ci,
         "cpk_ci": cpk_ci,
         "cpk_lower": cpk_lower,
+        "pp_ci": None,
+        "ppk_ci": None,
+        "ppk_lower": None,
+        "ci_estimator": "bootstrap_percentile",
+        "ci_df": None,
         "mean": float(np.mean(flat)),
         "sigma_hat": within_sigma,
         "sigma_overall": sigma_overall,
@@ -374,9 +398,14 @@ def _build_transform_study(
         "cpk": base["cpk"],
         "pp": base["pp"],
         "ppk": base["ppk"],
-        "cp_ci": base["cp_ci"],
-        "cpk_ci": base["cpk_ci"],
-        "cpk_lower": base["cpk_lower"],
+        "cp_ci": None,
+        "cpk_ci": None,
+        "cpk_lower": None,
+        "pp_ci": base["pp_ci"],
+        "ppk_ci": base["ppk_ci"],
+        "ppk_lower": base["ppk_lower"],
+        "ci_estimator": base["ci_estimator"],
+        "ci_df": base["ci_df"],
         "mean": base["mean"],
         "sigma_hat": base["sigma_hat"],
         "sigma_overall": base["sigma_overall"],
