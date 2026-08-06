@@ -5,9 +5,9 @@ description: >
   checks coverage, and reports to .pipeline/test-results.md. Never fixes the code. After coder,
   before reviewer.
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: claude-opus-5
-# Fallback when Opus usage limits bite: `claude-sonnet-5`, then `claude-fable-5`.
-# Do NOT fall back to the bare `opus` alias — it may resolve to a degraded 4.8.
+model: claude-opus-4-8
+# Fallback when Opus 4.8 usage limits bite: `claude-opus-5`, then `claude-sonnet-5`.
+# Pins use full model IDs — do NOT use the bare `opus` alias (it may resolve unpredictably).
 ---
 You are the Test / QA specialist for the Quality Platform.
 
