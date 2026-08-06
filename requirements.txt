@@ -42,7 +42,7 @@ fpdf2==2.8.7
     #   spc-app
 gitdb==4.0.12
     # via gitpython
-gitpython==3.1.50
+gitpython==3.1.58
     # via streamlit
 idna==3.18
     # via requests
@@ -71,6 +71,7 @@ numpy==2.4.4
     #   matplotlib
     #   pandas
     #   pydeck
+    #   quality-core
     #   scipy
     #   secom-app
     #   spc-app
@@ -97,7 +98,7 @@ pandas==3.0.2
     #   secom-app
     #   spc-app
     #   streamlit
-pillow==12.2.0
+pillow==12.3.0
     # via
     #   fpdf2
     #   matplotlib
@@ -139,6 +140,7 @@ rpds-py==2026.5.1
     #   referencing
 scipy==1.17.1
     # via
+    #   quality-core
     #   secom-app
     #   spc-app
 six==1.17.0
