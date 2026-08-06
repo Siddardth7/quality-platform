@@ -20,11 +20,37 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime
 from typing import Any
 
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+# ===========================================================================
+# Standard formatters (date/time, numbers)
+# ===========================================================================
+
+
+def now() -> str:
+    """Return the current timestamp as YYYY-MM-DD HH:MM:SS."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def generated_line(detail: str) -> str:
+    """Return 'Generated: <YYYY-MM-DD HH:MM>   |   <detail>' caption for PDF sub-headers."""
+    return f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}   |   {detail}"
+
+
+def fmt(value: float, precision: int = 4) -> str:
+    """Format a float to a fixed decimal string (default precision 4)."""
+    return f"{value:.{precision}f}"
+
+
+def fmt_opt(value: float | None, precision: int = 4) -> str:
+    """Format an optional float to a fixed decimal string, returning 'N/A' if None."""
+    return "N/A" if value is None else f"{value:.{precision}f}"
+
 
 # ===========================================================================
 # Formula-injection escaping (CSV / Excel)
