@@ -262,7 +262,7 @@ Auto-regenerated at startup if deleted. Source: `spc_app/spc_engine/data_generat
 | Scenario | Chart |
 |---|---|
 | Subgroup means n = 2–9, small samples, range is intuitive | Xbar-R |
-| Subgroup means n ≥ 10, standard deviation more stable than range | Xbar-S |
+| Subgroup means n = 10–12, standard deviation more stable than range | Xbar-S |
 | Individual observations — no natural subgrouping | I-MR |
 | Fraction defective units (binomial count ÷ sample size) | p chart |
 | Defects per unit, variable opportunity size (Poisson) | u chart |
