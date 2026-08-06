@@ -139,6 +139,22 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Fixed
 
+- **SPC capability CIs moved off Cp/Cpk onto Pp/Ppk, where their degrees of freedom are valid
+  (audit F-05, #193).** The χ² and Bissell (1990) intervals are derived for σ estimated by the
+  ddof=1 sample standard deviation with ν = n−1, but `compute_capability` attached them to
+  Cp/Cpk, which use the within-subgroup estimator (R̄/d₂ or MR̄/d₂) — whose effective degrees of
+  freedom are fewer than n−1, so the reported intervals were **too narrow**. They now attach to
+  Pp/Ppk (`pp_ci`, `ppk_ci`, `ppk_lower`), which do use `np.std(x, ddof=1)`; the normal and
+  Box-Cox/Yeo-Johnson paths report **no** parametric CI for Cp/Cpk (`cp_ci`/`cpk_ci`/`cpk_lower`
+  are `None` there). Two new keys, `ci_estimator` (`"sample_sd_ddof1"` |
+  `"bootstrap_percentile"`) and `ci_df` (`n−1` | `None`), make the estimator/df pairing
+  self-describing for API consumers and appear on the capability PDF as a "CI basis" row. The
+  fitted-percentile path is **unchanged** — its nonparametric bootstrap CIs on the percentile
+  indices stay in `cp_ci`/`cpk_ci`/`cpk_lower`. An effective-df correction for R̄/d₂ was
+  considered and not adopted: no primary source is available on-machine, and the log carries no
+  uncited constants. `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 14 records the pairing, the
+  limitation, and the honestly-marked Montgomery/Bissell attribution.
+
 - **MSA `ndc` now floors at one, not zero, per AIAG MSA 4th Edition (audit A10-b, #224).**
   `_compute_ndc()` truncated `1.41 × (PV / GRR)` and clamped to `[0, 100]`, so a valid study with
   positive GRR and PV but a calculated `ndc` below 1.0 reported **`ndc = 0`**. The manual is
@@ -285,25 +301,27 @@ All notable changes to the Quality Platform are documented here. The format foll
   matching the selected method: the fitted-percentile winner's `.pdf` in raw space, or
   the exact back-transformed Box-Cox/Yeo-Johnson normal density via change-of-variables
   (`f_X(x) = φ((t(x)-μ_t)/σ_t)/σ_t · |t'(x)|`). The capability exporter gained Method / λ
-  / Cp & Cpk 95% CI / Cpk lower bound / fitted-distribution rows. Documented in
+  / Pp & Ppk 95% CI / Ppk lower bound / CI basis / fitted-distribution rows (CI attachment
+  corrected to Pp/Ppk under #193). Documented in
   `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 15 (WE/Nelson restricted to Shewhart charts;
   Montgomery §9 autocorrelation rationale) plus an assumption note on the `force_method`
   override.
 
-- **Non-normal capability via Box-Cox + Cp/Cpk confidence intervals (W10-4, #144).** New
+- **Non-normal capability via Box-Cox + Pp/Ppk confidence intervals (W10-4, #144).** New
   `compute_capability_study` in `apps/spc/spc_app/spc_engine/capability.py` orchestrates a full
   capability study on individuals or 2D subgroups: Shapiro-Wilk gate → Box-Cox (positive data)
   or Yeo-Johnson (`allow_yeojohnson=True` default; opt-in documented shift `c=1−min(x)` +
-  Box-Cox otherwise) when non-normal → re-test the transformed data → normal-theory Cp/Cpk/CIs
-  in the transformed space, or a fitted-distribution percentile fallback (ISO 22514-2,
+  Box-Cox otherwise) when non-normal → re-test the transformed data → normal-theory Cp/Cpk
+  (parametric CIs on Pp/Ppk) in the transformed space, or a fitted-distribution percentile fallback (ISO 22514-2,
   `{lognorm, weibull_min, gamma, johnsonsu}` selected by minimum AIC, empirical `np.quantile`
   last resort if every candidate fit fails) when it stays non-normal. Within-σ reuses the
   existing `compute_imr`/`compute_xbar_r` estimators in the same (raw or transformed) space as
   the capability computation, preserving the Cp/Cpk-within vs Pp/Ppk-overall split; λ<0 is
   handled by a `sorted()` ordering guard on the transformed spec limits, never a literal swap.
-  `compute_capability` (existing signature/keys untouched) gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
-  `cpk_lower` — a χ² exact CI for Cp and a Bissell (1990) large-sample CI for Cpk. The
-  fitted-percentile path instead gets a **deterministic bootstrap** CI (fixed
+  `compute_capability` (existing signature untouched) gains `alpha`, `n`, and χ² / Bissell (1990)
+  large-sample CIs attached to **Pp/Ppk** (`pp_ci`, `ppk_ci`, `ppk_lower`) — the ddof=1-estimator
+  indices the interval math is derived for (attachment corrected under #193; see the Fixed entry).
+  The fitted-percentile path instead gets a **deterministic bootstrap** CI (fixed
   `BOOTSTRAP_SEED = 12345`, `BOOTSTRAP_RESAMPLES = 2000`, `scipy.stats.bootstrap(method=
   "percentile")`) for bit-reproducible audit trails. New constants `CAPABILITY_ALPHA`,
   `BOXCOX_LAMBDA_CANDIDATES`, `NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`,

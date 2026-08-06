@@ -152,18 +152,18 @@ def render_capability() -> None:
             else ""
         ))
         metric_grid = st.columns(2)
-        metric_grid[0].metric(
-            "Cp", "N/A" if study["cp"] is None else f"{study['cp']:.3f}",
-            help=f"95% CI: {study['cp_ci']}" if study["cp_ci"] else None,
-        )
-        metric_grid[1].metric(
-            "Cpk", "N/A" if study["cpk"] is None else f"{study['cpk']:.3f}",
-            help=f"95% CI: {study['cpk_ci']}" if study["cpk_ci"] else None,
-        )
+        metric_grid[0].metric("Cp", "N/A" if study["cp"] is None else f"{study['cp']:.3f}")
+        metric_grid[1].metric("Cpk", "N/A" if study["cpk"] is None else f"{study['cpk']:.3f}")
 
         summary_grid = st.columns(4)
-        summary_grid[0].metric("Pp", "N/A" if study["pp"] is None else f"{study['pp']:.3f}")
-        summary_grid[1].metric("Ppk", "N/A" if study["ppk"] is None else f"{study['ppk']:.3f}")
+        summary_grid[0].metric(
+            "Pp", "N/A" if study["pp"] is None else f"{study['pp']:.3f}",
+            help=f"95% CI: {study['pp_ci']}" if study["pp_ci"] else None,
+        )
+        summary_grid[1].metric(
+            "Ppk", "N/A" if study["ppk"] is None else f"{study['ppk']:.3f}",
+            help=f"95% CI: {study['ppk_ci']}" if study["ppk_ci"] else None,
+        )
         summary_grid[2].metric("Mean", f"{study['mean']:.4f}")
         summary_grid[3].metric("Sigma Overall", f"{study['sigma_overall']:.4f}")
 
