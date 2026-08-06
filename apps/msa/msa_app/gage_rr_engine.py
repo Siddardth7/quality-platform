@@ -331,22 +331,22 @@ def _k_constant(table: dict[int, float], m: int, label: str) -> float:
 
 
 def _compute_ndc(grr: float, pv: float) -> int:
-    """Compute Number of Distinct Categories per AIAG MSA.
+    """Compute Number of Distinct Categories per AIAG MSA 4th Edition (Ch. III Sec. B).
 
-    ndc = trunc(1.41 * (PV / GRR))
+    ndc = max(1, trunc(1.41 * (PV / GRR)))
 
     Args:
         grr: GR&R value (must be > 0).
         pv: Part Variation (must be > 0).
 
     Returns:
-        ndc as an int, clamped to [0, 100].
+        ndc as an int, clamped to [1, 100] for valid positive inputs, or 0 if inputs are non-positive.
     """
     if grr <= 0 or pv <= 0:
         return 0
     ndc_raw = 1.41 * (pv / grr)
     ndc_int = int(ndc_raw)  # truncate toward zero
-    return max(0, min(ndc_int, 100))  # Clamp to [0, 100]
+    return max(1, min(ndc_int, 100))  # Maximum of 1 or calculated value truncated, clamped to 100
 
 
 def _compute_verdict(ndc: int, pgrr: float) -> str:

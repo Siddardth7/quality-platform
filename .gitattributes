@@ -1,0 +1,12 @@
+# CHANGELOG is append-only: every branch adds entries under the same headings,
+# so concurrent PRs collide on the same lines even when the changes are unrelated.
+# `merge=union` keeps both sides instead of raising a conflict.
+#
+# It resolves SILENTLY — ordering can come out odd and nothing flags it — so the
+# CHANGELOG still gets eyeballed on every promotion. That is the trade: no false
+# conflicts, in exchange for a read.
+#
+# Deliberately NOT applied to apps/*/docs/ASSUMPTIONS_LOG.md. Those are structured
+# standards records; a silent union there could interleave two rules into a claim
+# neither branch made. Those conflicts are worth resolving by hand.
+CHANGELOG.md merge=union
