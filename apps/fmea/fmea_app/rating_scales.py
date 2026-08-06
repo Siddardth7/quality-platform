@@ -36,6 +36,7 @@ from typing import Any
 import pandas as pd
 import pydantic
 from quality_core.io import DEFAULT_MAX_UPLOAD_BYTES
+from quality_core.io.validate import clean_pydantic_message
 
 #: The bundled AIAG FMEA-4 default scale, kept as data (not constants).
 DEFAULT_SCALES_PATH = Path(__file__).resolve().parent.parent / "data" / "rating_scales.json"
@@ -95,7 +96,8 @@ def _build(obj: dict[str, Any], *, default_name: str) -> RatingScaleSet:
     except pydantic.ValidationError as exc:
         first = exc.errors()[0]
         loc = " → ".join(str(x) for x in first.get("loc", [])) or "<scale>"
-        raise ValueError(f"Invalid rating scale ({loc}): {first.get('msg', 'validation error')}") from exc
+        msg = clean_pydantic_message(first.get("msg", "validation error"))
+        raise ValueError(f"Invalid rating scale ({loc}): {msg}") from exc
 
 
 def load_default_scales() -> RatingScaleSet:
