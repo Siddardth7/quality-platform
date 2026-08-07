@@ -63,6 +63,9 @@ jobs:
       - name: Pytest (with coverage)
         run: uv run pytest --cov
 
+      - name: Dependency vulnerability audit
+        run: uv run pip-audit
+
       # Core io coverage gate: quality_core.io (shared export + validated ingest)
       # is used by every tool, so it must be fully covered by its OWN tests — not
       # only incidentally via the app suites. Held at 100% from packages/quality-core.
