@@ -56,12 +56,15 @@ def test_parse_readme_counts() -> None:
     assert badge == 1641
     assert comment == 1641
 
-    # 2. Actual README.md parsing
+    # 2. Actual README.md parsing. Assert the two claims agree with each other rather
+    #    than pinning a literal: a hardcoded count here goes stale on every PR that adds
+    #    a test — the exact drift this module exists to catch. The absolute number is
+    #    already enforced against pytest by the CI step itself.
     readme_path = pathlib.Path("README.md")
     assert readme_path.exists()
     actual_badge, actual_comment = parse_readme_counts(readme_path.read_text(encoding="utf-8"))
-    assert actual_badge == 1641
-    assert actual_comment == 1641
+    assert actual_badge > 0
+    assert actual_badge == actual_comment
 
     # 3. Missing badge raises ValueError
     with pytest.raises(ValueError, match="Could not parse test count badge from README.md"):
@@ -111,7 +114,9 @@ def test_readme_test_count_script_success() -> None:
         text=True,
     )
     assert result.returncode == 0, f"Script failed:\nstdout={result.stdout}\nstderr={result.stderr}"
-    assert "README test counts match collected pytest total (1641 tests)." in result.stdout
+    # No literal count: the exit code already proves README and pytest agree, and
+    # pinning today's number here would break on every PR that adds a test.
+    assert "README test counts match collected pytest total" in result.stdout
 
 
 def test_readme_test_count_script_failure_negative_control(
@@ -162,10 +167,16 @@ def test_readme_test_count_script_failure_negative_control(
 
 def test_check_readme_drift_default_path(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify check_readme_drift defaults to README.md in working directory."""
+    # Derive the count from the real README instead of pinning it. This test is about
+    # the default-path behaviour, not about today's total, and a literal would go stale
+    # on every PR that adds a test.
+    expected, _comment = parse_readme_counts(
+        pathlib.Path("README.md").read_text(encoding="utf-8")
+    )
     monkeypatch.setattr(
         "scripts.check_readme_test_count.get_collected_test_count",
-        lambda: 1641,
+        lambda: expected,
     )
     matching, msg = check_readme_drift(None)
     assert matching is True
-    assert "README test counts match collected pytest total (1641 tests)." in msg
+    assert f"README test counts match collected pytest total ({expected} tests)." in msg
