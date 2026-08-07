@@ -104,6 +104,22 @@ def test_rs07_blank_description_rejected():
         load_scales_from_mapping(bad)
 
 
+def test_rs07b_pydantic_prefix_stripped_from_surfaced_message():
+    """#207: `_build` runs the model-validator message through
+    `clean_pydantic_message`, so the pydantic `Value error, ` / `Assertion failed, `
+    prefix must NOT leak into the user-facing ValueError. The existing RS-07
+    `match=` passes with or without the strip, so it does not pin this — this does.
+    A no-op `clean_pydantic_message` fails here by leaking the raw prefix."""
+    bad = _valid_mapping()
+    bad["occurrence"]["4"] = "   "  # blank description -> model-validator error
+    with pytest.raises(ValueError) as excinfo:
+        load_scales_from_mapping(bad)
+    msg = str(excinfo.value)
+    assert "blank description" in msg  # the real content survives the strip
+    assert "Value error" not in msg  # pydantic raise-prefix stripped
+    assert "Assertion failed" not in msg  # pydantic assert-prefix stripped
+
+
 # ---------------------------------------------------------------------------
 # RS-08 / RS-09 — bad input shapes
 # ---------------------------------------------------------------------------

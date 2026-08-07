@@ -345,6 +345,21 @@ def _na_to_none(value: Any) -> Any:
         return value
 
 
+_PYDANTIC_MSG_PREFIXES = ("Value error, ", "Assertion failed, ")
+
+
+def clean_pydantic_message(msg: str) -> str:
+    """Strip pydantic's raise/assert prefix so the surfaced text is the validator's own sentence.
+
+    Pydantic prefixes model-validator messages with ``"Value error, "`` (raise) or
+    ``"Assertion failed, "`` (assert); a message without either passes through
+    unchanged, and a mid-sentence occurrence is left alone.
+    """
+    for prefix in _PYDANTIC_MSG_PREFIXES:
+        msg = msg.removeprefix(prefix)
+    return msg
+
+
 def _format_row_error(row_number: int, schema: TableSchema, exc: pydantic.ValidationError) -> str:
     """Turn the first row-level Pydantic error into a clear, addressed message.
 
@@ -356,7 +371,7 @@ def _format_row_error(row_number: int, schema: TableSchema, exc: pydantic.Valida
     first = exc.errors()[0]
     column = ".".join(str(part) for part in first.get("loc", ()))
     where = f"Row {row_number}" + (f", column '{column}'" if column else "")
-    msg = first.get("msg", "invalid value")
+    msg = clean_pydantic_message(first.get("msg", "invalid value"))
     # `exc.errors()` (default include_input=True) always carries the offending
     # value, so echo it unconditionally; `.get` stays crash-safe regardless.
     shown = repr(first.get("input"))
@@ -368,12 +383,7 @@ def _format_row_error(row_number: int, schema: TableSchema, exc: pydantic.Valida
 
 def _format_dataset_error(schema: TableSchema, exc: pydantic.ValidationError) -> str:
     """Turn a dataset-level (cross-row) Pydantic error into a clear message."""
-    msg = exc.errors()[0].get("msg", "invalid dataset")
-    # Pydantic prefixes model-validator messages with "Value error, " (raise) or
-    # "Assertion failed, " (assert); drop either so the surfaced text is the
-    # validator's own sentence.
-    for prefix in ("Value error, ", "Assertion failed, "):
-        msg = msg.removeprefix(prefix)
+    msg = clean_pydantic_message(exc.errors()[0].get("msg", "invalid dataset"))
     return f"{schema.name} dataset is invalid: {msg}.{schema._hint_suffix()}"
 
 
