@@ -19,6 +19,7 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 import pydantic as _pydantic
+from quality_core.io.validate import clean_pydantic_message
 from quality_core.schema import RelationalFMEA, flat_to_relational, relational_to_flat
 
 from fmea_app.schema import FMEADataset, FMEARow
@@ -31,7 +32,7 @@ from fmea_app.schema import FMEADataset, FMEARow
 def _format_pydantic_error(err: Any) -> str:
     """Format a single pydantic error dict into a human-readable string."""
     loc = " → ".join(str(x) for x in err.get("loc", []))
-    msg = err.get("msg", "invalid value")
+    msg = clean_pydantic_message(err.get("msg", "invalid value"))
     return f"{loc}: {msg}" if loc else msg
 
 
@@ -373,17 +374,13 @@ def _relational_actions(model: RelationalFMEA) -> dict[int, dict[str, object]]:
     out: dict[int, dict[str, object]] = {}
     for function in model.functions:
         for fm in function.failure_modes:
-            effects = {e.id: e for e in fm.effects}
-            causes = {c.id: c for c in fm.causes}
-            controls = {c.id: c for c in fm.controls}
             for link in fm.links:
                 action = link.action
                 if action is None:
                     continue
+                effect, cause, control = fm.resolve(link)
                 eff = action.effectiveness(
-                    effects[link.effect_id].severity,
-                    causes[link.cause_id].occurrence,
-                    controls[link.control_id].detection,
+                    effect.severity, cause.occurrence, control.detection
                 )
                 out[link.row_id] = {
                     "Action_Owner": action.owner,

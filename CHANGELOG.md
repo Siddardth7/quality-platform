@@ -17,6 +17,30 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Repo-wide cross-app import guard (audit A12 acceptance criterion, #233).**
+  New workspace-level `tests/test_cross_app_import_boundary.py` generalises the SECOM-only
+  boundary test (#204/#205) to all five app packages, so "imports go downward only" is
+  self-defending rather than held by hand-run `git grep` during review.
+  **Part 1** runs one fresh, non-pytest interpreter per app — with `cwd` set to that app's
+  own directory, because `fmea-app` and `controlplan-app` are `package = false` and resolve
+  only via the implicit `sys.path[0]` — walks every submodule with `pkgutil.walk_packages`,
+  and fails if any of the other four `*_app` packages appears in `sys.modules`. The
+  subprocess is what makes the `sys.modules` check honest: in a full-workspace run other
+  apps' suites have already imported their packages, so an in-process check would be
+  import-order-dependent. An `assert walked` guard prevents a vacuous zero-submodule pass.
+  **Part 2** is an `ast` scan of every `apps/*/tests/**/*.py` — covering `import`,
+  `from … import`, and string-argument `importorskip` / `import_module` calls — that fails
+  on any cross-app import not named in `_ALLOWED_TEST_ONLY_CROSS_APP_IMPORTS`, so adding a
+  third test-only cross-app import is a conscious edit rather than a silent gap. `ast`
+  rather than a regex because hand-written grep patterns have under-matched here before
+  (#235), and the `importorskip` call form is invisible to an import-node-only walk — it
+  accounts for two of the three allowlisted pairs.
+  Stale allowlist entries are deliberately **not** a failure: only unlisted imports fail, so
+  removing a cross-app import is never punished. No per-surface coverage gate is affected —
+  the root `tests/` directory is outside every gate's collection path and outside
+  `[tool.coverage.run] source` (verified against the core io and SECOM gates).
+  `apps/secom/tests/test_import_boundary.py` is unchanged; the new guard is additive.
+
 - **CI README test-count drift check script and workflow step (#210).**
   Added `scripts/check_readme_test_count.py` to compare `pytest --collect-only` counts against claims in `README.md` (badge and comment). Added `tests` to `testpaths` in `pyproject.toml`, updated `README.md` test counts to 1641, and added a CI step in `.github/workflows/ci.yml` to fail on drift.
 
@@ -104,6 +128,36 @@ All notable changes to the Quality Platform are documented here. The format foll
   which would estimate the interaction, is tracked as #195 and is not implemented here.
 
 ### Changed
+
+- **Root `CLAUDE.md` gains two hard-won rules on parallel-agent isolation.** "One agent, one
+  worktree" — branch state is per-checkout, not per-agent, so a second agent running
+  `git switch -c` moves the branch out from under the first and its `git reset` wipes the first's
+  uncommitted work. Observed live: an Antigravity run took the main checkout while `/ship` was
+  mid-flight on #233, leaving that feature branch empty and the tree clean, so nothing looked
+  wrong. The companion rule covers `.pipeline/`, which is likewise shared per checkout — the
+  pre-existing archive-before-`rm -rf` rule only protects the *previous* issue's handoff files,
+  not the current one's, so the spec is now backed up as soon as research writes it.
+  Documentation only — no code, no gate, no behavior change.
+- **The duplicated `quality_core` helpers are single-sourced (audit A15, #207).** Two copy-paste
+  clusters collapse into one definition each. (1) The pydantic raise/assert prefix strip is now
+  `quality_core.io.validate.clean_pydantic_message`, called by the core row and dataset error
+  formatters and by `controlplan_app.pages.control_plan._first_error_message`,
+  `fmea_app.rating_scales._build` and `fmea_app.rpn_engine._format_pydantic_error` — the strip
+  previously existed as **two** diverging hand-written copies (the core dataset formatter and one
+  app site); they collapse into one helper, now applied uniformly to every call site above, so the
+  core row formatter and `rating_scales._build` gain the strip they lacked before. (2) The link → (effect, cause, control) traversal is now
+  the method `FailureMode.resolve(link)` in `quality_core.schema.relational`, replacing five
+  copies of the same three id→entity dicts (`relational_to_flat`, `controlplan_app.connector`'s
+  `_worst_link` / `build_control_plan` / `source_index`, and `fmea_app.rpn_engine.
+  _relational_actions`). The traversal swap is **behaviour-identical** — worst-link tie-break,
+  Control Plan sort order and `source_index` keys are unchanged. Two **user-visible message**
+  improvements fall out of (1): a row-level model-validator error and a rating-scale error no
+  longer surface pydantic's `Value error, ` / `Assertion failed, ` prefix before the validator's
+  own sentence. Row-error echo stays **unconditional and truncated at 50 characters** exactly as
+  #200 chose — only the prefix strip was adopted into the row formatter. The untruncated-echo bug
+  named in the audit was already fixed by the earlier deletion of `controlplan_app.schema.
+  _reject_bad_optional_values`; this change is the residual de-duplication. No AIAG/ISO constant,
+  threshold or quotation is touched, so no `ASSUMPTIONS_LOG.md` changes.
 
 - **`apps/msa` is now an installable workspace package, removing the last cross-app `sys.path`
   shim (audit A03 follow-up, #231).** `msa-app` drops `[tool.uv] package = false` for the same
