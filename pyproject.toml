@@ -46,7 +46,7 @@ dev = [
 # its own conftest.py so `fmea_app` / `ui` / `spc_app` resolve.
 [tool.pytest.ini_options]
 addopts = "--tb=short --import-mode=importlib"
-testpaths = ["packages", "apps"]
+testpaths = ["packages", "apps", "tests"]
 
 # Coverage across the shared core and both apps (`uv run pytest --cov`).
 # `branch = true` is mandatory: line coverage alone lets a 100%-line file hide an

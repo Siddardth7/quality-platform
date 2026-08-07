@@ -633,7 +633,11 @@ def test_model_level_error_shape_row_addressed_with_truncated_row_echo(extra, se
     with pytest.raises(IngestError) as exc:
         load_control_plan_csv(_csv([{**_good_csv_row(), **extra}]))
     msg = str(exc.value)
-    assert msg.startswith(f"Row 2: Value error, {sentence} (got {{'characteristic': ")
+    # #207: the core formatter now routes msg through clean_pydantic_message, so
+    # pydantic's "Value error, " prefix is stripped here too. Everything else about
+    # the shape (no column clause, truncated echo) is #200's and is unchanged below.
+    assert msg.startswith(f"Row 2: {sentence} (got {{'characteristic': ")
+    assert "Value error" not in msg
     assert "column" not in msg.split(" (got ")[0]  # no column name on a model-level error
     assert "...)" in msg  # the row dict is truncated, not echoed whole
 

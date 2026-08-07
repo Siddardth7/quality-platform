@@ -17,7 +17,6 @@ All return raw bytes suitable for ``st.download_button()``.
 from __future__ import annotations
 
 import io
-from datetime import datetime
 from typing import Any
 
 import openpyxl
@@ -27,6 +26,8 @@ from quality_core.io.export import (
     export_csv as _core_export_csv,
 )
 from quality_core.io.export import (
+    generated_line,
+    now,
     pdf_subheader,
     pdf_title,
     render_table,
@@ -102,7 +103,7 @@ def export_csv(dataset: ControlPlanDataset) -> bytes:
 
 def _metadata_rows(df: pd.DataFrame) -> list[tuple[str, object]]:
     return [
-        ("Generated", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("Generated", now()),
         ("Tool Version", _TOOL_VERSION),
         ("Engineering Ref", "AIAG Control Plan format (see ROADMAP.md §4)"),
         ("Row Count", len(df)),
@@ -154,11 +155,7 @@ def _pdf_row_rgb(row: pd.Series) -> tuple[int, int, int]:
 def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
     pdf.add_page()
     pdf_title(pdf, "Control Plan")
-    pdf_subheader(
-        pdf,
-        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}   |   "
-        "AIAG Control Plan format",
-    )
+    pdf_subheader(pdf, generated_line("AIAG Control Plan format"))
     render_table(
         pdf, df,
         columns=_PDF_TABLE_COLS,

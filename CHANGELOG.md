@@ -13,6 +13,9 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **CI README test-count drift check script and workflow step (#210).**
+  Added `scripts/check_readme_test_count.py` to compare `pytest --collect-only` counts against claims in `README.md` (badge and comment). Added `tests` to `testpaths` in `pyproject.toml`, updated `README.md` test counts to 1641, and added a CI step in `.github/workflows/ci.yml` to fail on drift.
+
 - **MSA reports %EV, %AV and %PV on both AIAG bases alongside %GRR (audit A10-c, #225).**
   `compute_gage_rr()` gains six keys — `pev_study` / `pav_study` / `ppv_study` and
   `pev_tolerance` / `pav_tolerance` / `ppv_tolerance` — completing the
@@ -107,6 +110,26 @@ All notable changes to the Quality Platform are documented here. The format foll
   pre-existing archive-before-`rm -rf` rule only protects the *previous* issue's handoff files,
   not the current one's, so the spec is now backed up as soon as research writes it.
   Documentation only — no code, no gate, no behavior change.
+- **The duplicated `quality_core` helpers are single-sourced (audit A15, #207).** Two copy-paste
+  clusters collapse into one definition each. (1) The pydantic raise/assert prefix strip is now
+  `quality_core.io.validate.clean_pydantic_message`, called by the core row and dataset error
+  formatters and by `controlplan_app.pages.control_plan._first_error_message`,
+  `fmea_app.rating_scales._build` and `fmea_app.rpn_engine._format_pydantic_error` — the strip
+  previously existed as **two** diverging hand-written copies (the core dataset formatter and one
+  app site); they collapse into one helper, now applied uniformly to every call site above, so the
+  core row formatter and `rating_scales._build` gain the strip they lacked before. (2) The link → (effect, cause, control) traversal is now
+  the method `FailureMode.resolve(link)` in `quality_core.schema.relational`, replacing five
+  copies of the same three id→entity dicts (`relational_to_flat`, `controlplan_app.connector`'s
+  `_worst_link` / `build_control_plan` / `source_index`, and `fmea_app.rpn_engine.
+  _relational_actions`). The traversal swap is **behaviour-identical** — worst-link tie-break,
+  Control Plan sort order and `source_index` keys are unchanged. Two **user-visible message**
+  improvements fall out of (1): a row-level model-validator error and a rating-scale error no
+  longer surface pydantic's `Value error, ` / `Assertion failed, ` prefix before the validator's
+  own sentence. Row-error echo stays **unconditional and truncated at 50 characters** exactly as
+  #200 chose — only the prefix strip was adopted into the row formatter. The untruncated-echo bug
+  named in the audit was already fixed by the earlier deletion of `controlplan_app.schema.
+  _reject_bad_optional_values`; this change is the residual de-duplication. No AIAG/ISO constant,
+  threshold or quotation is touched, so no `ASSUMPTIONS_LOG.md` changes.
 
 - **`apps/msa` is now an installable workspace package, removing the last cross-app `sys.path`
   shim (audit A03 follow-up, #231).** `msa-app` drops `[tool.uv] package = false` for the same

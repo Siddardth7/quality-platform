@@ -129,20 +129,13 @@ def recommend_chart(
 def _worst_link(failure_mode: FailureMode) -> tuple[FailureLink, int, str]:
     """Return the failure mode's worst-risk link with its (rpn, ap), by (AP, RPN, row_id).
 
-    Copies the entity-lookup traversal of ``relational_to_flat``
-    (``quality_core.schema.relational:247``): S/O/D come from the effect/cause/control
-    an entity each link points to.
+    S/O/D come from the effect/cause/control entity each link points to, resolved
+    by ``FailureMode.resolve``.
     """
-    effects = {e.id: e for e in failure_mode.effects}
-    causes = {c.id: c for c in failure_mode.causes}
-    controls = {c.id: c for c in failure_mode.controls}
-
     best: tuple[FailureLink, int, str] | None = None
     best_key: tuple[int, int, int] | None = None
     for link in failure_mode.links:
-        effect = effects[link.effect_id]
-        cause = causes[link.cause_id]
-        control = controls[link.control_id]
+        effect, cause, control = failure_mode.resolve(link)
         link_rpn = rpn(effect.severity, cause.occurrence, control.detection)
         link_ap = action_priority(effect.severity, cause.occurrence, control.detection)
         # Deterministic tie-break: AP, then RPN, then row_id (edge cases section).
@@ -214,12 +207,7 @@ def build_control_plan(fmea: RelationalFMEA) -> ControlPlanDataset:
     entries: list[tuple[str, str, int, str, str, str]] = []
 
     for characteristic, function, failure_mode, link in _iter_named_modes(fmea):
-        effects = {e.id: e for e in failure_mode.effects}
-        causes = {c.id: c for c in failure_mode.causes}
-        controls = {c.id: c for c in failure_mode.controls}
-        worst_effect = effects[link.effect_id]
-        worst_cause = causes[link.cause_id]
-        worst_control = controls[link.control_id]
+        worst_effect, worst_cause, worst_control = failure_mode.resolve(link)
         link_rpn = rpn(worst_effect.severity, worst_cause.occurrence, worst_control.detection)
         link_ap = action_priority(
             worst_effect.severity, worst_cause.occurrence, worst_control.detection
@@ -277,8 +265,7 @@ def source_index(fmea: RelationalFMEA) -> dict[str, dict[str, object]]:
     """
     index: dict[str, dict[str, object]] = {}
     for characteristic, function, failure_mode, link in _iter_named_modes(fmea):
-        causes = {c.id: c for c in failure_mode.causes}
-        cause = causes[link.cause_id]
+        _, cause, _ = failure_mode.resolve(link)
         index[characteristic] = {
             "failure_mode_id": failure_mode.id,
             "cause_id": _source_cause_id(function, failure_mode, cause),

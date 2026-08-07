@@ -11,7 +11,7 @@
 <br>
 
 [![CI](https://github.com/Siddardth7/quality-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddardth7/quality-platform/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1247%20passing-2ea043?logo=pytest&logoColor=white)](#-the-quality-gate)
+[![Tests](https://img.shields.io/badge/tests-1665%20passing-2ea043?logo=pytest&logoColor=white)](#-the-quality-gate)
 [![Coverage](https://img.shields.io/badge/coverage-core%20100%25%20%C2%B7%20SPC%20%E2%89%A595%25-2ea043)](#-the-quality-gate)
 [![Release](https://img.shields.io/github/v/release/Siddardth7/quality-platform?sort=semver&color=e65100&label=release)](https://github.com/Siddardth7/quality-platform/releases/latest)
 [![Last commit](https://img.shields.io/github/last-commit/Siddardth7/quality-platform?color=1a2f4a)](https://github.com/Siddardth7/quality-platform/commits/main)
@@ -212,7 +212,7 @@ protected branch that requires the gate to pass before merge.
 ```bash
 uv run ruff check .     # lint + format check
 uv run mypy             # strict static types
-uv run pytest --cov     # 1247 tests + coverage across core + apps
+uv run pytest --cov     # 1665 tests + coverage across core + apps
 ```
 
 **Coverage gates — CI-enforced, cannot silently regress:**

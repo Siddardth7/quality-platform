@@ -114,6 +114,21 @@ class FailureMode(StrictModel):
                 raise ValueError(f"unreferenced {label} ID(s): {sorted(orphaned)}")
         return self
 
+    def resolve(self, link: FailureLink) -> tuple[Effect, Cause, Control]:
+        """Return the (effect, cause, control) a link points to.
+
+        Every ``link.*_id`` resolves by construction — ``check_ids_and_links``
+        rejects an unknown ID at model build — so this never raises for a
+        validated model.
+        """
+        # ponytail: O(links × entities) per failure mode — both are single digits
+        # in practice; cache the maps only if a profile says so.
+        return (
+            {e.id: e for e in self.effects}[link.effect_id],
+            {c.id: c for c in self.causes}[link.cause_id],
+            {c.id: c for c in self.controls}[link.control_id],
+        )
+
 
 class Function(StrictModel):
     id: EntityId
@@ -241,13 +256,8 @@ def relational_to_flat(model: RelationalFMEA) -> FMEADataset:
     rows: list[FMEARow] = []
     for fn in model.functions:
         for fm in fn.failure_modes:
-            effects = {e.id: e for e in fm.effects}
-            causes = {c.id: c for c in fm.causes}
-            controls = {c.id: c for c in fm.controls}
             for link in fm.links:
-                effect = effects[link.effect_id]
-                cause = causes[link.cause_id]
-                control = controls[link.control_id]
+                effect, cause, control = fm.resolve(link)
                 rows.append(
                     FMEARow(
                         ID=link.row_id,
