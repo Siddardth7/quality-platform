@@ -22,7 +22,6 @@ from __future__ import annotations
 import io
 import os
 import tempfile
-from datetime import datetime
 from typing import Any
 
 import openpyxl
@@ -30,6 +29,8 @@ import pandas as pd
 from quality_core.io.export import (
     add_image_page,
     export_csv,
+    generated_line,
+    now,
     pdf_subheader,
     pdf_summary_cells,
     pdf_title,
@@ -136,7 +137,7 @@ def export_excel(df: pd.DataFrame) -> bytes:
 
 def _metadata_rows(df: pd.DataFrame) -> list[tuple[str, object]]:
     return [
-        ("Generated",         datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("Generated",         now()),
         ("Tool Version",      _TOOL_VERSION),
         ("Engineering Ref",   "AIAG FMEA-4 (4th Ed.) + AIAG/VDA FMEA Handbook (5th Ed., 2019)"),
         ("",                  ""),
@@ -251,8 +252,7 @@ def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
     pdf_title(pdf, "FMEA Risk Analysis Report")
     pdf_subheader(
         pdf,
-        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}   |   "
-        "AIAG FMEA-4 (4th Ed.) + AIAG/VDA FMEA Handbook (5th Ed., 2019)",
+        generated_line("AIAG FMEA-4 (4th Ed.) + AIAG/VDA FMEA Handbook (5th Ed., 2019)"),
     )
 
     metrics = [

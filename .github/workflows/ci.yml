@@ -54,6 +54,9 @@ jobs:
             exit 1
           fi
 
+      - name: README test-count drift check
+        run: uv run python scripts/check_readme_test_count.py
+
       - name: Ruff
         run: uv run ruff check .
 

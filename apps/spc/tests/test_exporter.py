@@ -20,13 +20,13 @@ from spc_app.exporter import (
     ControlChartReport,
     _cpk_rating,
     _fmt_ci,
-    _fmt_opt,
     _point_columns,
     _points_frame,
     build_capability_report_excel,
     build_capability_report_pdf,
     build_control_chart_report_excel,
     build_control_chart_report_pdf,
+    fmt_opt,
 )
 
 # --- Fixtures ----------------------------------------------------------------
@@ -112,8 +112,8 @@ def test_cpk_rating_bands():
 
 
 def test_fmt_opt_handles_none():
-    assert _fmt_opt(None) == "N/A"
-    assert _fmt_opt(1.5) == "1.5000"
+    assert fmt_opt(None) == "N/A"
+    assert fmt_opt(1.5) == "1.5000"
 
 
 # --- control chart Excel -----------------------------------------------------

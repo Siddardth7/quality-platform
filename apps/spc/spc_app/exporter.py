@@ -21,12 +21,15 @@ from __future__ import annotations
 import io
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 import openpyxl
 import pandas as pd
 from quality_core.io.export import (
+    fmt,
+    fmt_opt,
+    generated_line,
+    now,
     pdf_subheader,
     pdf_summary_cells,
     pdf_title,
@@ -96,25 +99,8 @@ class CapabilityReport:
 # ===========================================================================
 
 
-def _fmt(value: float) -> str:
-    return f"{value:.4f}"
-
-
-def _fmt_opt(value: float | None) -> str:
-    return "N/A" if value is None else f"{value:.4f}"
-
-
 def _fmt_ci(ci: tuple[float, float] | None) -> str:
     return "N/A" if ci is None else f"[{ci[0]:.4f}, {ci[1]:.4f}]"
-
-
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _generated_line(detail: str) -> str:
-    """The 'Generated: <timestamp> | <detail>' caption for a PDF sub-header."""
-    return f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}   |   {detail}"
 
 
 def _limit_at(limit: float | Sequence[float], index: int) -> float:
@@ -128,7 +114,7 @@ def _limit_at(limit: float | Sequence[float], index: int) -> float:
 def _fmt_limit(limit: float | Sequence[float]) -> str:
     """A scalar limit prints as a number; a vector limit varies per subgroup."""
     if isinstance(limit, (int, float)):
-        return _fmt(float(limit))
+        return fmt(float(limit))
     return "varies (per subgroup)"
 
 
@@ -195,14 +181,14 @@ def _values_frame(values: Sequence[float]) -> pd.DataFrame:
 
 def _control_chart_summary_rows(report: ControlChartReport) -> list[tuple[str, object]]:
     rows: list[tuple[str, object]] = [
-        ("Generated", _now()),
+        ("Generated", now()),
         ("Tool Version", _TOOL_VERSION),
         ("Engineering Ref", _ENGINEERING_REF),
         ("", ""),
         ("Chart Type", sanitize_cell(report.chart_label)),
         ("Process Stream", sanitize_cell(report.stream)),
         ("Rule Set", sanitize_cell(report.rule_set)),
-        ("Center Line (CL)", _fmt(report.cl)),
+        ("Center Line (CL)", fmt(report.cl)),
         ("UCL", _fmt_limit(report.ucl)),
         ("LCL", _fmt_limit(report.lcl)),
         ("Data Points", len(report.points)),
@@ -262,11 +248,11 @@ def build_control_chart_report_pdf(report: ControlChartReport) -> bytes:
     pdf.add_page()
 
     pdf_title(pdf, "SPC Control Chart Report")
-    pdf_subheader(pdf, _generated_line(f"{report.chart_label}  |  {_ENGINEERING_REF}"))
+    pdf_subheader(pdf, generated_line(f"{report.chart_label}  |  {_ENGINEERING_REF}"))
     pdf_summary_cells(
         pdf,
         [
-            ("CL", _fmt(report.cl)),
+            ("CL", fmt(report.cl)),
             ("UCL", _fmt_limit(report.ucl)),
             ("LCL", _fmt_limit(report.lcl)),
             ("Points", str(len(report.points))),
@@ -308,29 +294,29 @@ def _capability_detail_rows(report: CapabilityReport) -> list[tuple[str, object]
     return [
         ("Process Stream", sanitize_cell(report.stream_label)),
         ("Data Points", len(report.values)),
-        ("LSL", _fmt_opt(report.lsl)),
-        ("USL", _fmt_opt(report.usl)),
+        ("LSL", fmt_opt(report.lsl)),
+        ("USL", fmt_opt(report.usl)),
         ("Method", str(cap.get("method", "normal"))),
-        ("Box-Cox lambda", _fmt_opt(cap.get("lambda_used"))),
-        ("Cp", _fmt_opt(cap["cp"])),
-        ("Cpk", _fmt_opt(cap["cpk"])),
+        ("Box-Cox lambda", fmt_opt(cap.get("lambda_used"))),
+        ("Cp", fmt_opt(cap["cp"])),
+        ("Cpk", fmt_opt(cap["cpk"])),
         # Populated on the percentile method only (bootstrap CIs); the parametric
         # χ²/Bissell CIs live on Pp/Ppk below (#193).
         ("Cp 95% CI", _fmt_ci(cap.get("cp_ci"))),
         ("Cpk 95% CI", _fmt_ci(cap.get("cpk_ci"))),
-        ("Cpk lower bound", _fmt_opt(cap.get("cpk_lower"))),
-        ("Pp", _fmt_opt(cap["pp"])),
+        ("Cpk lower bound", fmt_opt(cap.get("cpk_lower"))),
+        ("Pp", fmt_opt(cap["pp"])),
         ("Pp 95% CI", _fmt_ci(cap.get("pp_ci"))),
-        ("Ppk", _fmt_opt(cap["ppk"])),
+        ("Ppk", fmt_opt(cap["ppk"])),
         ("Ppk 95% CI", _fmt_ci(cap.get("ppk_ci"))),
-        ("Ppk lower bound", _fmt_opt(cap.get("ppk_lower"))),
+        ("Ppk lower bound", fmt_opt(cap.get("ppk_lower"))),
         ("CI basis", f"{cap.get('ci_estimator')} (df={cap.get('ci_df')})"),
         ("Cpk Rating", _cpk_rating(cap["cpk"])),
         ("Fitted distribution", sanitize_cell(str(cap["fitted_dist"])) if cap.get("fitted_dist") else "N/A"),
-        ("Mean", _fmt(cap["mean"])),
-        ("Sigma Hat (within)", _fmt(cap["sigma_hat"])),
-        ("Sigma Overall", _fmt(cap["sigma_overall"])),
-        ("Normality (Shapiro-Wilk p)", _fmt(norm["p_value"])),
+        ("Mean", fmt(cap["mean"])),
+        ("Sigma Hat (within)", fmt(cap["sigma_hat"])),
+        ("Sigma Overall", fmt(cap["sigma_overall"])),
+        ("Normality (Shapiro-Wilk p)", fmt(norm["p_value"])),
         ("Approximately Normal?", "Yes" if norm["is_normal"] else "No"),
         ("Stability", stability),
     ]
@@ -338,7 +324,7 @@ def _capability_detail_rows(report: CapabilityReport) -> list[tuple[str, object]
 
 def _capability_summary_rows(report: CapabilityReport) -> list[tuple[str, object]]:
     return [
-        ("Generated", _now()),
+        ("Generated", now()),
         ("Tool Version", _TOOL_VERSION),
         ("Engineering Ref", _ENGINEERING_REF),
         ("", ""),
@@ -376,14 +362,14 @@ def build_capability_report_pdf(report: CapabilityReport) -> bytes:
     pdf.add_page()
 
     pdf_title(pdf, "SPC Process Capability Report")
-    pdf_subheader(pdf, _generated_line(f"{report.stream_label}  |  {_ENGINEERING_REF}"))
+    pdf_subheader(pdf, generated_line(f"{report.stream_label}  |  {_ENGINEERING_REF}"))
     pdf_summary_cells(
         pdf,
         [
-            ("Cp", _fmt_opt(cap["cp"])),
-            ("Cpk", _fmt_opt(cap["cpk"])),
-            ("Pp", _fmt_opt(cap["pp"])),
-            ("Ppk", _fmt_opt(cap["ppk"])),
+            ("Cp", fmt_opt(cap["cp"])),
+            ("Cpk", fmt_opt(cap["cpk"])),
+            ("Pp", fmt_opt(cap["pp"])),
+            ("Ppk", fmt_opt(cap["ppk"])),
         ],
     )
 

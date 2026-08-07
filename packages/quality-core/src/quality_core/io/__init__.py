@@ -15,6 +15,10 @@ from quality_core.io.export import (
     FORMULA_PREFIXES,
     add_image_page,
     export_csv,
+    fmt,
+    fmt_opt,
+    generated_line,
+    now,
     pdf_subheader,
     pdf_summary_cells,
     pdf_title,
@@ -41,6 +45,10 @@ from quality_core.io.validate import (
 __all__ = [
     # export
     "FORMULA_PREFIXES",
+    "now",
+    "generated_line",
+    "fmt",
+    "fmt_opt",
     "sanitize_cell",
     "sanitize_for_export",
     "export_csv",
