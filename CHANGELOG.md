@@ -13,6 +13,30 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Repo-wide cross-app import guard (audit A12 acceptance criterion, #233).**
+  New workspace-level `tests/test_cross_app_import_boundary.py` generalises the SECOM-only
+  boundary test (#204/#205) to all five app packages, so "imports go downward only" is
+  self-defending rather than held by hand-run `git grep` during review.
+  **Part 1** runs one fresh, non-pytest interpreter per app — with `cwd` set to that app's
+  own directory, because `fmea-app` and `controlplan-app` are `package = false` and resolve
+  only via the implicit `sys.path[0]` — walks every submodule with `pkgutil.walk_packages`,
+  and fails if any of the other four `*_app` packages appears in `sys.modules`. The
+  subprocess is what makes the `sys.modules` check honest: in a full-workspace run other
+  apps' suites have already imported their packages, so an in-process check would be
+  import-order-dependent. An `assert walked` guard prevents a vacuous zero-submodule pass.
+  **Part 2** is an `ast` scan of every `apps/*/tests/**/*.py` — covering `import`,
+  `from … import`, and string-argument `importorskip` / `import_module` calls — that fails
+  on any cross-app import not named in `_ALLOWED_TEST_ONLY_CROSS_APP_IMPORTS`, so adding a
+  third test-only cross-app import is a conscious edit rather than a silent gap. `ast`
+  rather than a regex because hand-written grep patterns have under-matched here before
+  (#235), and the `importorskip` call form is invisible to an import-node-only walk — it
+  accounts for two of the three allowlisted pairs.
+  Stale allowlist entries are deliberately **not** a failure: only unlisted imports fail, so
+  removing a cross-app import is never punished. No per-surface coverage gate is affected —
+  the root `tests/` directory is outside every gate's collection path and outside
+  `[tool.coverage.run] source` (verified against the core io and SECOM gates).
+  `apps/secom/tests/test_import_boundary.py` is unchanged; the new guard is additive.
+
 - **CI README test-count drift check script and workflow step (#210).**
   Added `scripts/check_readme_test_count.py` to compare `pytest --collect-only` counts against claims in `README.md` (badge and comment). Added `tests` to `testpaths` in `pyproject.toml`, updated `README.md` test counts to 1641, and added a CI step in `.github/workflows/ci.yml` to fail on drift.
 
