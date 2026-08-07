@@ -98,6 +98,16 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Changed
 
+- **Root `CLAUDE.md` gains two hard-won rules on parallel-agent isolation.** "One agent, one
+  worktree" — branch state is per-checkout, not per-agent, so a second agent running
+  `git switch -c` moves the branch out from under the first and its `git reset` wipes the first's
+  uncommitted work. Observed live: an Antigravity run took the main checkout while `/ship` was
+  mid-flight on #233, leaving that feature branch empty and the tree clean, so nothing looked
+  wrong. The companion rule covers `.pipeline/`, which is likewise shared per checkout — the
+  pre-existing archive-before-`rm -rf` rule only protects the *previous* issue's handoff files,
+  not the current one's, so the spec is now backed up as soon as research writes it.
+  Documentation only — no code, no gate, no behavior change.
+
 - **`apps/msa` is now an installable workspace package, removing the last cross-app `sys.path`
   shim (audit A03 follow-up, #231).** `msa-app` drops `[tool.uv] package = false` for the same
   hatchling `[build-system]` + `[tool.hatch.build.targets.wheel] packages = ["msa_app"]` shape
