@@ -53,9 +53,8 @@ def test_demo_stream_verdicts_match_the_recorded_baseline():
     # instead of 1. Golden baseline for the A09 move — a change here means a
     # verdict flipped, not that the number needs updating.
     #
-    # Reads the COMMITTED demo CSV, deliberately, NOT generate_demo_dataset():
-    # `data_generator._RNG` is module-level, so what it returns depends on how
-    # many times it has been called in the process. The committed CSV is tracked
+    # Reads the COMMITTED demo CSV, deliberately. generate_demo_dataset() is
+    # fully reproducible on every call, but the committed CSV is tracked
     # in git, is byte-identical everywhere, and is what the app actually loads.
     #
     # ply_misalignment is 19, not 20. 20 was the WRONG answer, produced by the

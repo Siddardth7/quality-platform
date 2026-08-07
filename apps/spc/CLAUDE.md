@@ -85,9 +85,9 @@ spc_app/spc_engine/             pure SPC computation (fully unit-tested). Everyt
                                   detect_we_violations, detect_nelson_violations
     constants.py                  shim -> quality_core.spc.constants: AIAG SPC chart
                                   constants (see ASSUMPTIONS_LOG.md)
-    data_generator.py             7-stream demo dataset. `_RNG` is module-level, so
-                                  only the FIRST generate_demo_dataset() call in a
-                                  process is reproducible; reseed to pin a baseline
+    data_generator.py             7-stream demo dataset. Instantiates local rng seed
+                                  (42) on each call, ensuring reproducible demo data
+                                  across all generate_demo_dataset() invocations.
     utils.py                      shim -> quality_core.spc.utils: subgroup_rows
 spc_app/simulation/engine.py    SimulationEngine — mean shift / spike / drift injection
 spc_app/visualizer.py           Plotly builders: control chart, capability histogram, Cpk gauge

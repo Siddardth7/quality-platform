@@ -6,6 +6,10 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- **SPC demo generator reproducibility (#226).** Instantiated local `rng = np.random.default_rng(42)` inside `generate_demo_dataset()` and threaded `rng` to all seven private stream helpers (`_ply_thickness`, `_autoclave_temperature`, `_hole_diameter`, `_reject_proportion`, `_surface_defects`, `_panel_defects`, `_ply_misalignment`), eliminating module-level `_RNG`. Subsequent calls in a single process now return byte-identical datasets.
+
 ### Security
 
 - **Remediate 26 known security advisories across dependencies (audit A13, #201).**
