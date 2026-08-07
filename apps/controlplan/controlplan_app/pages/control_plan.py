@@ -19,6 +19,7 @@ import pandas as pd
 import pydantic
 import streamlit as st
 from quality_core.io import IngestError, TableSchema, load_table, load_table_from_path
+from quality_core.io.validate import clean_pydantic_message
 from quality_core.schema import FMEADataset, FMEARow, RelationalFMEA, flat_to_relational
 
 from controlplan_app.connector import build_control_plan, source_index
@@ -96,9 +97,7 @@ def _first_error_message(exc: pydantic.ValidationError) -> str:
     first = exc.errors()[0]
     column = ".".join(str(part) for part in first.get("loc", ()))
     where = f"column '{column}'" if column else "dataset"
-    msg = first.get("msg", "invalid value")
-    for prefix in ("Value error, ", "Assertion failed, "):
-        msg = msg.removeprefix(prefix)
+    msg = clean_pydantic_message(first.get("msg", "invalid value"))
     return f"{where}: {msg}"
 
 
