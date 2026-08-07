@@ -101,6 +101,15 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Changed
 
+- **Root `CLAUDE.md` gains two hard-won rules on parallel-agent isolation.** "One agent, one
+  worktree" — branch state is per-checkout, not per-agent, so a second agent running
+  `git switch -c` moves the branch out from under the first and its `git reset` wipes the first's
+  uncommitted work. Observed live: an Antigravity run took the main checkout while `/ship` was
+  mid-flight on #233, leaving that feature branch empty and the tree clean, so nothing looked
+  wrong. The companion rule covers `.pipeline/`, which is likewise shared per checkout — the
+  pre-existing archive-before-`rm -rf` rule only protects the *previous* issue's handoff files,
+  not the current one's, so the spec is now backed up as soon as research writes it.
+  Documentation only — no code, no gate, no behavior change.
 - **The duplicated `quality_core` helpers are single-sourced (audit A15, #207).** Two copy-paste
   clusters collapse into one definition each. (1) The pydantic raise/assert prefix strip is now
   `quality_core.io.validate.clean_pydantic_message`, called by the core row and dataset error

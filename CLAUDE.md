@@ -110,6 +110,16 @@ Violating these has cost real rework.
   under-matched on four consecutive PRs — a line-wrapped phrase defeated one (issue #235).
 - **A subagent that dies mid-run can leave mutation residue.** After any agent failure,
   check `git status` and grep for `# MUTATION` before branching or committing.
+- **One agent, one worktree. Never run two agents in the same checkout.** Branch state is
+  per-checkout, not per-agent: a second agent running `git switch -c` moves the branch out from
+  under the first, and its `git reset` wipes the first's uncommitted work. This destroyed a whole
+  coder stage on #233 — an Antigravity run took the main checkout while `/ship` was mid-flight,
+  leaving the feature branch empty and the tree clean, so nothing *looked* wrong. Give every
+  parallel agent its own `git worktree add`, and say so explicitly in the handoff prompt.
+- **`.pipeline/` is shared per checkout too.** Two agents in one directory silently overwrite each
+  other's `spec.md` / `changes.md` / `test-results.md` / `review.md`. Back the spec up to the
+  scratchpad as soon as the research stage writes it — the existing archive-before-`rm -rf` rule
+  above only protects the *previous* issue's files, not the current one's.
 - **Conventional commits**: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`,
   `ci:`, `style:`. One logical change per commit.
 
