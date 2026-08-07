@@ -24,7 +24,8 @@ from quality_core.spc.constants import SPCChart
 # ponytail: string contract mirrored from
 # controlplan_app.pages.control_plan._PLAN_STATE_KEY — duplicated (not imported)
 # so the standalone SPC app, which never has controlplan_app on sys.path, still
-# imports cleanly.
+# imports cleanly. Deletion deferred until Streamlit UI layer
+# (apps/spc/spc_app/pages/control_charts.py and apps/controlplan/controlplan_app/pages/control_plan.py) is removed.
 PLAN_STATE_KEY = "_controlplan_plan_df"
 
 #: The Shewhart chart keys a Control Plan characteristic may name — a *subset* of
