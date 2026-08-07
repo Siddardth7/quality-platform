@@ -6,6 +6,11 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Security
+
+- **Remediate 26 known security advisories across dependencies (audit A13, #201).**
+  Bump `pillow` to `>=12.3.0` (remediating 18 advisories) and `gitpython` to `>=3.1.55` (remediating 8 advisories) via `override-dependencies` in `pyproject.toml` and updated lockfile. Added `pip-audit>=2.10.0` to `[dependency-groups] dev` and added a `Dependency vulnerability audit` gate step running `uv run pip-audit` to `.github/workflows/ci.yml`.
+
 ### Added
 
 - **MSA reports %EV, %AV and %PV on both AIAG bases alongside %GRR (audit A10-c, #225).**
