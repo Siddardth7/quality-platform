@@ -74,7 +74,9 @@ msa_app/schema.py             GageStudyRow / GageStudyDataset (Pydantic v2),
 msa_app/gage_rr_engine.py     compute_gage_rr — the whole AIAG computation:
                               EV (repeatability), AV (reproducibility), GRR, PV, TV,
                               %EV/%AV/%GRR/%PV each vs study variation and vs
-                              tolerance (#225), ndc, verdict.
+                              tolerance (#225), ndc, verdict. Average-and-Range by
+                              default; method="anova" adds the part x appraiser
+                              interaction (#195).
         │
         ▼
 msa_app/exporter.py           GageStudyReport + export_csv / export_results_csv /
@@ -85,10 +87,16 @@ msa_app/exporter.py           GageStudyReport + export_csv / export_results_csv 
 
 ## Conventions that matter here
 
-- **Average-and-Range only.** `METHOD = "average_and_range"`; the method's limitation —
-  it does **not** estimate the part x appraiser interaction — is declared in the payload
-  as `METHOD_NOTE`, not hidden. Do not silently switch to ANOVA; that is a different
-  method with a different payload contract.
+- **Two methods, Average-and-Range by default.** `compute_gage_rr(..., method=...)` selects
+  between `METHOD = "average_and_range"` (the default — do **not** flip it; SME decision) and
+  `METHOD_ANOVA = "anova"` (#195, `_anova_method`, RULE 17). Whichever ran is declared in the
+  payload as `method` / `method_note` (`METHOD_NOTE` / `METHOD_NOTE_ANOVA`), not hidden —
+  Average-and-Range's note states that it does **not** estimate the part x appraiser
+  interaction. ANOVA adds `interaction` / `interaction_f` / `interaction_significant`, which
+  are `None` under Average-and-Range; its `grr` is `sqrt(EV² + AV² + INT²)`, not `sqrt(EV² +
+  AV²)`. The interaction F-test uses α = 0.05 (`_ANOVA_ALPHA`) — the level in AIAG's own
+  worked example, **not** an AIAG requirement; a non-significant interaction is pooled into
+  repeatability per the manual's procedure. Do not add an `alpha=` parameter (SME decision).
 - **Study variation is 6σ** (`_STUDY_VARIATION_SIGMA = 6.0`), per RULE 7. The AIAG 4th Ed.
   form uses 6 sigma; earlier editions used 5.15. Do not "fix" this to 5.15.
 - **The verdict mixes AIAG and platform logic, and says so.** The %GRR bands (<10% accept,

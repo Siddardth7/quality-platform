@@ -6,6 +6,32 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **ANOVA (crossed, with interaction) Gage R&R method for MSA (#195).**
+  `compute_gage_rr()` gains a `method=` selector: `"average_and_range"` (the **default**,
+  behaviour unchanged on every existing call site) or `"anova"`, a new `_anova_method()`
+  implementing AIAG MSA 4th Ed. Ch. III Sec. B / Appendix A's crossed two-factor ANOVA with
+  replication. It estimates the part × appraiser interaction, tests it with
+  `F = MS_AxP / MS_e` against `scipy.stats.f.ppf(1 − α, df_AxP, df_e)` at **α = 0.05** — the
+  level in the manual's own worked example; **AIAG does not mandate a significance level**,
+  and there is deliberately no `alpha=` parameter — and either pools a non-significant
+  interaction into repeatability (the manual's additive model, `SS_pool = SS_e + SS_AxP` over
+  `nkr − n − k + 1` df) or carries it into `GRR = sqrt(EV² + AV² + INT²)`. Negative variance
+  components are clamped to zero per Appendix A. Three additive payload keys —
+  `interaction`, `interaction_f`, `interaction_significant` — are `None` under
+  Average-and-Range, which cannot estimate them; no existing key was renamed, removed, or
+  changed in value. Both methods share one balance check, one `_STUDY_VARIATION_SIGMA` (the
+  #190 ×6 guard), `_compute_ndc` and `_compute_verdict`. On the canonical 10×3×3 study
+  (`apps/msa/data/aiag_reference_study.csv`) the new path reproduces the manual's published
+  Table III-B 7/8 and Table A 4/5 figures: F = 0.4337 (manual 0.434), EV = 0.199933,
+  AV = 0.226838, INT = 0 (pooled), GRR = 0.302373, PV = 1.042327, TV = 1.085, ndc = 4.
+  Engine-only: no exporter, page or schema changes. New ASSUMPTIONS_LOG **RULE 17** with ten
+  primary-source-verified `CITATIONS.tsv` rows; RULE 1 rewritten as "the default, not the
+  only, method"; the "ANOVA not implemented" claims in `README.md`, `ROADMAP.md`,
+  `apps/msa/CLAUDE.md` and the engine's own docstring / `METHOD_NOTE` retired. `scipy>=1.17.1`
+  is now a declared `msa-app` dependency (already present in the workspace via `quality-core`).
+
 ### Fixed
 
 - **SPC demo generator reproducibility (#226).** Instantiated local `rng = np.random.default_rng(42)` inside `generate_demo_dataset()` and threaded `rng` to all seven private stream helpers (`_ply_thickness`, `_autoclave_temperature`, `_hole_diameter`, `_reject_proportion`, `_surface_defects`, `_panel_defects`, `_ply_misalignment`), eliminating module-level `_RNG`. Subsequent calls in a single process now return byte-identical datasets.

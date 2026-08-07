@@ -1,7 +1,7 @@
 # Engineering Assumptions Log
 **Project:** Gage R&R Analysis (MSA Module)
 **Author:** Siddardth | M.S. Aerospace Engineering, UIUC
-**Last Updated:** August 2, 2026
+**Last Updated:** August 7, 2026
 
 This document records every decision in the Gage R&R computation engine (W08-2) and explains why it
 was made. Entries are of two kinds and each says which it is:
@@ -37,11 +37,15 @@ words are otherwise unaltered. A quotation spanning a dropped marker is register
 
 ---
 
-## RULE 1 — Average-and-Range Method (AIAG MSA, 4th Edition, Ch. III Sec. B)
+## RULE 1 — Average-and-Range Method, the DEFAULT (AIAG MSA, 4th Edition, Ch. III Sec. B)
 
-**Decision:** Implement the **Average-and-Range method** for Gage R&R computation, not the ANOVA
-method. The choice is declared in the computed payload (`method` / `method_note`) and in every
-export, so a consumer can never mistake an Average-and-Range `%GRR` for an ANOVA one.
+**Decision:** The **Average-and-Range method** is the **default** — no longer the only — Gage R&R
+computation. Since **#195** the ANOVA method exists alongside it and is opt-in via
+`compute_gage_rr(..., method="anova")`; see **RULE 17** for its decomposition and citations. The
+default did not change (SME decision, 2026-08-07): every existing call site keeps Average-and-Range
+behaviour, and every computed value it returns is unchanged. Which method actually ran is declared
+in the computed payload (`method` / `method_note`) and in every export, so a consumer can never
+mistake an Average-and-Range `%GRR` for an ANOVA one.
 
 **Source:** AIAG MSA (4th Edition), Chapter III, Section B, "Variable Measurement System Study
 Guidelines." Under "Guidelines for Determining Repeatability and Reproducibility" the manual names
@@ -82,20 +86,24 @@ statistical interaction between appraisers and parts"* among the conditions unde
 - Is widely taught in quality training and is the baseline expectation for suppliers.
 - Is equivalent to ANOVA under AIAG's own stated precondition that the interaction is zero.
 
-**Limitation (declared, not hidden):** the part × appraiser interaction is **not estimated**. It is
-absorbed into the reported EV/AV/PV components rather than separated out, so `%GRR` is **biased low**
-whenever the interaction is non-zero — exactly the case AIAG's precondition excludes and this method
-cannot detect. The computed payload therefore carries `method = "average_and_range"` and a
-`method_note` stating the limitation, and both reach the results CSV, the Excel Summary sheet and
-the PDF detail table ("Method" / "Method Limitation"). ANOVA — which would separate the interaction
-term — is **not implemented here**; it is tracked as **#195**.
+**Limitation of this method (declared, not hidden):** the part × appraiser interaction is **not
+estimated** by Average-and-Range. It is absorbed into the reported EV/AV/PV components rather than
+separated out, so `%GRR` is **biased low** whenever the interaction is non-zero — exactly the case
+AIAG's precondition excludes and this method cannot detect. The computed payload therefore carries
+`method = "average_and_range"` and a `method_note` stating the limitation, and both reach the results
+CSV, the Excel Summary sheet and the PDF detail table ("Method" / "Method Limitation"). The remedy is
+to run the same study through `method="anova"` (**RULE 17**), which separates and tests the
+interaction term; `interaction` / `interaction_f` / `interaction_significant` are `None` under
+Average-and-Range precisely because it cannot see them.
 
-**Stretch (#195):** ANOVA method (interaction term, unbalanced data); bias/linearity/stability
-studies.
+**Still outstanding:** unbalanced-data support (RULE 11) and bias/linearity/stability studies. #195
+delivered the ANOVA interaction term for **balanced** studies only; ANOVA's ability to handle
+unbalanced designs is not exercised here (both methods share the balance precondition).
 
 **Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_average_and_range_method()`;
-`compute_gage_rr()` → `method` / `method_note` return keys; module constants `METHOD` /
-`METHOD_NOTE`. `apps/msa/msa_app/exporter.py` → `_detail_rows()` (Excel + PDF) and
+`compute_gage_rr()` → the `method` dispatch and the `method` / `method_note` return keys; module
+constants `METHOD` / `METHOD_NOTE` (and `METHOD_ANOVA` / `METHOD_NOTE_ANOVA`, RULE 17).
+`apps/msa/msa_app/exporter.py` → `_detail_rows()` (Excel + PDF) and
 `export_results_csv()` "Method" / "Method Limitation" rows/columns.
 `apps/msa/msa_app/pages/gage_study.py` → the caption under "Gage R&R Results".
 **Forward requirement:** the API response model for a Gage R&R study (#178 / #195-era endpoints)
@@ -690,8 +698,10 @@ the following as the argument for a design decision, not as a rule quoted from a
   method has no defined answer on unbalanced data. This is the load-bearing reason.
 - Refusing is a deliberate choice over silently analysing a common subset: dropping measurements
   would change the study the user thinks they ran without telling them.
-- The ANOVA method (W09+ stretch, **#195**) handles unbalanced data properly and is the correct
-  upgrade path.
+- The ANOVA method handles unbalanced data properly and is the correct upgrade path. **#195 landed
+  ANOVA (`method="anova"`, RULE 17) but only for balanced studies** — the balance check runs ahead of
+  the method dispatch and rejects unbalanced data for both methods. Extending ANOVA to unbalanced
+  designs remains open work; nothing in this engine analyses an unbalanced study today.
 
 *(The previous rationale also claimed "unbalanced data violates the normality assumptions." That
 conflates balance with normality — they are independent — and was uncited. Removed.)*
@@ -941,12 +951,154 @@ left unedited).
 
 ---
 
+## RULE 17 — ANOVA Method: interaction term, F-test and pooling (#195)
+
+**Decision:** Implement AIAG's **ANOVA method** for crossed studies as an opt-in second technique,
+`compute_gage_rr(..., method="anova")`. It estimates the part × appraiser interaction, tests it, and
+either pools it into repeatability or carries it into `GRR = sqrt(EV² + AV² + INT²)`. RULE 1's
+Average-and-Range stays the default; no existing call site changes behaviour.
+
+**Source:** AIAG MSA (4th Edition), **Chapter III, Section B**, "Analysis of Variance (ANOVA) Method"
+and **Appendix A**, "Analysis of Variance Concepts" (Tables A 1 – A 5). *(The #195 issue body cited
+"§3"; the 4th Edition has no such locator — see the note on locators at the top of this file.)*
+
+**Sums of squares.** The classical crossed two-factor decomposition with replication, for `n` parts,
+`k` appraisers and `r` trials per cell — Table III-B 7 is computed "assuming a balanced two-factor
+factorial design":
+
+> "Table III-B 7 shows the ANOVA calculations for the example data from Figure III-B 15 assuming a
+> balanced two-factor factorial design. Both factors are considered to be random."
+
+```
+SS_total = Σ(y − ȳ)²                  df = nkr − 1
+SS_parts = kr·Σ(part̄ − ȳ)²            df = n − 1
+SS_appr  = nr·Σ(appr̄ − ȳ)²            df = k − 1
+SS_cells = r·Σ(cell̄ − ȳ)²             (cell = part × appraiser)
+SS_AxP   = SS_cells − SS_parts − SS_appr    df = (n−1)(k−1)
+SS_e     = SS_total − SS_cells              df = nk(r−1)
+MS_x     = SS_x / df_x
+```
+
+**Only the interaction gets an F-ratio.** This is AIAG's own restriction, and it is why no
+significance test is computed for the appraiser or parts rows:
+
+> "The _F-ratio_ column is calculated only for the interaction in a MSA ANOVA; it is determined by the
+> mean square of interaction divided by mean square error."
+
+**Significance level: α = 0.05 — a convention, NOT an AIAG requirement.** The manual states no
+numeric recommendation. It gives a *direction* only:
+
+> "In order to decrease the risk of falsely concluding that there is no interaction effect, choose a
+> high significance level."
+
+and its own worked example (Table A 4) is footnoted:
+
+> "* Significant at α = 0.05 level"
+
+0.05 is therefore the only level evidenced in the primary source, and it is what this engine uses
+(`_ANOVA_ALPHA`). **AIAG does not mandate a significance level**, and a looser level (0.20–0.25) is a
+third-party convention this repo does not cite as AIAG's. SME decision, 2026-08-07: hardcode 0.05,
+document it as the manual's worked-example convention, and expose **no** `alpha=` parameter — a
+consumer who needs a different level reads `interaction_f` from the payload and decides for itself.
+*The canonical study cannot validate this choice:* its interaction F is 0.4337 (p ≈ 0.98), which pools
+at any conventional α. α only changes behaviour on other data.
+
+**Auto-pooling when the interaction is not significant.** The interaction F statistic is compared to
+`scipy.stats.f.ppf(1 − α, df_AxP, df_e)`. When it does not exceed that critical value, the manual's
+additive model applies:
+
+> "In the additive model, the interaction is not significant and the variance components for each
+> source is determined as follow: First, the sum of square of gage error ( _SSe_ from Table A 3) is
+> added to the sum of square of appraiser by part interaction ( _SSAP_ from Table A 3) and which is
+> equal to the sum of squares pooled ( _SSpool_ ) with ( _nkr – n – k_ +1) degrees of freedom. Then
+> the _SSpool_ will be divided by the ( _nkr – n – k_ +1) to calculate _MSpool_ ."
+
+> "Since the calculated F value for the interaction (0.434) is less than the critical value of _F_ α
+> **,** 18 **,** 60 , the interaction term is pooled with the equipment (error) term. That is,  the
+> estimate of variance is based on the model without interaction."
+
+with footnote 85: *"Where _n_ = number of parts, _k_ = number of appraisers and _r_ = number of
+trials."* (`nkr − n − k + 1` is exactly `df_e + df_AxP`, which is how the code writes it.)
+
+Pooling happens **automatically** (SME decision, 2026-08-07) because that is the manual's own
+procedure and it is what reproduces the published numbers. It is not hidden: `interaction_f` and
+`interaction_significant` are in the payload, so a consumer can always see whether pooling occurred.
+
+**Variance components.** Table A 1 (non-additive, interaction significant) and the pooled additive
+form:
+
+| Component | Interaction significant (Table A 1) | Interaction pooled (additive) |
+|---|---|---|
+| EV² (equipment) | `MS_e` | `MS_pool` |
+| INT² (interaction) | `(MS_AxP − MS_e) / r` | `0` |
+| AV² (appraiser) | `(MS_A − MS_AxP) / (n·r)` | `(MS_A − MS_pool) / (n·r)` |
+| PV² (part) | `(MS_P − MS_AxP) / (k·r)` | `(MS_P − MS_pool) / (k·r)` |
+
+Table A 2 prints these as 6σ spreads (`EV = 6√MS_e`, etc.). This engine reports **1σ** components for
+both methods and applies ×6 only on the tolerance basis, via the single `_STUDY_VARIATION_SIGMA`
+constant (RULE 8 / #190) — the multiplier cancels out of `%GRR = GRR/TV` and `ndc = 1.41·PV/GRR`, and
+ANOVA deliberately routes through the same one place rather than hardcoding a second `6`.
+The interaction of part and appraiser is what makes the model non-additive:
+
+> "If the interaction of part and appraiser is significant, then there exists a nonadditive model and
+> therefore an estimate of its variance components is given."
+
+**Negative variance components are clamped to zero** — AIAG's instruction, and the same treatment
+RULE 14 already gives Average-and-Range's AV²:
+
+> "For analysis purposes, the negative variance component is set to zero."
+
+All four of EV², AV², PV², INT² are clamped: each is a difference (of mean squares, or of sums of
+squares for equipment), so sampling variation — and, for `SS_e = SS_total − SS_cells`, floating-point
+cancellation — can put any of them below zero.
+
+**Degenerate case not covered by AIAG (internal decision):** if `MS_e = 0` (a perfectly repeatable
+gage — every replicate in every cell identical) the F ratio `MS_AxP / MS_e` is undefined. This engine
+then reports `interaction_f = inf` and treats the interaction as significant — any interaction is
+infinitely large relative to zero error — and `interaction_f = 0.0`, not significant, when there is no
+interaction. "No interaction" is judged against `_SS_CANCELLATION_FLOOR` (relative 1e-12), not against
+literal zero: `SS_AxP = SS_cells − SS_parts − SS_appr` is a difference of large nearly-equal sums, so
+an interaction-free study still leaves a residue of order `1e-16 × SS_total`, and treating that as an
+interaction would flip the model to non-additive and put a noise-level term into GRR. AIAG says
+nothing about either point; both are guards (against a `NaN` in the payload, and against
+floating-point cancellation), not standard behaviour.
+
+**Numeric oracle (plain prose, not a quotation).** For the canonical 10×3×3 study at
+`apps/msa/data/aiag_reference_study.csv`, Table III-B 7 / Table A 4 publish SS = 3.1673 (appraiser),
+88.3619 (parts), 0.3590 (interaction), 2.7589 (equipment), 94.6471 (total), with DF 2/9/18/60/89 and
+interaction **F = 0.434**. Table III-B 8 / Table A 5 publish EV² = 0.039973 (σ = 0.199933),
+AV² = 0.051455 (σ = 0.226838), INT = 0, GRR = 0.302373, PV² = 1.086447 (σ = 1.042327), TV = 1.085,
+%EV 18.4, %AV 20.9, %GRR 27.9, %PV 96.0, and **ndc = 4**. The engine reproduces every one of these
+(observed: F = 0.43372, EV = 0.1999332, AV = 0.2268375, INT = 0.0, GRR = 0.3023715, PV = 1.0423275,
+TV = 1.0852996, %GRR 27.86, ndc 4, not significant → pooled). Note the manual's published values are
+the **pooled** ones: the unpooled `MS_e = 0.045982` does not equal the published `EV² = 0.039973`,
+while `MS_pool = 3.1179/78 = 0.039973` does — pooling is what makes the oracle reproducible.
+Table III-B 9's own ANOVA-vs-Average-and-Range comparison (%GRR 27.9 vs 26.7 on this study) is the
+manual's demonstration that the two methods agree to about a percentage point when the interaction is
+not significant; they are not expected to agree exactly.
+
+**Not implemented (deliberate scope, #195):** unbalanced designs (RULE 11 — the balance check runs
+ahead of the method dispatch and applies to both methods); ANOVA output in the Excel/PDF/CSV exports
+beyond the generic `method` / `method_note` rows they already carry; any UI selector. The
+`interaction*` keys are payload-only.
+
+**Applied In:** `apps/msa/msa_app/gage_rr_engine.py` → `_anova_method()`; the `method` dispatch and
+`grr = sqrt(ev² + av² + interaction²)` in `compute_gage_rr()`; module constants `METHOD_ANOVA`,
+`METHOD_NOTE_ANOVA`, `_ANOVA_ALPHA`; return keys `interaction` / `interaction_f` /
+`interaction_significant`.
+
+**Verified:** quotations checked verbatim against the primary manual
+(`MSA_Reference_Manual_4th_Edition.md`) on 2026-08-07 and pinned in `CITATIONS.tsv`.
+
+---
+
 ## Summary of Files & Code Pointers
 
 | Assumption | Implemented In |
 |-----------|---------------|
-| Average-and-Range method | `_average_and_range_method()` |
-| Method declaration / un-estimated interaction | `compute_gage_rr()`, keys `method` / `method_note`; `METHOD` / `METHOD_NOTE` |
+| Average-and-Range method (default) | `_average_and_range_method()` |
+| ANOVA method / interaction F-test and pooling | `_anova_method()`; `METHOD_ANOVA` / `METHOD_NOTE_ANOVA` / `_ANOVA_ALPHA`; keys `interaction` / `interaction_f` / `interaction_significant` |
+| Method declaration / un-estimated interaction | `compute_gage_rr()`, the `method` dispatch, keys `method` / `method_note`; `METHOD` / `METHOD_NOTE` |
 | K1/K2/K3 constants | `_K1`/`_K2`/`_K3` dicts, `_k_constant()` |
 | EV formula | `_average_and_range_method()`, lines: `ev = avg_range_within * k1` |
 | AV formula | `_average_and_range_method()`, lines: `av_squared = ...` |

@@ -25,7 +25,10 @@ from msa_app.gage_rr_engine import (
     _K2,
     _K3,
     METHOD,
+    METHOD_ANOVA,
     METHOD_NOTE,
+    METHOD_NOTE_ANOVA,
+    _anova_method,
     _average_and_range_method,
     _compute_ndc,
     _compute_verdict,
@@ -277,8 +280,15 @@ def test_compute_gage_rr_balanced_study(balanced_10_3_3):
         "is_balanced",
         "method",
         "method_note",
+        # ANOVA additions (#195) — always present, None under Average-and-Range.
+        "interaction",
+        "interaction_f",
+        "interaction_significant",
     }
     assert set(results.keys()) == expected_keys
+    assert results["interaction"] is None
+    assert results["interaction_f"] is None
+    assert results["interaction_significant"] is None
 
     # Check types
     assert isinstance(results["ev"], float) and results["ev"] >= 0
@@ -1165,3 +1175,347 @@ def test_tolerance_band_edges_are_crossed_by_the_six_sigma_scaled_figure(
 
     assert results["pgrr_tolerance"] == pytest.approx(target_pgrr_tolerance, rel=1e-3)
     assert results["verdict"] == expected_verdict
+
+
+# =============================================================================
+# ANOVA method (crossed, with interaction) — #195
+# =============================================================================
+# The oracle is AIAG MSA 4th Ed. Table A 4 (ANOVA table) / Table A 5 / III-B 8-10
+# for the canonical 10x3x3 study in apps/msa/data/aiag_reference_study.csv. Every
+# published sigma/percentage/F/ndc value below is transcribed from the manual, not
+# read back off this engine — that is what makes it an acceptance gate. Verified by
+# the Team Lead against MSA_Reference_Manual_4th_Edition.md lines ~5340-5364.
+
+
+# --- A-1: the published ANOVA oracle -----------------------------------------
+
+
+def test_anova_oracle_matches_the_aiag_published_table_a4_a5():
+    """ANOVA on the canonical study reproduces AIAG's published Table A 4 / A 5.
+
+    Oracle (manual, NOT engine output):
+      EV sigma 0.199933  AV sigma 0.226838  GRR sigma 0.302373  PV sigma 1.042327
+      TV 1.085 (manual prints TV to 3 dp; the sigmas to 6)
+      %EV 18.4  %AV 20.9  %GRR 27.9  %PV 96.0
+      F(interaction) 0.434  ->  pooled (not significant)  ->  INT = 0  ->  ndc 4
+    A 6x error, a dropped interaction term, or the unpooled model each move one of
+    these out of tolerance.
+    """
+    data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+    results = compute_gage_rr(data, tolerance=4.42, method="anova")
+
+    # sigma components — manual gives 6 dp, assert tightly
+    assert results["ev"] == pytest.approx(0.199933, rel=2e-4)
+    assert results["av"] == pytest.approx(0.226838, rel=2e-4)
+    assert results["grr"] == pytest.approx(0.302373, rel=2e-4)
+    assert results["pv"] == pytest.approx(1.042327, rel=2e-4)
+    # TV is printed to 3 dp in the manual (1.085); assert to that grain, not 6 dp.
+    assert results["tv"] == pytest.approx(1.085, abs=1e-3)
+
+    # interaction: F = 0.434 < F_crit, so the manual pools it to exactly 0.
+    assert results["interaction_f"] == pytest.approx(0.434, abs=1e-3)
+    assert results["interaction_significant"] is False
+    assert results["interaction"] == 0.0
+
+    # study-basis percentages (manual 1 dp)
+    assert results["pev_study"] == pytest.approx(18.4, abs=0.1)
+    assert results["pav_study"] == pytest.approx(20.9, abs=0.1)
+    assert results["pgrr_study"] == pytest.approx(27.9, abs=0.1)
+    assert results["ppv_study"] == pytest.approx(96.0, abs=0.1)
+
+    assert results["ndc"] == 4
+    assert results["method"] == "anova"
+    assert results["method"] is METHOD_ANOVA
+
+
+# --- A-2: agreement on a no-interaction study --------------------------------
+
+
+def test_anova_and_average_and_range_agree_on_the_no_interaction_study():
+    """Both methods report the same %GRR to within rounding on the canonical study.
+
+    The canonical study has F(interaction)=0.434 (pooled), i.e. no significant
+    interaction, so the two methods should agree. AIAG's OWN Table III-B 9 prints
+    26.7 (Average-and-Range) vs 27.9 (ANOVA) for this exact study — a 1.2-point
+    spread it attributes to the range vs ANOVA estimator, not to a hidden
+    interaction. So "within rounding" here means within that published ~1.2-point
+    gap; a 1.5-point absolute ceiling is the tolerance chosen, and it is still far
+    tighter than any method-level bug (a dropped interaction term, a 6x error)
+    would produce.
+    """
+    data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+    anova = compute_gage_rr(data, method="anova")
+    avg_range = compute_gage_rr(data, method="average_and_range")
+
+    assert anova["interaction_significant"] is False  # no interaction to diverge on
+    delta = abs(anova["pgrr_study"] - avg_range["pgrr_study"])
+    assert delta < 1.5, delta
+    # And the gap really is the manual's ~1.2 points, not a coincidental zero.
+    assert delta == pytest.approx(1.18, abs=0.2)
+
+
+# --- A-3: the headline acceptance test — induced interaction diverges --------
+# 6 parts x 3 appraisers x 3 trials. One (part=P3, appraiser=C) cell is offset by a
+# fixed +1.2 that NO other cell sees — a genuine part x appraiser interaction, not a
+# main effect. Big enough vs MS_e to trip the F-test at df_AxP=10, df_e=36.
+
+_INDUCED_INTERACTION_DATA = pd.DataFrame([
+    {
+        "part": f"P{p}",
+        "appraiser": a,
+        "trial": t,
+        "measurement": (
+            float(p)
+            + (0.01 if t == 2 else 0.0)
+            + (0.02 if t == 3 else 0.0)
+            + (1.2 if (p == 3 and a == "C") else 0.0)
+        ),
+    }
+    for p in range(1, 7)
+    for a in ["A", "B", "C"]
+    for t in [1, 2, 3]
+])
+
+
+def test_anova_reports_higher_pgrr_than_average_and_range_under_real_interaction():
+    """With a genuine interaction, ANOVA diverges from Average-and-Range and reports
+    the higher (correct) %GRR — the issue's headline acceptance criterion.
+
+    This is the negative-control-bearing test: if ANOVA's GRR drops the + INT^2 term
+    (i.e. becomes sqrt(EV^2 + AV^2) like Average-and-Range), the divergence collapses
+    and this test fails. Proven load-bearing by mutation in the tester report.
+    """
+    anova = compute_gage_rr(_INDUCED_INTERACTION_DATA, method="anova")
+    avg_range = compute_gage_rr(_INDUCED_INTERACTION_DATA, method="average_and_range")
+
+    # The interaction is genuinely significant — otherwise the test proves nothing.
+    assert anova["interaction_significant"] is True
+    assert anova["interaction"] > 0.0
+
+    # ANOVA carries the interaction into GRR; Average-and-Range cannot see it and so
+    # understates %GRR. ANOVA must report the HIGHER figure.
+    assert anova["pgrr_study"] > avg_range["pgrr_study"]
+    # Concretely (pins the direction and magnitude, not just the inequality):
+    assert anova["pgrr_study"] == pytest.approx(15.12, abs=0.1)
+    assert avg_range["pgrr_study"] == pytest.approx(5.62, abs=0.1)
+    # Average-and-Range does not estimate the interaction at all.
+    assert avg_range["interaction"] is None
+
+
+# --- A-4: unknown method ------------------------------------------------------
+
+
+def test_anova_unknown_method_raises():
+    """An unrecognised method= value raises ValueError naming the two supported ones."""
+    with pytest.raises(ValueError, match="Unknown method: 'bogus'"):
+        compute_gage_rr(_EXAMPLE_B_DATA, method="bogus")
+
+
+# --- A-5: shared validation path (unbalanced still raises under anova) --------
+
+
+def test_anova_unbalanced_data_still_raises():
+    """method='anova' routes through the SAME balance check as Average-and-Range."""
+    data = pd.DataFrame([
+        {"part": "P1", "appraiser": "A", "trial": 1, "measurement": 10.0},
+        {"part": "P1", "appraiser": "A", "trial": 2, "measurement": 10.02},
+        {"part": "P1", "appraiser": "A", "trial": 3, "measurement": 10.01},
+        {"part": "P1", "appraiser": "B", "trial": 1, "measurement": 10.01},
+        {"part": "P1", "appraiser": "B", "trial": 2, "measurement": 10.03},
+        {"part": "P2", "appraiser": "A", "trial": 1, "measurement": 10.1},
+        {"part": "P2", "appraiser": "A", "trial": 2, "measurement": 10.12},
+        {"part": "P2", "appraiser": "A", "trial": 3, "measurement": 10.11},
+        {"part": "P2", "appraiser": "B", "trial": 1, "measurement": 10.11},
+        {"part": "P2", "appraiser": "B", "trial": 2, "measurement": 10.13},
+    ])
+    with pytest.raises(ValueError, match="unbalanced"):
+        compute_gage_rr(data, method="anova")
+
+
+# --- A-6: minimum-size boundary (df_AxP=1, df_e=4) ---------------------------
+
+
+def test_anova_minimum_size_study_completes():
+    """The smallest valid design (2 parts x 2 appraisers x 2 trials) does not error.
+
+    df_interaction=(2-1)(2-1)=1, df_equipment=2*2*(2-1)=4 — the smallest F-distribution
+    degrees of freedom this domain allows; scipy.stats.f.ppf must handle them.
+    """
+    data = pd.DataFrame([
+        {"part": p, "appraiser": a, "trial": t, "measurement": base + 0.01 * t}
+        for p, base in [("P1", 10.0), ("P2", 11.0)]
+        for a in ["A", "B"]
+        for t in [1, 2]
+    ])
+    results = compute_gage_rr(data, method="anova")
+
+    assert results["n_parts"] == 2
+    assert results["n_appraisers"] == 2
+    assert results["n_trials"] == 2
+    assert results["interaction_significant"] in (True, False)
+    assert np.isfinite(results["grr"])
+
+
+# --- A-7: METHOD_ANOVA / METHOD_NOTE_ANOVA reach the payload ------------------
+
+
+def test_anova_method_constants_reach_the_payload():
+    """method='anova' populates method / method_note with the ANOVA constants."""
+    results = compute_gage_rr(_EXAMPLE_B_DATA, method="anova")
+    assert results["method"] == METHOD_ANOVA == "anova"
+    assert results["method"] is METHOD_ANOVA
+    assert results["method_note"] is METHOD_NOTE_ANOVA
+    note = results["method_note"].lower()
+    assert "interaction" in note
+    assert "pooled" in note
+    assert "0.05" in note  # the documented convention is stated in the note
+    # ASCII guard: the note flows into the latin-1 PDF exporter like METHOD_NOTE.
+    METHOD_NOTE_ANOVA.encode("ascii")
+
+
+def test_default_method_is_still_average_and_range():
+    """Omitting method= must not change behaviour — the default stays Average-and-Range."""
+    default = compute_gage_rr(_EXAMPLE_B_DATA)
+    explicit = compute_gage_rr(_EXAMPLE_B_DATA, method="average_and_range")
+    assert default["method"] is METHOD
+    assert default["method_note"] is METHOD_NOTE
+    assert default["interaction"] is None
+    assert default["interaction_significant"] is None
+    assert default["interaction_f"] is None
+    # default == explicit average_and_range, key by key
+    assert default == explicit
+
+
+# --- A-8: MS_e == 0 branch (perfectly repeatable gage) -----------------------
+# Zero within-cell spread makes MS_e = 0 and the F ratio undefined; the engine
+# takes its `else` arm. Two fixtures exercise both sides of the ternary inside it.
+
+_PERFECT_NO_INTERACTION = pd.DataFrame([
+    {"part": f"P{p}", "appraiser": a, "trial": t, "measurement": float(p) + off}
+    for p in range(1, 4)
+    for a, off in [("A", 0.0), ("B", 0.5)]
+    for t in [1, 2]
+])
+
+_PERFECT_WITH_INTERACTION = pd.DataFrame([
+    {
+        "part": f"P{p}",
+        "appraiser": a,
+        "trial": t,
+        "measurement": float(p) + (1.0 if (p == 2 and a == "B") else 0.0),
+    }
+    for p in range(1, 4)
+    for a in ["A", "B"]
+    for t in [1, 2]
+])
+
+
+def test_anova_perfectly_repeatable_no_interaction_pools():
+    """MS_e = 0 with a pure appraiser main effect: interaction not significant, F = 0."""
+    results = compute_gage_rr(_PERFECT_NO_INTERACTION, method="anova")
+    assert results["interaction_significant"] is False
+    assert results["interaction_f"] == 0.0
+    assert results["interaction"] == 0.0
+
+
+def test_anova_perfectly_repeatable_with_interaction_is_significant():
+    """MS_e = 0 with a real single-cell offset: interaction significant, F = inf."""
+    results = compute_gage_rr(_PERFECT_WITH_INTERACTION, method="anova")
+    assert results["interaction_significant"] is True
+    assert np.isinf(results["interaction_f"])
+    assert results["interaction"] > 0.0
+
+
+# --- A-9: the floating-point cancellation floor (the coder's one deviation) ---
+# SS_AxP = SS_cells - SS_parts - SS_appraiser is a difference of large nearly-equal
+# sums. On a study with NO interaction and MS_e = 0, it leaves a tiny positive
+# residue. This fixture's residue is ~1.2e-14, above 0 but below the floor
+# (1e-12 * SS_total ~ 1.8e-10). Without the guard, `ss_interaction > 0` would flip a
+# perfectly repeatable gage to the non-additive model. With it, the study stays
+# pooled. Proven load-bearing by mutation in the tester report.
+
+_CANCELLATION_RESIDUE_DATA = pd.DataFrame([
+    {
+        "part": f"P{pi}",
+        "appraiser": a,
+        "trial": t,
+        "measurement": pv + (0.341 if a == "A" else 1.174),
+    }
+    for pi, pv in enumerate(
+        [8.013, 5.822, 0.941, 4.331, 4.791, 1.597, 7.346], start=1
+    )
+    for a in ["A", "B"]
+    for t in [1, 2]
+])
+
+
+def test_anova_cancellation_floor_keeps_a_repeatable_gage_pooled():
+    """A no-interaction, perfectly repeatable study must NOT be flagged significant
+    by a sub-floor SS_AxP cancellation residue.
+
+    Guards `_SS_CANCELLATION_FLOOR`: the residue here is positive (~1e-14) but far
+    below the floor, so the raw `ss_interaction > 0` test would report a spurious
+    significant interaction. The floor holds interaction_significant at False.
+    """
+    results = compute_gage_rr(_CANCELLATION_RESIDUE_DATA, method="anova")
+    assert results["interaction_significant"] is False
+    assert results["interaction"] == 0.0
+    assert results["interaction_f"] == 0.0
+
+
+# --- A-10: negative-variance clamps (Appendix A: set negative components to 0) --
+
+
+def test_anova_pv_clamped_to_zero_when_variance_negative():
+    """PV^2 = (MS_parts - MS_pool)/(k r) goes negative when parts are identical;
+    the clamp reports PV = 0.0, not a negative or NaN.
+
+    Parts share one mean (PV -> 0) while appraiser B is biased +0.5 (AV > 0), so
+    PV = 0 is that component's own clamp, not a whole-payload collapse.
+    """
+    data = pd.DataFrame([
+        {"part": p, "appraiser": a, "trial": t, "measurement": m + off}
+        for p in ["P1", "P2", "P3"]
+        for a, off in [("A", 0.0), ("B", 0.5)]
+        for t, m in [(1, 9.95), (2, 10.05)]
+    ])
+    results = compute_gage_rr(data, method="anova")
+    assert results["pv"] == 0.0
+    assert results["av"] > 0.0  # isolates the clamp to PV
+    assert results["ev"] > 0.0
+    assert np.isfinite(results["pv"])
+
+
+def test_anova_av_clamped_to_zero_when_variance_negative():
+    """AV^2 = (MS_appraiser - MS_pool)/(n r) goes negative under large within-cell
+    noise; the clamp reports AV = 0.0, with PV still positive (parts well separated).
+    """
+    data = pd.DataFrame([
+        {"part": p, "appraiser": a, "trial": t, "measurement": base + d}
+        for pi, p in enumerate(["P1", "P2", "P3"])
+        for base in [10.0 + pi * 5.0]
+        for a in ["A", "B"]
+        for t, d in [(1, -3.0), (2, 3.0)]
+    ])
+    results = compute_gage_rr(data, method="anova")
+    assert results["av"] == 0.0
+    assert results["pv"] > 0.0  # isolates the clamp to AV
+    assert results["ev"] > 0.0
+    assert np.isfinite(results["av"])
+
+
+# --- A-11: _anova_method returns raw 1-sigma units (no baked-in x6) -----------
+
+
+def test_anova_method_helper_returns_raw_sigma_tuple():
+    """_anova_method returns (ev, av, pv, interaction, interaction_f, significant)
+    in raw 1-sigma units — the same convention as _average_and_range_method (no x6).
+    """
+    data = load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV))
+    ev, av, pv, interaction, interaction_f, significant = _anova_method(data)
+    assert ev == pytest.approx(0.199933, rel=2e-4)  # raw sigma, not 6*sigma
+    assert av == pytest.approx(0.226838, rel=2e-4)
+    assert pv == pytest.approx(1.042327, rel=2e-4)
+    assert interaction == 0.0
+    assert significant is False
+    assert interaction_f == pytest.approx(0.434, abs=1e-3)

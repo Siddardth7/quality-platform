@@ -11,7 +11,7 @@
 <br>
 
 [![CI](https://github.com/Siddardth7/quality-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddardth7/quality-platform/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1674%20passing-2ea043?logo=pytest&logoColor=white)](#-the-quality-gate)
+[![Tests](https://img.shields.io/badge/tests-1704%20passing-2ea043?logo=pytest&logoColor=white)](#-the-quality-gate)
 [![Coverage](https://img.shields.io/badge/coverage-core%20100%25%20%C2%B7%20SPC%20%E2%89%A595%25-2ea043)](#-the-quality-gate)
 [![Release](https://img.shields.io/github/v/release/Siddardth7/quality-platform?sort=semver&color=e65100&label=release)](https://github.com/Siddardth7/quality-platform/releases/latest)
 [![Last commit](https://img.shields.io/github/last-commit/Siddardth7/quality-platform?color=1a2f4a)](https://github.com/Siddardth7/quality-platform/commits/main)
@@ -120,7 +120,7 @@ flowchart LR
 | **🛡️ FMEA Risk Analyzer** | Failure Mode &amp; Effects Analysis — RPN + AIAG-VDA **Action Priority**, editable S/O/D scales, relational model (Function → FM → Effect / Cause / Control), action tracking, Pareto + risk heatmap, Excel/PDF/CSV export | ![live](https://img.shields.io/badge/-live-2ea043) |
 | **📈 SPC Dashboard** | Statistical Process Control — variables &amp; attributes control charts, Western Electric / Nelson rules, Cp/Cpk/Pp/Ppk **with a stability gate**, live disturbance simulator | ![live](https://img.shields.io/badge/-live-2ea043) |
 | **🧩 Control Plan connector** | Turns FMEA failure modes into a Control Plan (characteristic, spec, method, sample plan, recommended chart) — the APQP-adjacent bridge that closes the loop | ![live](https://img.shields.io/badge/-live-2ea043) |
-| **📏 MSA / Gage R&amp;R** | Measurement Systems Analysis — Gage R&amp;R (Average-and-Range; ANOVA not implemented — the part×appraiser interaction is not estimated), %EV/%AV/%GRR/%PV vs study &amp; tolerance, `ndc`, accept/marginal/reject vs AIAG thresholds | ![live](https://img.shields.io/badge/-live-2ea043) |
+| **📏 MSA / Gage R&amp;R** | Measurement Systems Analysis — Gage R&amp;R (Average-and-Range by default, or ANOVA with the part×appraiser interaction), %EV/%AV/%GRR/%PV vs study &amp; tolerance, `ndc`, accept/marginal/reject vs AIAG thresholds | ![live](https://img.shields.io/badge/-live-2ea043) |
 | **🏭 SECOM case study** | The whole platform run on **real semiconductor sensor data** — SPC, real Cp/Cpk, yield/DPPM, Pareto of failing signals | ![shipped](https://img.shields.io/badge/-engine--only%20%C2%B7%20v0.9.0%20shipped-2ea043) |
 
 > Standards context: **FMEA** — AIAG-VDA (2019) + AIAG FMEA-4 · **SPC** — AIAG SPC 4th Ed. · capability target **Cpk ≥ 1.33**.
@@ -212,7 +212,7 @@ protected branch that requires the gate to pass before merge.
 ```bash
 uv run ruff check .     # lint + format check
 uv run mypy             # strict static types
-uv run pytest --cov     # 1674 tests + coverage across core + apps
+uv run pytest --cov     # 1704 tests + coverage across core + apps
 ```
 
 **Coverage gates — CI-enforced, cannot silently regress:**
@@ -263,7 +263,7 @@ quality-platform/
     ├── fmea/               # FMEA Risk Analyzer  (full original history preserved)
     ├── spc/                # Manufacturing SPC Dashboard  (full original history preserved)
     ├── controlplan/        # Control Plan connector — FMEA → characteristic/spec/method/chart
-    ├── msa/                # MSA / Gage R&R — Average-and-Range (no ANOVA)
+    ├── msa/                # MSA / Gage R&R — Average-and-Range (default) + ANOVA
     └── secom/              # SECOM real-data case study — engine-only, not mounted in the shell
 ```
 

@@ -1060,6 +1060,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pydantic" },
     { name = "quality-core" },
+    { name = "scipy" },
     { name = "streamlit" },
 ]
 
@@ -1070,6 +1071,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.2" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "quality-core", editable = "packages/quality-core" },
+    { name = "scipy", specifier = ">=1.17.1" },
     { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
