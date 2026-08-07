@@ -13,6 +13,9 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **CI README test-count drift check script and workflow step (#210).**
+  Added `scripts/check_readme_test_count.py` to compare `pytest --collect-only` counts against claims in `README.md` (badge and comment). Added `tests` to `testpaths` in `pyproject.toml`, updated `README.md` test counts to 1641, and added a CI step in `.github/workflows/ci.yml` to fail on drift.
+
 - **MSA reports %EV, %AV and %PV on both AIAG bases alongside %GRR (audit A10-c, #225).**
   `compute_gage_rr()` gains six keys — `pev_study` / `pav_study` / `ppv_study` and
   `pev_tolerance` / `pav_tolerance` / `ppv_tolerance` — completing the
