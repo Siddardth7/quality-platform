@@ -3,10 +3,11 @@ rating_scales.py
 FMEA Risk Prioritization Tool — data-driven S/O/D rating scales (W03-4)
 
 The 1–10 anchor descriptions for Severity, Occurrence, and Detection used to
-live only in the docs. This module makes them **data**: the AIAG FMEA-4 default
-scale ships as ``data/rating_scales.json`` and is loaded/validated here, and a
-user may supply a custom 1–10 scale (e.g. a company-specific PFMEA rubric) that
-goes through the same validation.
+live only in the docs. This module makes them **data**: the AIAG & VDA 2019 PFMEA
+default scale ships as ``data/rating_scales_2019_pfmea.json``, the AIAG FMEA-4
+scale is retained as a selectable legacy option in ``data/rating_scales.json``
+(#256), both are loaded/validated here, and a user may supply a custom 1–10 scale
+(e.g. a company-specific PFMEA rubric) that goes through the same validation.
 
 These scales are *reference* tables — they tell the analyst what a given score
 means. They do not change the RPN/AP math (S/O/D are still integers 1–10); they
@@ -15,9 +16,15 @@ document the meaning behind each number. Thresholds and their AIAG citations in
 
 Public API:
     RatingScaleSet                 — validated container for the three scales
-    load_default_scales()          — load the bundled AIAG FMEA-4 default
+    load_default_scales()          — load the bundled AIAG & VDA 2019 PFMEA default
+    load_legacy_fmea4_scales()     — load the bundled AIAG FMEA-4 legacy scale
     load_scales_from_mapping(obj)  — validate a parsed dict (custom scale)
-    load_scales_from_json(text)    — parse + validate raw JSON text/bytes
+    load_scales_from_json(text)    — parse + validate raw JSON text/bytes; raises
+                                      ``ValueError`` (never a stack trace) on an
+                                      oversized payload or any parse failure,
+                                      including a deeply nested "JSON bomb"
+                                      that would otherwise blow the recursion
+                                      limit (#199)
 
 Author: Siddardth | M.S. Aerospace Engineering, UIUC
 """
@@ -30,9 +37,16 @@ from typing import Any
 
 import pandas as pd
 import pydantic
+from quality_core.io import DEFAULT_MAX_UPLOAD_BYTES
+from quality_core.io.validate import clean_pydantic_message
 
-#: The bundled AIAG FMEA-4 default scale, kept as data (not constants).
-DEFAULT_SCALES_PATH = Path(__file__).resolve().parent.parent / "data" / "rating_scales.json"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+#: The bundled AIAG & VDA 2019 PFMEA default scale, kept as data (not constants).
+DEFAULT_SCALES_PATH = _DATA_DIR / "rating_scales_2019_pfmea.json"
+
+#: The AIAG FMEA-4 scale, retained as a selectable legacy option (#256).
+LEGACY_FMEA4_SCALES_PATH = _DATA_DIR / "rating_scales.json"
 
 #: The three factors a scale must define, in display order.
 FACTORS = ("severity", "occurrence", "detection")
@@ -89,13 +103,20 @@ def _build(obj: dict[str, Any], *, default_name: str) -> RatingScaleSet:
     except pydantic.ValidationError as exc:
         first = exc.errors()[0]
         loc = " → ".join(str(x) for x in first.get("loc", [])) or "<scale>"
-        raise ValueError(f"Invalid rating scale ({loc}): {first.get('msg', 'validation error')}") from exc
+        msg = clean_pydantic_message(first.get("msg", "validation error"))
+        raise ValueError(f"Invalid rating scale ({loc}): {msg}") from exc
 
 
 def load_default_scales() -> RatingScaleSet:
-    """Load the bundled AIAG FMEA-4 default rating scales from data/."""
+    """Load the bundled AIAG & VDA 2019 PFMEA default rating scales from data/."""
     with DEFAULT_SCALES_PATH.open(encoding="utf-8") as fh:
-        return _build(json.load(fh), default_name="AIAG FMEA-4 (default)")
+        return _build(json.load(fh), default_name="AIAG & VDA 2019 PFMEA (default)")
+
+
+def load_legacy_fmea4_scales() -> RatingScaleSet:
+    """Load the bundled AIAG FMEA-4 legacy rating scales from data/."""
+    with LEGACY_FMEA4_SCALES_PATH.open(encoding="utf-8") as fh:
+        return _build(json.load(fh), default_name="AIAG FMEA-4 (legacy)")
 
 
 def _reject_colliding_keys(obj: dict[str, Any]) -> None:
@@ -132,10 +153,30 @@ def load_scales_from_mapping(obj: dict[str, Any]) -> RatingScaleSet:
     return _build(obj, default_name="Custom")
 
 
-def load_scales_from_json(text: str | bytes) -> RatingScaleSet:
-    """Parse raw JSON (e.g. an uploaded file) and validate it as a custom scale."""
+def load_scales_from_json(
+    text: str | bytes, *, max_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
+) -> RatingScaleSet:
+    """Parse raw JSON (e.g. an uploaded file) and validate it as a custom scale.
+
+    Fails closed (#199): the byte-length ceiling is checked *before* parsing
+    (reusing ``quality_core.io``'s shared upload ceiling, not a second literal),
+    and every ``json.loads`` failure — not just ``JSONDecodeError``/
+    ``UnicodeDecodeError`` — is normalised to ``ValueError`` so a pathological
+    payload (e.g. deeply nested brackets) cannot escape as an uncaught
+    ``RecursionError`` past ``ui/filters.py``'s ``except ValueError``.
+
+    Raises
+    ------
+    ValueError
+        On an oversized payload or any parse failure.
+    """
+    length = len(text) if isinstance(text, (bytes, bytearray)) else len(text.encode("utf-8", "surrogatepass"))
+    if length > max_bytes:
+        mb = max_bytes // (1024 * 1024)
+        raise ValueError(f"Rating-scale JSON exceeds the {mb} MB limit.")
+
     try:
         parsed = json.loads(text)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except Exception as exc:  # narrow try (json.loads only); normalise every failure
         raise ValueError(f"Could not parse rating-scale JSON: {exc}") from exc
     return load_scales_from_mapping(parsed)

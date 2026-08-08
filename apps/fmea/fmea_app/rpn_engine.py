@@ -8,7 +8,7 @@ Functions:
     flag_critical(df)    — applies AIAG FMEA-4 flags (High RPN, High Severity, Action Priority)
     rank_by_rpn(df)      — sorts DataFrame descending by RPN; adds Risk_Tier column
 
-Engineering reference: AIAG FMEA-4 (4th Edition) + AIAG/VDA FMEA Handbook (5th Edition, 2019)
+Engineering reference: AIAG FMEA-4 (4th Edition) + AIAG & VDA FMEA Handbook (1st Edition, 2019)
 See docs/ASSUMPTIONS_LOG.md for every threshold decision.
 
 Author: Siddardth | M.S. Aerospace Engineering, UIUC
@@ -19,6 +19,7 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 import pydantic as _pydantic
+from quality_core.io.validate import clean_pydantic_message
 from quality_core.schema import RelationalFMEA, flat_to_relational, relational_to_flat
 
 from fmea_app.schema import FMEADataset, FMEARow
@@ -31,7 +32,7 @@ from fmea_app.schema import FMEADataset, FMEARow
 def _format_pydantic_error(err: Any) -> str:
     """Format a single pydantic error dict into a human-readable string."""
     loc = " → ".join(str(x) for x in err.get("loc", []))
-    msg = err.get("msg", "invalid value")
+    msg = clean_pydantic_message(err.get("msg", "invalid value"))
     return f"{loc}: {msg}" if loc else msg
 
 
@@ -208,13 +209,16 @@ def flag_critical(df: pd.DataFrame) -> pd.DataFrame:
         Source: RULE 1 in docs/ASSUMPTIONS_LOG.md
 
     Flag_High_Severity
-        True if Severity ≥ 9. Safety-critical flag — corrective action
-        required regardless of Occurrence or Detection scores.
+        True if Severity ≥ 9, regardless of Occurrence or Detection. A
+        repo-chosen safety heuristic, deliberately more conservative than
+        the handbook's own Action Priority table (which rates S 9-10 / O 1
+        as Low) — not a handbook requirement.
         Source: RULE 2 in docs/ASSUMPTIONS_LOG.md
 
     Flag_Action_Priority_H
-        True if RPN ≥ 200 OR Severity ≥ 9. Simplified implementation of
-        the AIAG 5th Edition Action Priority "High" tier.
+        True if RPN ≥ 200 OR Severity ≥ 9. An RPN-side proxy flag, NOT the
+        Action Priority determination — that is `ap_engine.action_priority()`,
+        the published AIAG & VDA (1st Ed., 2019) table lookup.
         Source: RULE 3 in docs/ASSUMPTIONS_LOG.md
 
     Parameters
@@ -373,17 +377,13 @@ def _relational_actions(model: RelationalFMEA) -> dict[int, dict[str, object]]:
     out: dict[int, dict[str, object]] = {}
     for function in model.functions:
         for fm in function.failure_modes:
-            effects = {e.id: e for e in fm.effects}
-            causes = {c.id: c for c in fm.causes}
-            controls = {c.id: c for c in fm.controls}
             for link in fm.links:
                 action = link.action
                 if action is None:
                     continue
+                effect, cause, control = fm.resolve(link)
                 eff = action.effectiveness(
-                    effects[link.effect_id].severity,
-                    causes[link.cause_id].occurrence,
-                    controls[link.control_id].detection,
+                    effect.severity, cause.occurrence, control.detection
                 )
                 out[link.row_id] = {
                     "Action_Owner": action.owner,

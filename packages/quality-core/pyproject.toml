@@ -1,15 +1,28 @@
 [project]
 name = "quality-core"
-version = "0.12.0"
+version = "0.13.0"
 description = "Shared core for the Quality Platform: schema, IO, theme, and domain primitives."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pandas>=3.0.2",
     "pydantic>=2.13.4",
-    "streamlit>=1.56.0",  # quality_core.theme.style.apply_theme injects CSS via st.markdown
     "openpyxl>=3.1.5",    # quality_core.io.export/validate read & write .xlsx via pandas
+    # Never imported by our code, and that is deliberate: openpyxl hardens .xlsx XML
+    # parsing against entity-expansion/quadratic-blowup attacks only while defusedxml is
+    # importable (openpyxl.xml.DEFUSEDXML). The package that owns the Excel read owns the
+    # hardening — see io/validate.py:274 (pd.read_excel). Do not "clean up" as unused;
+    # tests/test_validate.py asserts the resulting flag (audit A11, #202).
+    "defusedxml>=0.7.1",
+    "numpy>=2.4.4",       # quality_core.spc.control_charts: array math for the chart statistics
+    "scipy>=1.17.1",      # quality_core.spc.capability: Shapiro-Wilk, Box-Cox/Yeo-Johnson,
+                          # chi2/norm CIs, stats.bootstrap, distribution fits
 ]
+
+[project.optional-dependencies]
+# quality_core.theme.style only (apply_theme injects CSS via st.markdown). The core's
+# data path — schema, io, scoring — must not require a UI framework (audit A11, #202).
+streamlit = ["streamlit>=1.56.0"]
 
 [build-system]
 requires = ["hatchling"]

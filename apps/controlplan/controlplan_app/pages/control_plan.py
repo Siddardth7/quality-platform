@@ -18,7 +18,8 @@ from typing import Any, BinaryIO, cast
 import pandas as pd
 import pydantic
 import streamlit as st
-from quality_core.io import IngestError, TableSchema, load_table
+from quality_core.io import IngestError, TableSchema, load_table, load_table_from_path
+from quality_core.io.validate import clean_pydantic_message
 from quality_core.schema import FMEADataset, FMEARow, RelationalFMEA, flat_to_relational
 
 from controlplan_app.connector import build_control_plan, source_index
@@ -55,7 +56,11 @@ def load_uploaded_fmea(source: str | BinaryIO) -> RelationalFMEA:
     Raises :class:`IngestError` (a ``ValueError`` subclass) on a malformed or
     invalid FMEA CSV — the page catches it and calls ``st.error``.
     """
-    df = load_table(source, FMEA_INPUT_SCHEMA)
+    df = (
+        load_table_from_path(source, FMEA_INPUT_SCHEMA)
+        if isinstance(source, str)
+        else load_table(source, FMEA_INPUT_SCHEMA)
+    )
     dataset = FMEADataset(
         rows=[
             FMEARow(**cast("dict[str, Any]", {k: (None if pd.isna(v) else v) for k, v in rec.items()}))
@@ -92,9 +97,7 @@ def _first_error_message(exc: pydantic.ValidationError) -> str:
     first = exc.errors()[0]
     column = ".".join(str(part) for part in first.get("loc", ()))
     where = f"column '{column}'" if column else "dataset"
-    msg = first.get("msg", "invalid value")
-    for prefix in ("Value error, ", "Assertion failed, "):
-        msg = msg.removeprefix(prefix)
+    msg = clean_pydantic_message(first.get("msg", "invalid value"))
     return f"{where}: {msg}"
 
 

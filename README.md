@@ -11,7 +11,7 @@
 <br>
 
 [![CI](https://github.com/Siddardth7/quality-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddardth7/quality-platform/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-410%20passing-2ea043?logo=pytest&logoColor=white)](#-the-quality-gate)
+[![Tests](https://img.shields.io/badge/tests-1759%20passing-2ea043?logo=pytest&logoColor=white)](#-the-quality-gate)
 [![Coverage](https://img.shields.io/badge/coverage-core%20100%25%20%C2%B7%20SPC%20%E2%89%A595%25-2ea043)](#-the-quality-gate)
 [![Release](https://img.shields.io/github/v/release/Siddardth7/quality-platform?sort=semver&color=e65100&label=release)](https://github.com/Siddardth7/quality-platform/releases/latest)
 [![Last commit](https://img.shields.io/github/last-commit/Siddardth7/quality-platform?color=1a2f4a)](https://github.com/Siddardth7/quality-platform/commits/main)
@@ -108,9 +108,7 @@ flowchart LR
     SECOM -.->|"runs through<br/>every tool"| SPC
 
     classDef live fill:#0b1220,stroke:#e65100,stroke-width:2px,color:#fff;
-    classDef soon fill:#0b1220,stroke:#2a6db2,stroke-width:1.5px,color:#cfe3ff,stroke-dasharray:4 4;
-    class FMEA,SPC live;
-    class CP,MSA,SECOM soon;
+    class FMEA,SPC,CP,MSA,SECOM live;
 ```
 
 ---
@@ -121,9 +119,9 @@ flowchart LR
 | ---- | ------------ | ------ |
 | **🛡️ FMEA Risk Analyzer** | Failure Mode &amp; Effects Analysis — RPN + AIAG-VDA **Action Priority**, editable S/O/D scales, relational model (Function → FM → Effect / Cause / Control), action tracking, Pareto + risk heatmap, Excel/PDF/CSV export | ![live](https://img.shields.io/badge/-live-2ea043) |
 | **📈 SPC Dashboard** | Statistical Process Control — variables &amp; attributes control charts, Western Electric / Nelson rules, Cp/Cpk/Pp/Ppk **with a stability gate**, live disturbance simulator | ![live](https://img.shields.io/badge/-live-2ea043) |
-| **🧩 Control Plan connector** | Turns FMEA failure modes into a Control Plan (characteristic, spec, method, sample plan, recommended chart) — the APQP-adjacent bridge that closes the loop | ![v0.6.0](https://img.shields.io/badge/-next%20%C2%B7%20v0.6.0-e65100) |
-| **📏 MSA / Gage R&amp;R** | Measurement Systems Analysis — Gage R&amp;R (Average-and-Range; ANOVA), %GRR vs study &amp; tolerance, `ndc`, accept/marginal/reject vs AIAG thresholds | ![v0.8.0](https://img.shields.io/badge/-planned%20%C2%B7%20v0.8.0-2a6db2) |
-| **🏭 SECOM case study** | The whole platform run on **real semiconductor sensor data** — SPC, real Cp/Cpk, yield/DPPM, Pareto of failing signals | ![v0.9.0](https://img.shields.io/badge/-planned%20%C2%B7%20v0.9.0-2a6db2) |
+| **🧩 Control Plan connector** | Turns FMEA failure modes into a Control Plan (characteristic, spec, method, sample plan, recommended chart) — the APQP-adjacent bridge that closes the loop | ![live](https://img.shields.io/badge/-live-2ea043) |
+| **📏 MSA / Gage R&amp;R** | Measurement Systems Analysis — Gage R&amp;R (Average-and-Range by default, or ANOVA with the part×appraiser interaction), %EV/%AV/%GRR/%PV vs study &amp; tolerance, `ndc`, accept/marginal/reject vs AIAG thresholds | ![live](https://img.shields.io/badge/-live-2ea043) |
+| **🏭 SECOM case study** | The whole platform run on **real semiconductor sensor data** — SPC, real Cp/Cpk, yield/DPPM, Pareto of failing signals | ![shipped](https://img.shields.io/badge/-engine--only%20%C2%B7%20v0.9.0%20shipped-2ea043) |
 
 > Standards context: **FMEA** — AIAG-VDA (2019) + AIAG FMEA-4 · **SPC** — AIAG SPC 4th Ed. · capability target **Cpk ≥ 1.33**.
 > The AIAG-VDA Action Priority table is verified cell-by-cell against the primary handbook.
@@ -132,33 +130,40 @@ flowchart LR
 
 ## 🏗️ Architecture
 
-A **uv workspace monorepo**: independent Streamlit apps mounted under one shell, every cross-cutting
-concern written **once** in `quality_core` and consumed by all of them.
+A **uv workspace monorepo** with **five members**: four Streamlit apps mounted under one shell, plus
+**SECOM as an engine-only member** — a tested library, deliberately not mounted. Every cross-cutting
+concern is written **once** in `quality_core` and consumed by all of them.
 
 ```mermaid
 flowchart TB
     subgraph Shell["🏭 Unified shell · app.py (st.navigation)"]
         Home["Landing + one theme + one nav"]
     end
-    subgraph Apps["Apps"]
+    subgraph Apps["Apps · mounted in the shell"]
         FMEA["🛡️ FMEA<br/>apps/fmea"]
         SPC["📈 SPC<br/>apps/spc"]
-        CP["🧩 Control Plan<br/>apps/controlplan · next"]:::soon
-        MSA["📏 MSA<br/>apps/msa · planned"]:::soon
+        CP["🧩 Control Plan<br/>apps/controlplan"]
+        MSA["📏 MSA<br/>apps/msa"]
+    end
+    subgraph Engine["Engine-only · library, not mounted"]
+        SECOM["🏭 SECOM<br/>apps/secom"]:::engine
     end
     subgraph Core["📦 packages/quality-core → import quality_core"]
         Schema["schema/<br/>flat + relational contracts (Pydantic v2)"]
         IO["io/<br/>validated ingest · CSV/Excel/PDF export"]
+        Scoring["scoring.py<br/>RPN · AIAG-VDA Action Priority"]
         Theme["theme/<br/>palette · style"]
     end
 
     Home --> FMEA & SPC & CP & MSA
-    FMEA --> Schema & IO & Theme
+    FMEA --> Schema & IO & Scoring & Theme
     SPC --> IO & Theme
-    CP --> Schema
+    CP --> Schema & IO & Scoring
     MSA --> Schema & IO & Theme
+    SECOM --> IO
+    SECOM -.reuses the SPC engine.-> SPC
 
-    classDef soon opacity:0.7,stroke-dasharray:4 4;
+    classDef engine opacity:0.85,stroke-dasharray:4 4;
 ```
 
 **Why it's built this way**
@@ -207,7 +212,7 @@ protected branch that requires the gate to pass before merge.
 ```bash
 uv run ruff check .     # lint + format check
 uv run mypy             # strict static types
-uv run pytest --cov     # 410 tests + coverage across core + apps
+uv run pytest --cov     # 1759 tests + coverage across core + apps
 ```
 
 **Coverage gates — CI-enforced, cannot silently regress:**
@@ -252,10 +257,14 @@ quality-platform/
 │       └── src/quality_core/
 │           ├── schema/     # flat (FMEARow) + relational (Function→FM→…) contracts
 │           ├── io/         # validated ingest · CSV/Excel/PDF export (injection-safe)
+│           ├── scoring.py  # RPN · AIAG-VDA Action Priority
 │           └── theme/      # palette · style
 └── apps/
     ├── fmea/               # FMEA Risk Analyzer  (full original history preserved)
-    └── spc/                # Manufacturing SPC Dashboard  (full original history preserved)
+    ├── spc/                # Manufacturing SPC Dashboard  (full original history preserved)
+    ├── controlplan/        # Control Plan connector — FMEA → characteristic/spec/method/chart
+    ├── msa/                # MSA / Gage R&R — Average-and-Range (default) + ANOVA
+    └── secom/              # SECOM real-data case study — engine-only, not mounted in the shell
 ```
 
 <sub>Migrated from the standalone repos

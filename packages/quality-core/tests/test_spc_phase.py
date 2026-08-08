@@ -1,14 +1,13 @@
 import pytest
-
-from spc_app.spc_engine.constants import (
+from quality_core.spc.constants import (
     IMR_D2,
     MIN_BASELINE_INDIVIDUALS,
     MIN_BASELINE_SUBGROUPS,
     XBAR_R_CONSTANTS,
     XBAR_S_CONSTANTS,
 )
-from spc_app.spc_engine.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
-from spc_app.spc_engine.phase import freeze_imr, freeze_xbar_r, freeze_xbar_s
+from quality_core.spc.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
+from quality_core.spc.phase import freeze_imr, freeze_xbar_r, freeze_xbar_s
 
 FROZEN_LIMITS_KEYS = {
     "chart_type",

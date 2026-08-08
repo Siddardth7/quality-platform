@@ -17,12 +17,15 @@ from typing import Mapping
 
 #: Session-state key the SPC Control Charts page writes the candidate to, and
 #: `apps/fmea/app.py::render_fmea` reads (as a plain dict — OQ4, no import).
+# ponytail: string contract read by apps/fmea/app.py and written by apps/spc/spc_app/pages/control_charts.py.
+# Deletion deferred until Streamlit UI layer (apps/spc/spc_app/pages/control_charts.py and apps/fmea/app.py) is removed.
 FEEDBACK_STATE_KEY = "_spc_fmea_feedback"
 
 #: Session-state key holding `controlplan_app.connector.source_index(...)`.
 # ponytail: string contract mirrored from
 # controlplan_app.pages.control_plan._SOURCE_INDEX_STATE_KEY — duplicated (not
-# imported), same discipline as `control_plan_config.PLAN_STATE_KEY`.
+# imported), same discipline as `control_plan_config.PLAN_STATE_KEY`. Deletion deferred until
+# Streamlit UI layer (apps/spc/spc_app/pages/control_charts.py and apps/controlplan/controlplan_app/pages/control_plan.py) is removed.
 SOURCE_INDEX_STATE_KEY = "_controlplan_source_index"
 
 

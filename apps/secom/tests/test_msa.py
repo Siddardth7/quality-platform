@@ -12,7 +12,7 @@ Small synthetic frames only (mirrors test_charts.py discipline). Covers:
 - Empty DataFrame (no columns at all) -> treated as SECOM-like.
 - assert_gage_rr_applicable: both branches (raises / returns None).
 - Reuse-proof: the REAL W08 compute_gage_rr also rejects a SECOM-shaped frame,
-  via the apps/msa conftest sys.path shim.
+  via the installed (editable) msa-app workspace package (#231).
 - Purity: input frame unchanged after either call.
 - No math drift: module has no repeatability/reproducibility/variance-
   component computation.

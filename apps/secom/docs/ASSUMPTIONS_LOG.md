@@ -60,7 +60,7 @@ all-NaN column, which has zero present values) is dropped unconditionally.
 
 **Source:** AIAG SPC Reference Manual, 4th ed. (2005), capability indices:
 Cp = (USL-LSL)/6*sigma is undefined at sigma=0; `compute_capability` in this
-platform (`apps/spc/spc_app/spc_engine/capability.py`) raises on `sigma_hat<=0`.
+platform (`quality_core/spc/capability.py`) raises on `sigma_hat<=0`.
 
 **Rationale:** A control chart and Cp/Cpk both require variation to be meaningful.
 This is definitional, not a tunable threshold — there is no SME choice to make.
@@ -137,10 +137,10 @@ percentile-derived vs SME-supplied) belongs to a later capability issue.
 
 **Decision:** Every SECOM sensor is charted with Individuals + Moving Range
 (I-MR, MR window = 2) via the existing, already-tested SPC engine
-(`compute_imr`, `detect_we_violations`/`detect_nelson_violations` in
-`apps/spc/spc_app/spc_engine/`), reused read-only through a `sys.path` shim
-in `apps/secom/conftest.py`. No control-limit math or rule-detection logic is
-re-derived in `secom_app/charts.py`.
+(`compute_imr`, `imr_limits`, `detect_we_violations`/`detect_nelson_violations`
+in `quality_core/spc/`, promoted out of the SPC app by audit A12, #205), reused
+read-only as an ordinary package import. No control-limit math or rule-detection
+logic is re-derived in `secom_app/charts.py`.
 
 **Source:** AIAG SPC Reference Manual, 4th ed. (2005); Montgomery,
 *Introduction to Statistical Quality Control*, individuals-chart chapter.
@@ -189,8 +189,10 @@ split into maximal contiguous (NaN-free) runs (`_present_runs()`). The moving
 range is computed only within a run (reusing `compute_imr`'s own diff logic
 per run via `_pooled_moving_ranges()`), never across a missing cell. A run of
 length 1 contributes no moving range. All within-run moving ranges are pooled
-into a single `mrbar` -> `sigma_hat` -> one set of I-MR control limits per
-signal, so the chart still has one UCL/LCL (only the *moving-range
+into a single `mrbar`, which is then fed to the shared
+`quality_core.spc.control_charts.imr_limits()` -> `sigma_hat` -> one set of I-MR
+control limits per signal (the same function `compute_imr` uses; the *input*
+`mrbar` differs, the formula does not — #205 PR 2), so the chart still has one UCL/LCL (only the *moving-range
 computation*, not the limit-combination step, is run-broken). If every run in
 a signal happens to have length 1 (pooled MR empty), `mrbar` and `sigma_hat`
 collapse to 0 and `detect_*` raises — the same degenerate-signal error path
@@ -242,7 +244,7 @@ percentile/mean±k·sigma "tolerance" from the data. Both `None` raises
 `lsl >= usl` also raises.
 
 **Source:** AIAG SPC Reference Manual, 4th ed. (2005) — Cp/Cpk/Pp/Ppk
-formulas are reused unchanged from `apps/spc/spc_app/spc_engine/capability.py`
+formulas are reused unchanged from `quality_core/spc/capability.py`
 (`compute_capability`), which already handles `lsl`/`usl == None` correctly
 (one-sided / two-sided / neither -> index `None`). **Flagged: the
 no-fabrication *policy* (reject a derived-limit shortcut) is an SME
@@ -442,7 +444,7 @@ AIAG-anchored (unlike `selection.py`'s `MIN_NON_MISSING`).
 **Rationale:** Surfaces which kept signals are most strongly associated
 with wafer failure, honestly labelled as association not causation, without
 hand-rolling t-distribution or FDR math (`scipy.stats` is already vetted and
-in the workspace lock via `spc-app`).
+declared by this app itself in `apps/secom/pyproject.toml`).
 
 **Applied In:** `apps/secom/secom_app/doe_screening.py` -> `ScreeningResult`,
 `screen_signals()`

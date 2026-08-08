@@ -93,25 +93,30 @@ manufacturing-spc-dashboard/
 │   └── 3_Live_Simulation.py        Real-time loop, disturbance injection buttons
 │
 ├── spc_app/
-│   ├── spc_engine/
-│   │   ├── control_charts.py       UCL/LCL/CL math for all five chart types
-│   │   ├── rule_detection.py       Western Electric (1–4) + Nelson (5–8)
-│   │   ├── capability.py           Cp/Cpk/Pp/Ppk + Shapiro-Wilk
-│   │   ├── constants.py            AIAG SPC constants (A2 d2 D3 D4 c4 B3 B4 E2)
+│   ├── spc_engine/                 (all but data_generator.py are re-export shims
+│   │   │                            over quality_core.spc — #205)
+│   │   ├── control_charts.py       shim: UCL/LCL/CL math for all five chart types
+│   │   ├── phase.py                shim: Phase I/II limit freezing
+│   │   ├── stability.py            shim: capability stability gate
+│   │   ├── rule_detection.py       shim: Western Electric (1–4) + Nelson (5–8)
+│   │   ├── capability.py           shim: Cp/Cpk/Pp/Ppk + Shapiro-Wilk
+│   │   ├── constants.py            shim: AIAG SPC constants (A2 d2 D3 D4 c4 B3 B4 E2)
 │   │   ├── data_generator.py       Deterministic demo CSV generator (seed=42)
-│   │   └── utils.py                Shared subgroup_rows() groupby helper
+│   │   └── utils.py                shim: shared subgroup_rows() groupby helper
 │   ├── simulation/
 │   │   └── engine.py               SimulationEngine — step, inject, reset
 │   └── ui/
 │       └── theme.py                CSS injection + Plotly layout constants
 │
 ├── tests/
-│   ├── test_control_charts.py      UCL/LCL/CL formula correctness
-│   ├── test_rule_detection.py      All rule fire / no-fire cases
-│   ├── test_capability.py          Cp/Cpk/Pp/Ppk + normality edge cases
 │   ├── test_data_generator.py      Schema and value range checks
-│   ├── test_utils.py               subgroup_rows helper
+│   ├── test_spc_engine_shims.py    spc_engine re-exports the core, no shadow copies
+│   ├── test_stability.py           the two #191 baselines that read the demo CSV
 │   └── test_visualizer.py          Gauge figure guard for None cpk
+│   (test_rule_detection.py, test_utils.py, test_control_charts.py, test_phase.py,
+│    test_ewma.py, test_cusum.py, test_capability.py and the rest of
+│    test_stability.py moved to packages/quality-core/tests/ with their modules
+│    — audit A12, #205)
 │
 ├── data/
 │   └── demo_composites_aerospace.csv   370-row committed demo dataset (auto-regenerates)
@@ -129,11 +134,11 @@ CSV on disk / uploaded file
   pd.read_csv()  ──── @st.cache_data ────▶  stream filter
                                                    │
                                                    ▼
-                                      spc_engine/control_charts.py
+                                   quality_core/spc/control_charts.py
                                       compute_xbar_r / compute_p / …
                                                    │
                                                    ▼
-                                      spc_engine/rule_detection.py
+                                   quality_core/spc/rule_detection.py
                                       detect_we_violations / detect_nelson_violations
                                                    │
                                                    ▼
@@ -148,7 +153,13 @@ CSV on disk / uploaded file
 
 ## Module Reference
 
-### `spc_app/spc_engine/control_charts.py`
+### `quality_core/spc/control_charts.py`
+
+> Promoted out of this app by audit A12 (#205, PR 2) alongside `phase.py` and
+> `stability.py`. `spc_app.spc_engine.control_charts` re-exports it, so existing
+> imports keep working — but edit the core module, never the shim. The AIAG I-MR
+> limit formula lives once in `imr_limits(xbar, mrbar)`; `compute_imr` and SECOM's
+> chart builder both consume it.
 
 All functions accept Python lists and return a `dict` of scalars and lists.
 
@@ -162,7 +173,11 @@ All functions accept Python lists and return a `dict` of scalars and lists.
 
 All functions raise `ValueError` for invalid inputs (wrong dimensionality, unsupported subgroup size, mismatched arrays, non-positive sample sizes).
 
-### `spc_app/spc_engine/rule_detection.py`
+### `quality_core/spc/rule_detection.py`
+
+> Promoted out of this app by audit A12 (#205) so SECOM, the Control Plan app and the
+> future API share one copy. `spc_app.spc_engine.rule_detection` re-exports it, so the
+> import below keeps working — but edit the core module, never the shim.
 
 ```python
 violations = detect_we_violations(points, cl=centerline, sigma=sigma_xbar)
@@ -178,7 +193,7 @@ Each returns `list[{"index": int, "rule": str}]`.
 - p chart → `sqrt(pbar * (1 - pbar) / avg_n)`
 - u chart → `sqrt(ubar / avg_n)`
 
-### `spc_app/spc_engine/capability.py`
+### `quality_core/spc/capability.py` (via the `spc_app/spc_engine/capability.py` shim)
 
 ```python
 result = compute_capability(values, lsl=9.5, usl=10.5, sigma_hat=0.1)
@@ -247,7 +262,7 @@ Auto-regenerated at startup if deleted. Source: `spc_app/spc_engine/data_generat
 | Scenario | Chart |
 |---|---|
 | Subgroup means n = 2–9, small samples, range is intuitive | Xbar-R |
-| Subgroup means n ≥ 10, standard deviation more stable than range | Xbar-S |
+| Subgroup means n = 10–12, standard deviation more stable than range | Xbar-S |
 | Individual observations — no natural subgrouping | I-MR |
 | Fraction defective units (binomial count ÷ sample size) | p chart |
 | Defects per unit, variable opportunity size (Poisson) | u chart |
@@ -266,18 +281,30 @@ For the Xbar rule-detection sigma, pass **σ_x̄ = σ̂ / √n**, not σ̂ itsel
 
 ## Rule Detection Reference
 
-| Rule set | Rule | Definition | Window |
-|---|---|---|---|
-| Western Electric | 1 | 1 point beyond ±3σ | 1 |
-| Western Electric | 2 | 2 of 3 consecutive > ±2σ, same side | 3 |
-| Western Electric | 3 | 4 of 5 consecutive > ±1σ, same side | 5 |
-| Western Electric | 4 | 8 consecutive on same side of CL | 8 |
-| Nelson | 5 | 6 consecutive strictly monotone | 6 |
-| Nelson | 6 | 14 consecutive alternating up/down | 14 |
-| Nelson | 7 | 15 consecutive within ±1σ of CL | 15 |
-| Nelson | 8 | 8 consecutive outside ±1σ on both sides | 8 |
+`rule_set` is a mutually exclusive selector — each set is its own complete numbering; the
+Nelson set never emits a `"Western Electric …"` label.
 
-Calling `detect_nelson_violations` always includes WE Rules 1–4 first.
+**Western Electric** (`detect_we_violations`):
+
+| Rule | Definition | Window |
+|---|---|---|
+| 1 | 1 point beyond ±3σ | 1 |
+| 2 | 2 of 3 consecutive > ±2σ, same side | 3 |
+| 3 | 4 of 5 consecutive > ±1σ, same side | 5 |
+| 4 | 8 consecutive on same side of CL | 8 |
+
+**Nelson** (`detect_nelson_violations`, own numbering per Nelson 1984):
+
+| Rule | Definition | Window |
+|---|---|---|
+| 1 | 1 point beyond ±3σ | 1 |
+| 2 | 9 consecutive on same side of CL | 9 |
+| 3 | 6 consecutive strictly monotone | 6 |
+| 4 | 14 consecutive alternating up/down | 14 |
+| 5 | 2 of 3 consecutive > ±2σ, same side | 3 |
+| 6 | 4 of 5 consecutive > ±1σ, same side | 5 |
+| 7 | 15 consecutive within ±1σ of CL | 15 |
+| 8 | 8 consecutive outside ±1σ on both sides | 8 |
 
 ---
 
@@ -310,7 +337,7 @@ Calling `detect_nelson_violations` always includes WE Rules 1–4 first.
 pytest tests/ -v
 
 # Single file
-pytest tests/test_rule_detection.py -v
+pytest packages/quality-core/tests/test_spc_control_charts.py -v
 
 # With line coverage
 pip install pytest-cov
@@ -319,13 +346,19 @@ pytest tests/ --cov=src --cov-report=term-missing
 
 ### Test inventory
 
+> `test_rule_detection.py`, `test_utils.py`, `test_control_charts.py`, `test_phase.py`,
+> `test_ewma.py`, `test_cusum.py`, `test_capability.py` and most of `test_stability.py` now live in
+> `packages/quality-core/tests/` (with a `test_spc_` prefix), alongside the modules they
+> cover after the audit A12 (#205) promotion. Run them from the
+> repo root with `pytest packages/quality-core` (the commands above are relative to `apps/spc`).
+
 | File | Tests | What it covers |
 |---|---|---|
-| `test_control_charts.py` | 23 | UCL/LCL/CL formulas, AIAG constant accuracy, clamp behaviour |
-| `test_rule_detection.py` | 22 | Every rule fires and does-not-fire with minimal synthetic series |
-| `test_capability.py` | 14 | Cp/Cpk/Pp/Ppk formulas, unilateral spec, both-None spec, Cpk < 0 |
+| `packages/quality-core/tests/test_spc_control_charts.py` | 63 | UCL/LCL/CL formulas, AIAG constant accuracy, clamp behaviour |
+| `packages/quality-core/tests/test_spc_capability.py` | 71 | Cp/Cpk/Pp/Ppk formulas, unilateral spec, both-None spec, Cpk < 0, non-normal study |
 | `test_data_generator.py` | 7 | Schema presence, stream membership, value ranges |
-| `test_utils.py` | 3 | subgroup_rows sort order and shape |
+| `test_spc_engine_shims.py` | 4 | `spc_engine.*` re-export the core objects; `_VALID_CHART_KEYS` is derived |
+| `test_stability.py` | 2 | the #191 demo-CSV baselines (19 signals, sigma_hat) |
 | `test_visualizer.py` | 3 | build_cpk_gauge valid + None guard |
 
 ---
@@ -358,11 +391,11 @@ CMD ["streamlit", "run", "app.py", "--server.port=8501"]
 
 ### Add a new chart type
 
-1. Implement `compute_<name>(...)` in `spc_app/spc_engine/control_charts.py`. Return a dict following the existing convention.
+1. Implement `compute_<name>(...)` in `quality_core/spc/control_charts.py`. Return a dict following the existing convention.
 2. Add the demo stream in `spc_app/spc_engine/data_generator.py` (new `_<stream>()` function, concat into `generate_demo_dataset()`).
 3. Add the entry to `CHART_OPTIONS` in `pages/1_Control_Charts.py`.
 4. Add a `summarize_metrics` branch for the new key.
-5. Write tests in `tests/test_control_charts.py`.
+5. Write tests in `packages/quality-core/tests/test_spc_control_charts.py`.
 
 ### Add a new process stream
 
@@ -405,5 +438,5 @@ Capability analysis (Cp, Cpk) is **only meaningful on a stable process**. Comput
 
 - **AIAG SPC Reference Manual, 4th Edition (2005)** — chart constants (A₂, D₃, D₄, d₂, A₃, B₃, B₄, c₄, E₂), capability guidance
 - **Western Electric Statistical Quality Control Handbook (1956)** — Rules 1–4
-- **Nelson, L.S. (1984)** "The Shewhart Control Chart — Tests for Special Causes" — Rules 5–8 (*Journal of Quality Technology*, 16(4), 237–239)
+- **Nelson, L.S. (1984)** "The Shewhart Control Chart — Tests for Special Causes" — Nelson's own Rules 1–8 (*Journal of Quality Technology*, 16(4), 237–239)
 - **AS9100 / aerospace supplier guidance** — Cpk ≥ 1.33 as common capability minimum reference

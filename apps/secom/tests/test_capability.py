@@ -21,10 +21,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from quality_core.spc.capability import compute_capability
 from secom_app.capability import SignalCapability, capability_for_signal
 from secom_app.charts import control_chart_for_signal
-
-from spc_app.spc_engine.capability import compute_capability
 
 _IN_CONTROL = [10.0, 10.1, 9.9, 10.2, 9.8, 10.0, 10.1, 9.9, 10.0, 10.0, 9.9, 10.1]
 _WITH_SPIKE = [10.0, 10.1, 9.9, 10.2, 9.8, 10.0, 10.1, 9.9, 30.0, 10.0, 9.9, 10.1]

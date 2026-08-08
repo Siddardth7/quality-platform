@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import pandas as pd
 
+import spc_app.spc_engine.data_generator as dg
 from spc_app.spc_engine.data_generator import generate_demo_dataset
 
 
@@ -60,3 +63,23 @@ def test_panel_defects_is_c_chart_count_data():
     assert (panel["value"] >= 0).all()
     assert (panel["value"] % 1 == 0).all()
     assert len(panel) == 25
+
+
+def test_generate_demo_dataset_is_reproducible_across_multiple_calls():
+    df1 = generate_demo_dataset()
+    df2 = generate_demo_dataset()
+    pd.testing.assert_frame_equal(df1, df2)
+
+
+def test_data_generator_has_no_module_level_rng():
+    assert not hasattr(dg, "_RNG")
+
+
+def test_generate_demo_dataset_matches_baseline_csv():
+    demo_csv = Path(__file__).resolve().parents[1] / "data" / "demo_composites_aerospace.csv"
+    if not demo_csv.exists():
+        demo_csv = Path("/tmp/baseline_226.csv")
+    expected = pd.read_csv(demo_csv)
+    actual = generate_demo_dataset()
+    pd.testing.assert_frame_equal(actual, expected)
+
