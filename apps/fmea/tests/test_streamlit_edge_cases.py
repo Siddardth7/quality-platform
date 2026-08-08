@@ -241,7 +241,7 @@ def test_demo_button_overrides_lingering_uploaded_file():
     import inspect
 
     import app as _app_mod
-    from app import _escape_source_label  # smoke-import to ensure app loads
+    from app import _escape_source_label  # noqa: F401  # smoke-import to ensure app loads
     src = inspect.getsource(_app_mod)
     assert "uploaded = None" in src, "F-019 fix: 'uploaded = None' must appear in app.py"
     assert "elif uploaded is not None" in src, "F-019 fix: elif guard must be present"

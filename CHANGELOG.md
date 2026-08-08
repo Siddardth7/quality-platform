@@ -6,7 +6,192 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- **FMEA default S/O/D rating scale is now the AIAG & VDA 2019 PFMEA scale (#256).** The 30
+  anchors ship as `apps/fmea/data/rating_scales_2019_pfmea.json` — Severity from Table P1
+  ("Impact to End User"), Occurrence from Table C2.3.1 ("Incidents per 1000 items/vehicles"),
+  Detection from Table P3 ("Opportunity for Detection") — each line-pinned in
+  `apps/fmea/docs/CITATIONS.tsv` and re-verified against the handbook by `test_citations.py`.
+  This closes the mismatch flagged in #197: the default scale and the shipped Action Priority
+  table (RULE 7) now come from the same handbook and are calibrated together. **AIAG FMEA-4 is
+  retained as a selectable legacy option** (`data/rating_scales.json`, now named
+  `AIAG FMEA-4 (legacy)`, loaded by `load_legacy_fmea4_scales()`); the rating-scale sidebar
+  selector is now three-way (2019 default / FMEA-4 legacy / custom upload). **No math changed** —
+  RPN and AP are pure functions of the integer S/O/D scores; only what a score *means* changed.
+
+### Fixed
+
+- **FMEA standards provenance: the "AIAG FMEA 5th Edition" does not exist (#197).** The 2019
+  document is the **AIAG & VDA FMEA Handbook, 1st Edition** — a joint publication that restarted
+  the edition count. The phantom edition was cited in `apps/fmea/docs/ASSUMPTIONS_LOG.md` and in
+  four live app files, two of which printed it onto **exported Excel and PDF reports**
+  (`fmea_app/exporter.py`); in an IATF 16949 core-tools context a report citing a nonexistent
+  standard edition is itself an audit finding. Every live citation now names the handbook
+  correctly; dated planning records under `docs/plans/` and `docs/superpowers/plans/` are left
+  alone as historical artifacts.
+- **RULE 2 was attributing a repo heuristic to AIAG (#197).** `ASSUMPTIONS_LOG.md` claimed both
+  editions "state explicitly that Severity 9–10 failure modes require action independent of
+  Occurrence and Detection." The handbook says the opposite: its Table AP rates S 9–10 with
+  Occurrence 1 as **Low**, and §3.5.9 recommends only that S 9–10 effects *with AP High or
+  Medium* be reviewed by management. `Flag_High_Severity` (every S ≥ 9 row, regardless of O/D)
+  is now documented as this repo's deliberately-more-conservative safety heuristic. **No code
+  behaviour changed** — the flag fires exactly as before. The same false claim is corrected in
+  `apps/fmea/README.md` and `apps/fmea/docs/FMEA_COMPLETE_GUIDE.md`.
+- **RULE 3 marked superseded, RULE 6's scope claim corrected (#197).** RULE 3 now describes
+  `Flag_Action_Priority_H` as the RPN ≥ 200-or-S ≥ 9 proxy it is, with a forward pointer to
+  RULE 7's real table lookup; the RPN-threshold rationale is kept and labelled a repo decision.
+  RULE 6 no longer claims the rating scale is irrelevant to the AP result: the *math* is
+  scale-independent, but AP fidelity depends on the scale that originated the S/O/D integer,
+  and the bundled default is FMEA-4 (2008) while the shipped AP table is from the 2019 handbook.
+  Shipping the 2019 S/O/D tables as the default scale is tracked in **#256** — split out of #197
+  because the handbook's PFMEA Occurrence/Detection tables are OCR-mangled in the available
+  conversion and cannot be transcribed verbatim without fabrication risk.
+
 ### Added
+
+- **Machine-checked citation manifest for FMEA (#197).** `apps/fmea/docs/CITATIONS.tsv` plus
+  `apps/fmea/tests/test_citations.py`, mirroring the MSA precedent (#223): every AIAG & VDA
+  quotation in the FMEA docs is re-asserted against the licensed handbook at a pinned line
+  (+/-2 for wrapping) under formatting-tolerant matching, and no blockquote may exist in
+  `ASSUMPTIONS_LOG.md` without a manifest row backing it. The tests **skip** where the licensed
+  handbook is absent (CI); `FMEA_HANDBOOK_PATH` points them at a local copy. Nothing is quoted
+  from the OCR-mangled Table AP band-label or PFMEA scale cells, deliberately.
+- **Reintroduction guard for the phantom edition (#197).**
+  `apps/fmea/tests/test_docs_provenance.py` fails if `ASSUMPTIONS_LOG.md`, `app.py`,
+  `fmea_analyzer.py`, `fmea_app/rpn_engine.py`, or `fmea_app/exporter.py` regains a
+  case-insensitive "5th Ed"/"5th Edition". Runs on CI with no licensed source needed.
+- **ANOVA (crossed, with interaction) Gage R&R method for MSA (#195).**
+  `compute_gage_rr()` gains a `method=` selector: `"average_and_range"` (the **default**,
+  behaviour unchanged on every existing call site) or `"anova"`, a new `_anova_method()`
+  implementing AIAG MSA 4th Ed. Ch. III Sec. B / Appendix A's crossed two-factor ANOVA with
+  replication. It estimates the part × appraiser interaction, tests it with
+  `F = MS_AxP / MS_e` against `scipy.stats.f.ppf(1 − α, df_AxP, df_e)` at **α = 0.05** — the
+  level in the manual's own worked example; **AIAG does not mandate a significance level**,
+  and there is deliberately no `alpha=` parameter — and either pools a non-significant
+  interaction into repeatability (the manual's additive model, `SS_pool = SS_e + SS_AxP` over
+  `nkr − n − k + 1` df) or carries it into `GRR = sqrt(EV² + AV² + INT²)`. Negative variance
+  components are clamped to zero per Appendix A. Three additive payload keys —
+  `interaction`, `interaction_f`, `interaction_significant` — are `None` under
+  Average-and-Range, which cannot estimate them; no existing key was renamed, removed, or
+  changed in value. Both methods share one balance check, one `_STUDY_VARIATION_SIGMA` (the
+  #190 ×6 guard), `_compute_ndc` and `_compute_verdict`. On the canonical 10×3×3 study
+  (`apps/msa/data/aiag_reference_study.csv`) the new path reproduces the manual's published
+  Table III-B 7/8 and Table A 4/5 figures: F = 0.4337 (manual 0.434), EV = 0.199933,
+  AV = 0.226838, INT = 0 (pooled), GRR = 0.302373, PV = 1.042327, TV = 1.085, ndc = 4.
+  Engine-only: no exporter, page or schema changes. New ASSUMPTIONS_LOG **RULE 17** with ten
+  primary-source-verified `CITATIONS.tsv` rows; RULE 1 rewritten as "the default, not the
+  only, method"; the "ANOVA not implemented" claims in `README.md`, `ROADMAP.md`,
+  `apps/msa/CLAUDE.md` and the engine's own docstring / `METHOD_NOTE` retired. `scipy>=1.17.1`
+  is now a declared `msa-app` dependency (already present in the workspace via `quality-core`).
+
+### Fixed
+
+- **SPC demo generator reproducibility (#226).** Instantiated local `rng = np.random.default_rng(42)` inside `generate_demo_dataset()` and threaded `rng` to all seven private stream helpers (`_ply_thickness`, `_autoclave_temperature`, `_hole_diameter`, `_reject_proportion`, `_surface_defects`, `_panel_defects`, `_ply_misalignment`), eliminating module-level `_RNG`. Subsequent calls in a single process now return byte-identical datasets.
+
+### Security
+
+- **Remediate 26 known security advisories across dependencies (audit A13, #201).**
+  Bump `pillow` to `>=12.3.0` (remediating 18 advisories) and `gitpython` to `>=3.1.55` (remediating 8 advisories) via `override-dependencies` in `pyproject.toml` and updated lockfile. Added `pip-audit>=2.10.0` to `[dependency-groups] dev` and added a `Dependency vulnerability audit` gate step running `uv run pip-audit` to `.github/workflows/ci.yml`.
+
+### Added
+
+- **Repo-wide cross-app import guard (audit A12 acceptance criterion, #233).**
+  New workspace-level `tests/test_cross_app_import_boundary.py` generalises the SECOM-only
+  boundary test (#204/#205) to all five app packages, so "imports go downward only" is
+  self-defending rather than held by hand-run `git grep` during review.
+  **Part 1** runs one fresh, non-pytest interpreter per app — with `cwd` set to that app's
+  own directory, because `fmea-app` and `controlplan-app` are `package = false` and resolve
+  only via the implicit `sys.path[0]` — walks every submodule with `pkgutil.walk_packages`,
+  and fails if any of the other four `*_app` packages appears in `sys.modules`. The
+  subprocess is what makes the `sys.modules` check honest: in a full-workspace run other
+  apps' suites have already imported their packages, so an in-process check would be
+  import-order-dependent. An `assert walked` guard prevents a vacuous zero-submodule pass.
+  **Part 2** is an `ast` scan of every `apps/*/tests/**/*.py` — covering `import`,
+  `from … import`, and string-argument `importorskip` / `import_module` calls — that fails
+  on any cross-app import not named in `_ALLOWED_TEST_ONLY_CROSS_APP_IMPORTS`, so adding a
+  third test-only cross-app import is a conscious edit rather than a silent gap. `ast`
+  rather than a regex because hand-written grep patterns have under-matched here before
+  (#235), and the `importorskip` call form is invisible to an import-node-only walk — it
+  accounts for two of the three allowlisted pairs.
+  Stale allowlist entries are deliberately **not** a failure: only unlisted imports fail, so
+  removing a cross-app import is never punished. No per-surface coverage gate is affected —
+  the root `tests/` directory is outside every gate's collection path and outside
+  `[tool.coverage.run] source` (verified against the core io and SECOM gates).
+  `apps/secom/tests/test_import_boundary.py` is unchanged; the new guard is additive.
+
+- **CI README test-count drift check script and workflow step (#210).**
+  Added `scripts/check_readme_test_count.py` to compare `pytest --collect-only` counts against claims in `README.md` (badge and comment). Added `tests` to `testpaths` in `pyproject.toml`, updated `README.md` test counts to 1641, and added a CI step in `.github/workflows/ci.yml` to fail on drift.
+
+- **MSA reports %EV, %AV and %PV on both AIAG bases alongside %GRR (audit A10-c, #225).**
+  `compute_gage_rr()` gains six keys — `pev_study` / `pav_study` / `ppv_study` and
+  `pev_tolerance` / `pav_tolerance` / `ppv_tolerance` — completing the
+  `p{ev,av,grr,pv}_{study,tolerance}` family and giving parity with the AIAG Gage R&R Report
+  Form (MSA 4th Ed., Ch. III §B, Figure III-B 16), whose published %EV = 17.62%,
+  %AV = 20.04%, %GRR = 26.68% and %PV = 96.38% are now asserted as an oracle. All eight
+  percentages reach the Excel/PDF detail table, the results CSV and the Gage R&R page.
+  Every tolerance-basis figure routes through `_STUDY_VARIATION_SIGMA` on its own line
+  (RULE 8 / #190), so the ×6 that #190 restored for %GRR cannot be dropped from a sibling.
+  The new figures are **reporting-only — no verdict changes for any input** — and the six
+  keys are **purely additive**: no existing key is renamed or removed. #225's suspected
+  recurrence of #190 in %EV/%AV/%PV is **refuted**: those three were never computed at all.
+  New **RULE 16** in `apps/msa/docs/ASSUMPTIONS_LOG.md` records both the refutation and the
+  now-enforced ×6 guard.
+
+- **Shared SPC primitives promoted into `quality_core.spc` (audit A12, #205 — PR 1 of 3).**
+  The AIAG SPC chart constants, the Western Electric / Nelson rule detectors
+  (`detect_we_violations`, `detect_nelson_violations`, `detect_violations`,
+  `SHEWHART_CHART_TYPES`) and `subgroup_rows` now live in `quality_core.spc`, with the
+  platform's chart vocabulary `SPCChart` alongside them in `quality_core.spc.constants`.
+  `spc_app.spc_engine.constants` / `.rule_detection` / `.utils` became thin re-export shims
+  (the `fmea_app.ap_engine` pattern), so every existing SPC caller is unchanged. SECOM's
+  `charts.py` now imports the constants and the rule detectors *downward* from
+  `quality_core` instead of sideways into `spc_app`; `controlplan_app.schema` and
+  `spc_app.control_plan_config` consume the one `SPCChart` (the latter via
+  `typing.get_args`), removing two of the four hand-typed copies of the chart key list.
+  A new **Core SPC coverage gate** holds `quality_core.spc` at 100% line + branch from
+  `packages/quality-core`'s own tests. **No values, formulas or citations changed** — a
+  pure move — and **no new dependencies**: `quality-core`'s hard dependency set is still
+  exactly `{pandas, pydantic, openpyxl, defusedxml}` and `uv.lock` is untouched. The
+  numpy-dependent chart engine (#205 PR 2) and scipy-dependent capability (PR 3) follow;
+  `apps/secom` still depends on `spc-app` until then.
+
+- **SPC chart math, Phase I/II freezing and the stability gate promoted into `quality_core.spc`
+  (audit A12, #205 — PR 2 of 3).** `control_charts` (the `compute_xbar_r/_s`, `compute_imr`,
+  `compute_p/c/u`, `compute_ewma`, `compute_cusum` family and their TypedDict results), `phase`
+  (`freeze_xbar_r/_s/_imr`, `FrozenLimits`) and `stability` (`assess_stability`,
+  `stability_fields`) now live in `quality_core.spc`; `spc_app.spc_engine.control_charts` /
+  `.phase` / `.stability` became thin re-export shims like PR 1's, so every existing SPC caller
+  is unchanged. New **`imr_limits(xbar, mrbar)`** writes the AIAG I-MR limit formula
+  (`Xbar ± E2·MRbar`, `D4·MRbar`, `LCL_mr = 0`, `MRbar/d2`) exactly once: both `compute_imr` and
+  SECOM's `control_chart_for_signal` consume it, removing the duplicated copy SECOM carried for
+  its OQ5 gap-pooled `mrbar` (the input differs, the formula no longer does). `secom_app/charts.py`
+  now has no `spc_app` import at all. **No value, formula, threshold or citation changed** — the
+  #191 baseline (19 signals on `ply_misalignment`, `sigma_hat 0.24489039329464862`) is
+  byte-identical. `numpy>=2.4.4` is now a declared hard dependency of `quality-core` because
+  `quality_core.spc.control_charts` imports it at module level; measured fact: the resolved
+  dependency subtree is **unchanged** (numpy 2.4.4 was already pulled in transitively via pandas)
+  and the banned-package count is still 0 — only `uv.lock`'s quality-core metadata block moves.
+
+- **Process capability promoted into `quality_core.spc`, and the SECOM→SPC app boundary torn down
+  (audit A12, #205 — PR 3 of 3, closes the finding).** `capability` (`compute_capability`,
+  `normality_test`, `compute_capability_study`, `CapabilityStudy` and the non-normal Box-Cox /
+  Yeo-Johnson / ISO 22514-2 fitted-percentile machinery) now lives in `quality_core.spc.capability`;
+  `spc_app.spc_engine.capability` became a thin re-export shim like PRs 1 and 2, so every existing
+  SPC caller is unchanged. `secom_app/capability.py` imports it *downward* from `quality_core`, so
+  **`apps/secom` no longer imports `spc_app` anywhere** and the `spc-app` workspace-dependency
+  stopgap is gone from `apps/secom/pyproject.toml` — asserted as an executable fact by a new
+  clean-interpreter boundary test. **No value, formula, threshold or citation changed** — a pure
+  move; the 745-line capability suite moved with the module to
+  `packages/quality-core/tests/test_spc_capability.py` and runs under the Core SPC gate at 100%
+  line + branch. `scipy>=1.17.1` is now a declared hard dependency of `quality-core` because
+  `quality_core.spc.capability` imports it at module level; it was already in the workspace lock
+  via `spc-app`/`secom-app`, its only runtime dependency is numpy, and the banned-package count is
+  still 0. `spc_app/spc_engine/data_generator.py` deliberately stays app-local — it is the SPC
+  app's demo dataset, not shared standards math. The one remaining `sys.path` shim in
+  `apps/secom/conftest.py` served `apps/msa`, not `spc_app` — it was tracked as #231 and is
+  **removed in this same release** (see "`apps/msa` is an installable workspace package" under
+  Changed); `apps/secom/conftest.py` no longer exists.
 
 - **MSA declares which Gage R&R method it ran, and what that method cannot see (audit A10, #194).**
   `compute_gage_rr()` now returns two additional keys — `method` (`"average_and_range"`) and
@@ -22,6 +207,58 @@ All notable changes to the Quality Platform are documented here. The format foll
   which would estimate the interaction, is tracked as #195 and is not implemented here.
 
 ### Changed
+
+- **Root `CLAUDE.md` gains two hard-won rules on parallel-agent isolation.** "One agent, one
+  worktree" — branch state is per-checkout, not per-agent, so a second agent running
+  `git switch -c` moves the branch out from under the first and its `git reset` wipes the first's
+  uncommitted work. Observed live: an Antigravity run took the main checkout while `/ship` was
+  mid-flight on #233, leaving that feature branch empty and the tree clean, so nothing looked
+  wrong. The companion rule covers `.pipeline/`, which is likewise shared per checkout — the
+  pre-existing archive-before-`rm -rf` rule only protects the *previous* issue's handoff files,
+  not the current one's, so the spec is now backed up as soon as research writes it.
+  Documentation only — no code, no gate, no behavior change.
+- **The duplicated `quality_core` helpers are single-sourced (audit A15, #207).** Two copy-paste
+  clusters collapse into one definition each. (1) The pydantic raise/assert prefix strip is now
+  `quality_core.io.validate.clean_pydantic_message`, called by the core row and dataset error
+  formatters and by `controlplan_app.pages.control_plan._first_error_message`,
+  `fmea_app.rating_scales._build` and `fmea_app.rpn_engine._format_pydantic_error` — the strip
+  previously existed as **two** diverging hand-written copies (the core dataset formatter and one
+  app site); they collapse into one helper, now applied uniformly to every call site above, so the
+  core row formatter and `rating_scales._build` gain the strip they lacked before. (2) The link → (effect, cause, control) traversal is now
+  the method `FailureMode.resolve(link)` in `quality_core.schema.relational`, replacing five
+  copies of the same three id→entity dicts (`relational_to_flat`, `controlplan_app.connector`'s
+  `_worst_link` / `build_control_plan` / `source_index`, and `fmea_app.rpn_engine.
+  _relational_actions`). The traversal swap is **behaviour-identical** — worst-link tie-break,
+  Control Plan sort order and `source_index` keys are unchanged. Two **user-visible message**
+  improvements fall out of (1): a row-level model-validator error and a rating-scale error no
+  longer surface pydantic's `Value error, ` / `Assertion failed, ` prefix before the validator's
+  own sentence. Row-error echo stays **unconditional and truncated at 50 characters** exactly as
+  #200 chose — only the prefix strip was adopted into the row formatter. The untruncated-echo bug
+  named in the audit was already fixed by the earlier deletion of `controlplan_app.schema.
+  _reject_bad_optional_values`; this change is the residual de-duplication. No AIAG/ISO constant,
+  threshold or quotation is touched, so no `ASSUMPTIONS_LOG.md` changes.
+
+- **`apps/msa` is now an installable workspace package, removing the last cross-app `sys.path`
+  shim (audit A03 follow-up, #231).** `msa-app` drops `[tool.uv] package = false` for the same
+  hatchling `[build-system]` + `[tool.hatch.build.targets.wheel] packages = ["msa_app"]` shape
+  `spc-app` and `secom-app` have carried since #204, so `uv` installs it **editable** into
+  `.venv` (`uv.lock`: `virtual` → `editable`). `apps/secom/conftest.py` — which existed only to
+  insert `apps/msa` onto `sys.path` so `tests/test_msa.py` could `import msa_app.gage_rr_engine`
+  (#68) — is **deleted**; `apps/secom` now has no `conftest.py` at all. The edge is recorded in
+  `apps/secom/pyproject.toml` as a **dev-group** dependency (`[dependency-groups] dev =
+  ["msa-app"]` + `[tool.uv.sources]`), deliberately *not* a `[project]` dependency: the import is
+  test-only, and a runtime entry would re-create the cross-app coupling #205 PR 3 removed.
+  `apps/secom/tests/test_import_boundary.py` gains
+  `test_msa_app_is_an_installed_distribution`, which imports `msa_app.gage_rr_engine` **and**
+  `msa_app.pages` in a clean non-pytest interpreter run from the workspace root, so neither cwd
+  nor a conftest can supply the package. `apps/msa/conftest.py` **stays**, matching
+  `apps/spc/conftest.py`, which #204 kept for the same reason: it puts the app directory on
+  `sys.path` so the top-level `app` module — deliberately outside the wheel — stays importable.
+  Removing it was measured, not assumed: the MSA gate still passes at 100% with byte-identical
+  coverage paths, because no MSA test imports `app` today. It is kept as a live seam for tests
+  that will, not because anything currently depends on it. **No engine math, threshold, table or citation changed**, and the
+  CI coverage invocations are byte-identical — the editable install is a plain-path `.pth`, so
+  `--cov=msa_app.*` still measures `apps/msa/msa_app/...` at 100% line + branch.
 
 - **MSA acceptance bands: the disputed tolerance-basis band set was investigated and refuted; no
   code change, and the ×6 multiplier's provenance is upgraded to primary source (audit A07-b,
@@ -45,7 +282,124 @@ All notable changes to the Quality Platform are documented here. The format foll
   is applied to the `_STUDY_VARIATION_SIGMA` comment in `gage_rr_engine.py` and to the AIAG
   reference-study test's docstring. Documentation and comments only — no `.py` behaviour changed.
 
+- **CI runs least-privilege, third-party actions are pinned to commit SHAs, and the blanket `F401`
+  ignore is narrowed (audit A14, #203).** `.github/workflows/ci.yml` declares
+  `permissions: contents: read` at workflow level — the `gate` job only checks out, resolves the
+  lock, lints, type-checks and tests, so it never needs write, and any job added later now inherits
+  least privilege by default. `actions/checkout@v5` (a moving major) and `astral-sh/setup-uv@v8.2.0`
+  are pinned to the full commit SHAs they already resolved to (`fbc6f39…` = v5.1.0,
+  `fac544c…` = v8.2.0) with the version kept in a trailing comment; this is a **freeze, not a
+  bump**. `ruff.toml` no longer ignores `F401` globally: every re-export `__init__` declares
+  `__all__`, which ruff already honours, so the ignore had been buying nothing — it is replaced by
+  a single per-file ignore on `apps/fmea/fmea_app/exporter.py`, the one module that re-exports
+  (`export_csv`) without `__all__`. Six genuinely unused test imports were removed and the
+  deliberate `_escape_source_label` smoke-import in `test_streamlit_edge_cases.py` carries an
+  explicit `# noqa: F401`. `.devcontainer/devcontainer.json` keeps
+  `--server.enableCORS false --server.enableXsrfProtection false` and now carries a comment naming
+  why: Codespaces forwards 8501 through a different-origin proxy where `st.file_uploader`'s
+  `POST /_stcore/upload_file` is rejected 403 by the XSRF cookie check, and by the cross-origin
+  check when CORS is on. The two flags are **independent**: Streamlit 1.56 warns that
+  `enableCORS` "is being overridden to `true`" when XSRF is on, but that code path only logs —
+  nothing assigns the option and `server_util.py:78` reads the raw `False`. Verified against the
+  installed 1.56.0; the warning is not implemented and must not be relied on. Dev-container only.
+  The `postAttachCommand` string is byte-identical. Also corrected a stale `ruff.toml`
+  comment: `spc` and `secom` have been installed packages since #204, so only fmea / msa /
+  controlplan are still `package = false`.
+
+### Removed
+
+- **Two dead infrastructure files deleted (audit A14, #203).** `apps/fmea/.github/workflows/ci.yml`
+  — a 51-line nested workflow that has never executed, because GitHub reads workflows only from the
+  repository-root `.github/workflows/`; it duplicated the gate with `pip`, no lock and no coverage
+  thresholds. `apps/spc/spc_app/ui/__init__.py` — a 0-byte file, the sole occupant of
+  `apps/spc/spc_app/ui/`, with no static or dynamic importer anywhere in the repo and no entry in
+  `apps/spc/pyproject.toml`'s `packages = ["spc_app"]`. Both parent directories are gone.
+
 ### Fixed
+
+- **Control Plan chart recommendation is bounded, and its placeholder rows now say so
+  (audit A18, F-07 + F-10, #196).** `controlplan_app.connector.recommend_chart` returned
+  `"Xbar-S"` for any variable subgroup size ≥ 10, including sizes the engine cannot compute —
+  `quality_core.spc.constants.XBAR_S_CONSTANTS` stops at n=12 and `compute_xbar_s` raises above
+  it. It now raises `ValueError` for variable data with `n > max(XBAR_S_CONSTANTS)`, reading the
+  ceiling from the constants table rather than a literal. Attribute data (`p`/`c`/`u`) is
+  unaffected — large sample sizes stay valid there — and no new AIAG constants were invented.
+  Separately, `ControlPlanRow` gains an **optional, additive** `sample_plan_is_placeholder`
+  boolean (default `False`), stamped `True` on every row `build_control_plan` emits, so a
+  consumer can tell the connector's declared `sample_size` / `frequency` / `reaction_plan`
+  placeholders — which the relational FMEA has no source for — from engineered values. Uploads
+  without the column, or with a blank cell, still validate; `sample_size` remains required and
+  `ge=1`. The CSV/Excel exports carry the new column, the fixed-width PDF table is unchanged.
+  `apps/controlplan/docs/ASSUMPTIONS_LOG.md` RULE 1/RULE 2 record both, and RULE 2 of
+  `apps/spc/docs/ASSUMPTIONS_LOG.md` is reworded from "n > ~10" to "n >= 10" so both logs state
+  the same X-bar/R ↔ X-bar/S boundary the connector implements (SME decision on OQ-1). **No
+  chart-selection boundary, constant or AIAG claim changed** — the existing third-party-sourced
+  flag on n = 9 vs 10 stays flagged for primary-source confirmation.
+
+- **SPC capability CIs moved off Cp/Cpk onto Pp/Ppk, where their degrees of freedom are valid
+  (audit F-05, #193).** The χ² and Bissell (1990) intervals are derived for σ estimated by the
+  ddof=1 sample standard deviation with ν = n−1, but `compute_capability` attached them to
+  Cp/Cpk, which use the within-subgroup estimator (R̄/d₂ or MR̄/d₂) — whose effective degrees of
+  freedom are fewer than n−1, so the reported intervals were **too narrow**. They now attach to
+  Pp/Ppk (`pp_ci`, `ppk_ci`, `ppk_lower`), which do use `np.std(x, ddof=1)`; the normal and
+  Box-Cox/Yeo-Johnson paths report **no** parametric CI for Cp/Cpk (`cp_ci`/`cpk_ci`/`cpk_lower`
+  are `None` there). Two new keys, `ci_estimator` (`"sample_sd_ddof1"` |
+  `"bootstrap_percentile"`) and `ci_df` (`n−1` | `None`), make the estimator/df pairing
+  self-describing for API consumers and appear on the capability PDF as a "CI basis" row. The
+  fitted-percentile path is **unchanged** — its nonparametric bootstrap CIs on the percentile
+  indices stay in `cp_ci`/`cpk_ci`/`cpk_lower`. An effective-df correction for R̄/d₂ was
+  considered and not adopted: no primary source is available on-machine, and the log carries no
+  uncited constants. `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 14 records the pairing, the
+  limitation, and the honestly-marked Montgomery/Bissell attribution.
+
+- **MSA `ndc` now floors at one, not zero, per AIAG MSA 4th Edition (audit A10-b, #224).**
+  `_compute_ndc()` truncated `1.41 × (PV / GRR)` and clamped to `[0, 100]`, so a valid study with
+  positive GRR and PV but a calculated `ndc` below 1.0 reported **`ndc = 0`**. The manual is
+  explicit (Ch. III §B): *"For analysis, the ndc is the maximum of one or the calculated value
+  truncated to the integer. This result should be greater than or equal to 5."* — and names this
+  exact failure a line later: *"To avoid a ndc = 0, which is possible with truncation alone…"* So
+  the floor is the standard's, not a rounding preference. The non-positive guard
+  (`grr <= 0 or pv <= 0 → 0`) is **retained**: that path is a degenerate-input sentinel, not a
+  calculated `ndc`, so AIAG's floor does not govern it. **No verdict changes for any input** —
+  `_compute_verdict()` rejects on `ndc < 2` and both `0` and `1` sit below that threshold, which
+  refutes the concern recorded under #223 that this correction would flip RULE 13's
+  degenerate-study verdict. The `ASSUMPTIONS_LOG.md` entry is rewritten accordingly and its section
+  retitled from "ndc Clamping to [0, 100]" to "ndc Upper Clamp at 100": the lower bound is no
+  longer a deviation from AIAG, only the upper clamp is. Coverage alone did not catch this defect —
+  no test exercised `1.41 × PV/GRR < 1.0` — so `test_ndc_minimum_one` pins it, and reverting
+  `max(1, …)` to `max(0, …)` turns it red.
+
+- **Six fabricated AIAG quotations removed from the MSA assumptions log; every surviving citation
+  is now machine-checked (audit A10-a, #223).** `apps/msa/docs/ASSUMPTIONS_LOG.md` attributed
+  quotations to the AIAG MSA 4th Edition under RULES 3, 4, 5, 6, 9, 11 and 12 that do not appear
+  in the manual, using a `Section 3.x` / `Equation 3.x.y` locator scheme the 4th Edition does not
+  have (its scheme is `Chapter <roman> – Section <letter>`). RULE 12's invented quote was also
+  arithmetically wrong (`10 × 3 × 3 = 270`; it is 90). A wrong number is falsifiable by
+  recomputation — a fabricated quotation looks like verified evidence, so every decision
+  downstream of it inherits unearned confidence. Each fabricated quote is **withdrawn** and, where
+  the manual does support the decision, replaced with the real passage quoted verbatim: EV/AV/GRR/
+  PV/TV are now cited to Ch. III Sec. B "Analysis of Results — Numerical", repeatability and
+  reproducibility to their Ch. I Sec. E definitions, and the ndc definition to Ch. III Sec. B.
+  **RULE 11** (balanced crossed data) keeps its requirement but withdraws the quotation entirely
+  and is relabelled a **procedure-derived inference** — AIAG prescribes a balanced procedure but
+  never states the requirement, and the word "crossed" does not occur in the manual. **RULE 14**
+  is *upgraded* from `"AIAG MSA, implicit"` to a real citation (Ch. III Sec. B states the negative-
+  AV² clamp outright); **RULE 13** is relabelled an internal design choice, which is what it is.
+  Three wrong locators are corrected — most notably the basis-by-purpose rule, which is in
+  **Ch. I Sec. B**, not Ch. II Sec. C. The ndc bands `2–4 Marginal` / `< 2 Reject` are relabelled
+  an **internal design choice**: AIAG publishes only `ndc ≥ 5`, and they were printed under an
+  "Acceptance Criterion (AIAG)" heading. New **`apps/msa/docs/CITATIONS.tsv`** manifests every
+  surviving quotation against the line of the primary manual it came from, and new
+  `apps/msa/tests/test_citations.py` re-asserts each row — quote **and** line number (±2), so it is
+  a citation index rather than a substring test. Matching is formatting-tolerant: the genuine
+  passage renders as `tolerance _divided by six_`, which a naive search reports as fabricated, and
+  a false "fabricated" verdict is the same sin in the opposite direction. The manual is licensed
+  and not in the repo, so those tests **skip** (never fail) unless `MSA_MANUAL_PATH` is set.
+  **Documentation only: no computation, constant, formula, threshold or branch changed** — the sole
+  production edit is a docstring in `_compute_verdict`, and the MSA coverage gate stays at 100%.
+  Two defects found while verifying are tracked, not hidden: `_compute_ndc`'s floor of zero
+  contradicts AIAG's floor of one (**#224**, a behaviour change), and the same non-AIAG ndc bands
+  still appear in the UI subheader and exporter sentences (**#237**).
 
 - **The SPC capability stability gate now lives in the engine, not only in the Streamlit page
   (audit A09, #191).** `assess_control_chart` (page-only, outside the coverage gate) moved to
@@ -118,8 +472,9 @@ All notable changes to the Quality Platform are documented here. The format foll
   `packages/quality-core`'s `src/` block), and `secom-app` declares `spc-app` as a
   `{ workspace = true }` dependency. `apps/secom/conftest.py`'s `sys.path` hacks for
   `apps/spc` (redundant — spc_app is now installed) and for `apps/secom` itself
-  (redundant — secom_app is now installed) are removed; the `apps/msa` entry stays (msa-app
-  is not yet an installable package). New
+  (redundant — secom_app is now installed) are removed; the `apps/msa` entry stayed at the time,
+  because `msa-app` was not yet installable — **#231, in this same release, makes it installable
+  and deletes `apps/secom/conftest.py` outright.** New
   `apps/secom/tests/test_import_boundary.py` proves both imports in a clean,
   non-pytest interpreter with no conftest involved. This remains a stopgap — #205
   (promoting the SPC engine into `quality_core`) is the real fix.
@@ -143,25 +498,27 @@ All notable changes to the Quality Platform are documented here. The format foll
   matching the selected method: the fitted-percentile winner's `.pdf` in raw space, or
   the exact back-transformed Box-Cox/Yeo-Johnson normal density via change-of-variables
   (`f_X(x) = φ((t(x)-μ_t)/σ_t)/σ_t · |t'(x)|`). The capability exporter gained Method / λ
-  / Cp & Cpk 95% CI / Cpk lower bound / fitted-distribution rows. Documented in
+  / Pp & Ppk 95% CI / Ppk lower bound / CI basis / fitted-distribution rows (CI attachment
+  corrected to Pp/Ppk under #193). Documented in
   `apps/spc/docs/ASSUMPTIONS_LOG.md` RULE 15 (WE/Nelson restricted to Shewhart charts;
   Montgomery §9 autocorrelation rationale) plus an assumption note on the `force_method`
   override.
 
-- **Non-normal capability via Box-Cox + Cp/Cpk confidence intervals (W10-4, #144).** New
+- **Non-normal capability via Box-Cox + Pp/Ppk confidence intervals (W10-4, #144).** New
   `compute_capability_study` in `apps/spc/spc_app/spc_engine/capability.py` orchestrates a full
   capability study on individuals or 2D subgroups: Shapiro-Wilk gate → Box-Cox (positive data)
   or Yeo-Johnson (`allow_yeojohnson=True` default; opt-in documented shift `c=1−min(x)` +
-  Box-Cox otherwise) when non-normal → re-test the transformed data → normal-theory Cp/Cpk/CIs
-  in the transformed space, or a fitted-distribution percentile fallback (ISO 22514-2,
+  Box-Cox otherwise) when non-normal → re-test the transformed data → normal-theory Cp/Cpk
+  (parametric CIs on Pp/Ppk) in the transformed space, or a fitted-distribution percentile fallback (ISO 22514-2,
   `{lognorm, weibull_min, gamma, johnsonsu}` selected by minimum AIC, empirical `np.quantile`
   last resort if every candidate fit fails) when it stays non-normal. Within-σ reuses the
   existing `compute_imr`/`compute_xbar_r` estimators in the same (raw or transformed) space as
   the capability computation, preserving the Cp/Cpk-within vs Pp/Ppk-overall split; λ<0 is
   handled by a `sorted()` ordering guard on the transformed spec limits, never a literal swap.
-  `compute_capability` (existing signature/keys untouched) gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
-  `cpk_lower` — a χ² exact CI for Cp and a Bissell (1990) large-sample CI for Cpk. The
-  fitted-percentile path instead gets a **deterministic bootstrap** CI (fixed
+  `compute_capability` (existing signature untouched) gains `alpha`, `n`, and χ² / Bissell (1990)
+  large-sample CIs attached to **Pp/Ppk** (`pp_ci`, `ppk_ci`, `ppk_lower`) — the ddof=1-estimator
+  indices the interval math is derived for (attachment corrected under #193; see the Fixed entry).
+  The fitted-percentile path instead gets a **deterministic bootstrap** CI (fixed
   `BOOTSTRAP_SEED = 12345`, `BOOTSTRAP_RESAMPLES = 2000`, `scipy.stats.bootstrap(method=
   "percentile")`) for bit-reproducible audit trails. New constants `CAPABILITY_ALPHA`,
   `BOXCOX_LAMBDA_CANDIDATES`, `NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`,
@@ -280,10 +637,11 @@ All notable changes to the Quality Platform are documented here. The format foll
   `part`/`appraiser`/`trial` columns and return/raise a standards-anchored
   verdict — no Gage R&R math (EV/AV/%GRR/ndc/verdict) is reimplemented;
   a real study still runs through the existing `apps/msa` app
-  (`compute_gage_rr`). `apps/secom/conftest.py` gains an `apps/msa`
+  (`compute_gage_rr`). `apps/secom/conftest.py` gained an `apps/msa`
   `sys.path` shim (mirroring the existing `apps/spc` block) so the test
-  suite can import the real AIAG engine and prove it also rejects
-  SECOM-shaped frames. `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
+  suite could import the real AIAG engine and prove it also rejects
+  SECOM-shaped frames — **superseded by #231 in this same release, which
+  makes `msa-app` installable and deletes that conftest entirely.** `apps/secom/docs/ASSUMPTIONS_LOG.md` RULE 11 records
   the finding. SECOM CI coverage gate extended to `secom_app.msa` (100%
   line+branch).
 
@@ -382,7 +740,34 @@ All notable changes to the Quality Platform are documented here. The format foll
   (`secom_app/yield_dppm.py`) and its 100% CI gate are untouched — the page was ungated and
   untested, so no covered line was lost.
 
+### Tests
+
+- **#198's escaping is now actually asserted.** The fix originally shipped with no test: the io
+  gate still read 100% because existing tests crossed the new lines incidentally, so reverting
+  the fix left all 240 tests green. Five regression tests in
+  `packages/quality-core/tests/test_export.py` cover header-label escaping, duplicate labels,
+  `write_table_sheet` header + body, `write_keyvalue_sheet` label + value, and the
+  numeric-exemption guard. All five were verified to fail against the pre-#198 code.
+
 ### Security
+
+- **`defusedxml` is now a direct dependency of `quality-core`, and Streamlit is no longer one
+  (audit A11, #202).** `quality_core.io.validate.read_table` parses uploaded `.xlsx` with
+  `pd.read_excel`, which hardens the workbook XML against entity-expansion/quadratic-blowup attacks
+  only while `openpyxl.xml.DEFUSEDXML` is true — i.e. only while `defusedxml` is importable. It was
+  true by accident, transitively via `fpdf2`, which no core code path requires; the package that
+  owns the Excel read now owns the hardening explicitly. In the same change `streamlit>=1.56.0` moved
+  from `[project.dependencies]` to a `streamlit` **optional extra**, so a base `quality-core` install
+  is exactly `pandas` + `pydantic` + `openpyxl` + `defusedxml` and no longer drags the Streamlit
+  chain (`gitpython`, `tornado`, `protobuf`, `pyarrow`, `pydeck`, `altair`, …) into every consumer of
+  the shared core — a scoped resolve of `quality-core` went from 6 of those packages to 0. Two guards
+  keep it that way: a CI step that resolves `quality-core`'s own subtree from the lock and fails on
+  any Streamlit-chain package, and `test_packaging.py`, which asserts the non-extra requirement set
+  is *exactly* those four names (so dropping `defusedxml` as "unused" also fails). `theme/style.py`
+  and its lazy `__getattr__` shim are retained deliberately — the shim is what lets a base install
+  import `quality_core.theme` tokens at all, and the five Streamlit apps each declare `streamlit`
+  themselves, so they and the README's standalone launches are unaffected. `requirements.txt` still
+  lists Streamlit for that reason; that is correct, not a failed change.
 
 - **`quality_core.io` ingest now fails closed (A05, #199).** Three findings in
   `read_table`/`load_table` fixed at the shared primitive, not in callers:

@@ -1,18 +1,26 @@
+"""Tests for the capability engine (quality_core/spc/capability.py).
+
+Moved here with the module itself when it was promoted out of
+`apps/spc/spc_app/spc_engine/capability.py` (audit A12, #205 PR 3). The file has
+no app path and no app-data dependency, so the whole suite moved; nothing stayed
+app-side. Shim identity is asserted separately in
+`apps/spc/tests/test_spc_engine_shims.py`, because the core suite imports no app.
+"""
+
 import math
 
 import numpy as np
 import pytest
-from scipy import special, stats
-from scipy.stats import chi2, norm
-
-import spc_app.spc_engine.capability as capability
-from spc_app.spc_engine.capability import (
+import quality_core.spc.capability as capability
+from quality_core.spc.capability import (
     _bootstrap_percentile_ci,
     _fit_percentile_capability,
     compute_capability,
     compute_capability_study,
     normality_test,
 )
+from scipy import special, stats
+from scipy.stats import chi2, norm
 
 DATA = np.array([9.9, 10.0, 10.1, 10.0, 10.2])
 SIGMA_HAT = 0.1
@@ -139,61 +147,94 @@ CI_LSL = 8.0
 CI_USL = 12.0
 
 
-def test_compute_capability_cp_chi2_ci_hand_checked():
-    # T8 — hand-check against known chi2 quantiles at n=30, alpha=0.05.
+def test_compute_capability_pp_chi2_ci_hand_checked():
+    # T8 (retargeted by #193) — the χ² interval is derived for σ estimated by the ddof=1
+    # sample SD with ν=n−1, so it is attached to Pp, not to the within-σ Cp.
     result = compute_capability(CI_DATA, lsl=CI_LSL, usl=CI_USL, sigma_hat=CI_SIGMA_HAT)
     f_lo = (chi2.ppf(0.025, 29) / 29) ** 0.5
     f_hi = (chi2.ppf(0.975, 29) / 29) ** 0.5
     assert f_lo == pytest.approx(0.7438, rel=1e-3)
     assert f_hi == pytest.approx(1.2557, rel=1e-3)
-    cp = result["cp"]
-    lo, hi = result["cp_ci"]
-    assert lo == pytest.approx(cp * f_lo, rel=1e-4)
-    assert hi == pytest.approx(cp * f_hi, rel=1e-4)
-    assert lo < cp < hi
+    pp = result["pp"]
+    lo, hi = result["pp_ci"]
+    assert lo == pytest.approx(pp * f_lo, rel=1e-4)
+    assert hi == pytest.approx(pp * f_hi, rel=1e-4)
+    assert lo < pp < hi
 
 
-def test_compute_capability_cpk_bissell_ci_recompute_match():
-    # T9 — recompute-match against the Bissell (1990) large-sample variance formula.
+def test_compute_capability_pp_ci_width_is_pinned():
+    # #193 — the width is what a silent df change moves. Hard-coded literal for n=30,
+    # alpha=0.05 on CI_DATA: pp*(f_hi - f_lo) with ν=29. A ν=n−2 (=28) interval is ~2%
+    # wider and fails this assertion.
+    result = compute_capability(CI_DATA, lsl=CI_LSL, usl=CI_USL, sigma_hat=CI_SIGMA_HAT)
+    lo, hi = result["pp_ci"]
+    assert hi - lo == pytest.approx(0.878476, rel=1e-5)
+
+
+def test_compute_capability_ci_df_and_estimator_are_declared():
+    # #193 — the df/estimator pairing the issue asks to surface.
+    result = compute_capability(CI_DATA, lsl=CI_LSL, usl=CI_USL, sigma_hat=CI_SIGMA_HAT)
+    assert result["ci_df"] == result["n"] - 1
+    assert result["ci_estimator"] == "sample_sd_ddof1"
+
+
+def test_compute_capability_ppk_bissell_ci_recompute_match():
+    # T9 (retargeted by #193) — recompute-match against the Bissell (1990) large-sample
+    # variance formula, now evaluated at Ppk (the ddof=1 index the formula assumes).
     result = compute_capability(CI_DATA, lsl=CI_LSL, usl=CI_USL, sigma_hat=CI_SIGMA_HAT)
     n = result["n"]
-    cpk = result["cpk"]
-    se = (1.0 / (9.0 * n) + cpk**2 / (2.0 * (n - 1))) ** 0.5
+    ppk = result["ppk"]
+    se = (1.0 / (9.0 * n) + ppk**2 / (2.0 * (n - 1))) ** 0.5
     z_two = norm.ppf(0.975)
     z_one = norm.ppf(0.95)
-    lo, hi = result["cpk_ci"]
-    assert lo == pytest.approx(cpk - z_two * se, rel=1e-4)
-    assert hi == pytest.approx(cpk + z_two * se, rel=1e-4)
-    assert result["cpk_lower"] == pytest.approx(cpk - z_one * se, rel=1e-4)
-    assert result["cpk_lower"] < cpk
+    lo, hi = result["ppk_ci"]
+    assert lo == pytest.approx(ppk - z_two * se, rel=1e-4)
+    assert hi == pytest.approx(ppk + z_two * se, rel=1e-4)
+    assert result["ppk_lower"] == pytest.approx(ppk - z_one * se, rel=1e-4)
+    assert result["ppk_lower"] < ppk
+
+
+def test_compute_capability_ci_is_not_attached_to_within_sigma_indices():
+    # #193 — the mismatch is closed: the primitive no longer emits any Cp/Cpk interval.
+    result = compute_capability(CI_DATA, lsl=CI_LSL, usl=CI_USL, sigma_hat=CI_SIGMA_HAT)
+    assert "cp_ci" not in result
+    assert "cpk_ci" not in result
+    assert "cpk_lower" not in result
+    assert result["pp_ci"] is not None
 
 
 def test_compute_capability_new_keys_present():
     result = compute_capability(DATA, lsl=LSL, usl=USL, sigma_hat=SIGMA_HAT)
-    assert {"n", "alpha", "cp_ci", "cpk_ci", "cpk_lower"}.issubset(result.keys())
+    expected = {"n", "alpha", "pp_ci", "ppk_ci", "ppk_lower", "ci_estimator", "ci_df"}
+    assert expected.issubset(result.keys())
     assert result["n"] == len(DATA)
     assert result["alpha"] == pytest.approx(0.05)
 
 
 def test_compute_capability_usl_only_ci_none_branches():
-    # T11 — one-sided spec: cp/cp_ci None, cpk/cpk_ci present.
+    # T11 — one-sided spec: pp/pp_ci None, ppk/ppk_ci present.
     result = compute_capability(DATA, lsl=None, usl=USL, sigma_hat=SIGMA_HAT)
-    assert result["cp_ci"] is None
-    assert result["cpk_ci"] is not None
-    assert result["cpk_lower"] is not None
+    assert result["pp_ci"] is None
+    assert result["ppk_ci"] is not None
+    assert result["ppk_lower"] is not None
 
 
 def test_compute_capability_lsl_only_ci_none_branches():
     result = compute_capability(DATA, lsl=LSL, usl=None, sigma_hat=SIGMA_HAT)
-    assert result["cp_ci"] is None
-    assert result["cpk_ci"] is not None
+    assert result["pp_ci"] is None
+    assert result["ppk_ci"] is not None
+    assert result["ppk_lower"] is not None
 
 
 def test_compute_capability_no_spec_limits_all_cis_none():
     result = compute_capability(DATA, lsl=None, usl=None, sigma_hat=SIGMA_HAT)
-    assert result["cp_ci"] is None
-    assert result["cpk_ci"] is None
-    assert result["cpk_lower"] is None
+    assert result["pp_ci"] is None
+    assert result["ppk_ci"] is None
+    assert result["ppk_lower"] is None
+    # The df/estimator declaration is unconditional — it describes the method, not the
+    # availability of a limit.
+    assert result["ci_estimator"] == "sample_sd_ddof1"
+    assert result["ci_df"] == result["n"] - 1
 
 
 def test_compute_capability_alpha_out_of_range_raises():
@@ -587,7 +628,7 @@ def test_force_method_normal_on_already_normal_data():
     assert study["normal_before"] is True
     assert "user-forced" in study["note"]
     assert study["cp"] is not None
-    assert study["cp_ci"] is not None
+    assert study["pp_ci"] is not None  # #193: the CI rides Pp, not Cp
 
 
 def test_force_method_normal_skips_gate_on_non_normal_data():
@@ -597,7 +638,7 @@ def test_force_method_normal_skips_gate_on_non_normal_data():
     assert study["normal_before"] is False
     assert "user-forced" in study["note"]
     assert study["cp"] is not None
-    assert study["cp_ci"] is not None
+    assert study["pp_ci"] is not None  # #193: the CI rides Pp, not Cp
 
 
 def test_force_method_boxcox_on_data_that_already_passed_normal():
@@ -736,6 +777,85 @@ def test_study_stability_keys_present_on_percentile_paths(monkeypatch):
     for study in (forced, fallback):
         assert study["stable"] is False
         assert study["stability_note"]
+
+
+# ---------------------------------------------------------------------------
+# #193 (audit F-05): CI / estimator pairing at the study level.
+# The parametric χ²/Bissell intervals belong to Pp/Ppk (ddof=1 sample SD, ν=n−1);
+# the within-σ Cp/Cpk carry no interval. The percentile path is unchanged and keeps
+# its nonparametric bootstrap intervals on cp_ci/cpk_ci.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("force_method", ["normal", "boxcox"])
+def test_study_parametric_paths_report_no_cp_cpk_interval(force_method):
+    # The assertion that fails if anyone re-attaches the interval to the within-σ index.
+    study = compute_capability_study(
+        NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, force_method=force_method
+    )
+    assert study["method"] in ("normal", "boxcox")
+    assert study["cp_ci"] is None
+    assert study["cpk_ci"] is None
+    assert study["cpk_lower"] is None
+    assert study["pp_ci"] is not None
+    assert study["ppk_ci"] is not None
+    assert study["ppk_lower"] is not None
+    assert study["ci_estimator"] == "sample_sd_ddof1"
+    assert study["ci_df"] == study["n"] - 1
+
+
+def test_study_yeojohnson_path_reports_the_same_pairing():
+    study = compute_capability_study(
+        _nonpositive_data(), lsl=-8.0, usl=0.0, alpha=STUDY_ALPHA
+    )
+    assert study["method"] == "yeojohnson"
+    assert study["cp_ci"] is None
+    assert study["pp_ci"] is not None
+    assert study["ci_estimator"] == "sample_sd_ddof1"
+    assert study["ci_df"] == study["n"] - 1
+
+
+def test_study_percentile_path_keeps_bootstrap_pairing(monkeypatch):
+    monkeypatch.setattr(capability, "BOOTSTRAP_RESAMPLES", 50)
+    study = compute_capability_study(
+        NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, force_method="percentile"
+    )
+    assert study["ci_estimator"] == "bootstrap_percentile"
+    assert study["ci_df"] is None
+    assert study["cp_ci"] is not None
+    assert study["cpk_ci"] is not None
+    assert study["pp_ci"] is None
+    assert study["ppk_ci"] is None
+    assert study["ppk_lower"] is None
+
+
+def test_study_normal_path_one_sided_spec_pp_ci_none_ppk_ci_present():
+    study = compute_capability_study(
+        NORMAL_DATA, lsl=None, usl=12.0, alpha=STUDY_ALPHA, force_method="normal"
+    )
+    assert study["pp"] is None
+    assert study["pp_ci"] is None
+    assert study["ppk_ci"] is not None
+    assert study["ppk_lower"] is not None
+
+
+def test_study_normal_path_no_spec_limits_all_parametric_cis_none():
+    study = compute_capability_study(
+        NORMAL_DATA, lsl=None, usl=None, alpha=STUDY_ALPHA, force_method="normal"
+    )
+    assert study["pp_ci"] is None
+    assert study["ppk_ci"] is None
+    assert study["ppk_lower"] is None
+    assert study["ci_df"] == study["n"] - 1
+
+
+def test_study_note_states_the_ci_pairing_on_both_parametric_paths():
+    for force_method in ("normal", "boxcox"):
+        study = compute_capability_study(
+            NORMAL_DATA, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA, force_method=force_method
+        )
+        assert "Pp/Ppk" in study["note"]
+        assert "No CI is reported for the within-σ Cp/Cpk." in study["note"]
 
 
 def test_compute_capability_primitive_has_no_stability_keys():

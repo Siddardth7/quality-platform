@@ -9,6 +9,8 @@ bytes. The shared export machinery itself is tested in quality-core.
 from __future__ import annotations
 
 import io
+import re
+import zlib
 
 import openpyxl
 import pytest
@@ -18,13 +20,13 @@ from spc_app.exporter import (
     ControlChartReport,
     _cpk_rating,
     _fmt_ci,
-    _fmt_opt,
     _point_columns,
     _points_frame,
     build_capability_report_excel,
     build_capability_report_pdf,
     build_control_chart_report_excel,
     build_control_chart_report_pdf,
+    fmt_opt,
 )
 
 # --- Fixtures ----------------------------------------------------------------
@@ -110,8 +112,8 @@ def test_cpk_rating_bands():
 
 
 def test_fmt_opt_handles_none():
-    assert _fmt_opt(None) == "N/A"
-    assert _fmt_opt(1.5) == "1.5000"
+    assert fmt_opt(None) == "N/A"
+    assert fmt_opt(1.5) == "1.5000"
 
 
 # --- control chart Excel -----------------------------------------------------
@@ -289,7 +291,12 @@ def _boxcox_capability_report() -> CapabilityReport:
             "cpk_ci": (1.00, 1.42),
             "cpk_lower": 1.05,
             "pp": 1.40,
+            "pp_ci": (1.15, 1.65),
             "ppk": 1.18,
+            "ppk_ci": (0.98, 1.38),
+            "ppk_lower": 1.02,
+            "ci_estimator": "sample_sd_ddof1",
+            "ci_df": 29,
             "fitted_dist": None,
             "mean": 10.0,
             "sigma_hat": 0.05,
@@ -313,6 +320,17 @@ def test_capability_excel_includes_method_lambda_and_ci_rows_for_boxcox_study():
     assert summary["Fitted distribution"] == "N/A"
 
 
+def test_capability_excel_includes_parametric_pp_ppk_ci_rows_and_ci_basis():
+    # #193 — the χ²/Bissell interval is reported against Pp/Ppk, and the PDF/workbook
+    # carries the estimator+df pairing so the artifact is self-describing.
+    wb = openpyxl.load_workbook(io.BytesIO(build_capability_report_excel(_boxcox_capability_report())))
+    summary = _kv_sheet_to_dict(wb["Capability"])
+    assert summary["Pp 95% CI"] == "[1.1500, 1.6500]"
+    assert summary["Ppk 95% CI"] == "[0.9800, 1.3800]"
+    assert summary["Ppk lower bound"] == "1.0200"
+    assert summary["CI basis"] == "sample_sd_ddof1 (df=29)"
+
+
 def test_capability_excel_one_sided_spec_ci_rows_render_na():
     # A plain compute_capability dict has no method/cp_ci/etc. keys at all — the
     # existing fixture must still export cleanly with "normal"/"N/A" defaults.
@@ -324,6 +342,10 @@ def test_capability_excel_one_sided_spec_ci_rows_render_na():
     assert summary["Cp 95% CI"] == "N/A"
     assert summary["Cpk 95% CI"] == "N/A"
     assert summary["Cpk lower bound"] == "N/A"
+    assert summary["Pp 95% CI"] == "N/A"
+    assert summary["Ppk 95% CI"] == "N/A"
+    assert summary["Ppk lower bound"] == "N/A"
+    assert summary["CI basis"] == "None (df=None)"
     assert summary["Fitted distribution"] == "N/A"
 
 
@@ -349,6 +371,38 @@ def test_capability_pdf_boxcox_study_is_valid_bytes():
     data = build_capability_report_pdf(_boxcox_capability_report())
     assert data.startswith(b"%PDF")
     assert len(data) > 1000
+
+
+def _pdf_text(data: bytes) -> str:
+    """Recover the visible text of a PDF by inflating its content streams.
+
+    fpdf2 Flate-compresses page content, so a substring search over the raw bytes
+    finds nothing; text is emitted as `(...) Tj`. Same helper as
+    `apps/msa/tests/test_exporter.py::_pdf_text`.
+    """
+    chunk_re = re.compile(rb"\((?P<body>(?:[^\\()]|\\.)*)\)\s*Tj", re.S)
+    out = []
+    for raw in re.findall(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
+        try:
+            body = zlib.decompress(raw)
+        except zlib.error:
+            body = raw
+        out.append(b"".join(m.group("body") for m in chunk_re.finditer(body)))
+    joined = b"".join(out).replace(rb"\(", b"(").replace(rb"\)", b")")
+    return joined.decode("latin-1")
+
+
+def test_capability_pdf_carries_the_pp_ppk_ci_rows_and_ci_basis():
+    # #193 — the PDF is the auditable artifact: the interval and the estimator/df it
+    # assumes must both reach the page.
+    text = _pdf_text(build_capability_report_pdf(_boxcox_capability_report()))
+    assert "Pp 95% CI" in text
+    assert "[1.1500, 1.6500]" in text
+    assert "Ppk 95% CI" in text
+    assert "[0.9800, 1.3800]" in text
+    assert "Ppk lower bound" in text
+    assert "CI basis" in text
+    assert "sample_sd_ddof1 (df=29)" in text
 
 
 # --- ControlChartReport.secondary_points (CUSUM C-) ---------------------------

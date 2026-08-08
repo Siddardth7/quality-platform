@@ -17,6 +17,10 @@ from quality_core.io.export import (
     FORMULA_PREFIXES,
     add_image_page,
     export_csv,
+    fmt,
+    fmt_opt,
+    generated_line,
+    now,
     pdf_subheader,
     pdf_summary_cells,
     pdf_title,
@@ -53,6 +57,38 @@ class _RecordingPdf:
 
 def test_formula_prefixes():
     assert FORMULA_PREFIXES == ("=", "+", "-", "@", "\t", "\r")
+
+
+def test_now():
+    ts = now()
+    assert isinstance(ts, str)
+    assert re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", ts) is not None
+
+
+def test_generated_line():
+    line = generated_line("Test Detail")
+    assert isinstance(line, str)
+    assert re.match(r"^Generated: \d{4}-\d{2}-\d{2} \d{2}:\d{2}   \|   Test Detail$", line) is not None
+
+
+def test_fmt():
+    assert fmt(3.1415926) == "3.1416"
+    assert fmt(3.1415926, precision=6) == "3.141593"
+
+
+def test_fmt_opt():
+    assert fmt_opt(None) == "N/A"
+    assert fmt_opt(1.5) == "1.5000"
+    assert fmt_opt(1.5, precision=6) == "1.500000"
+
+
+def test_io_reexports():
+    import quality_core.io as qio
+    assert qio.now is now
+    assert qio.generated_line is generated_line
+    assert qio.fmt is fmt
+    assert qio.fmt_opt is fmt_opt
+
 
 
 # --- write_keyvalue_sheet title ---------------------------------------------

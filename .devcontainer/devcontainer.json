@@ -23,6 +23,16 @@
     "PATH": "${containerEnv:HOME}/.local/bin:${containerEnv:PATH}"
   },
   "updateContentCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && $HOME/.local/bin/uv sync && echo '✅ uv workspace synced — run the gate with: uv run ruff check . && uv run mypy && uv run pytest --cov'",
+  // Codespaces serves 8501 through the *.app.github.dev forwarding proxy, which is a
+  // different origin from the container. Every app in this workspace ingests via
+  // st.file_uploader, whose POST to /_stcore/upload_file is rejected 403 by Streamlit's
+  // XSRF cookie check behind that proxy, and by the cross-origin check when CORS is on.
+  // The two flags are INDEPENDENT — dropping one does not re-enable the other. Streamlit
+  // 1.56 config.py:2864-2880 warns that "'server.enableCORS' is being overridden to
+  // 'true'" when XSRF is on, but that block only logs; nothing assigns the option, and
+  // server_util.py:78 reads the raw False. Verified against the installed 1.56.0 — do not
+  // rely on that warning. Dev container only; the forwarded port is private to the
+  // Codespace owner by default. (#203, audit A14)
   "postAttachCommand": {
     "server": "uv run streamlit run app.py --server.enableCORS false --server.enableXsrfProtection false"
   },

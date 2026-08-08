@@ -24,7 +24,6 @@ from __future__ import annotations
 import io
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 import openpyxl
@@ -33,6 +32,10 @@ from quality_core.io.export import (
     export_csv as _core_export_csv,
 )
 from quality_core.io.export import (
+    fmt,
+    fmt_opt,
+    generated_line,
+    now,
     pdf_subheader,
     pdf_summary_cells,
     pdf_title,
@@ -97,29 +100,12 @@ class GageStudyReport:
 # ===========================================================================
 
 
-def _fmt(value: float) -> str:
-    return f"{value:.6f}"
-
-
-def _fmt_opt(value: float | None) -> str:
-    return "N/A" if value is None else f"{value:.6f}"
-
-
 def _fmt_pct(value: float) -> str:
     return f"{value:.2f}%"
 
 
 def _fmt_pct_opt(value: float | None) -> str:
     return "N/A" if value is None else f"{value:.2f}%"
-
-
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _generated_line(detail: str) -> str:
-    """The 'Generated: <timestamp> | <detail>' caption for a PDF sub-header."""
-    return f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}   |   {detail}"
 
 
 # ===========================================================================
@@ -132,22 +118,28 @@ def _detail_rows(report: GageStudyReport) -> list[tuple[str, object]]:
     results = report.results
     verdict = str(results["verdict"])
     return [
-        ("EV (Repeatability)", _fmt(results["ev"])),
-        ("AV (Reproducibility)", _fmt(results["av"])),
-        ("GR&R", _fmt(results["grr"])),
-        ("PV (Part Variation)", _fmt(results["pv"])),
-        ("TV (Total Variation)", _fmt(results["tv"])),
+        ("EV (Repeatability)", fmt(results["ev"], precision=6)),
+        ("AV (Reproducibility)", fmt(results["av"], precision=6)),
+        ("GR&R", fmt(results["grr"], precision=6)),
+        ("PV (Part Variation)", fmt(results["pv"], precision=6)),
+        ("TV (Total Variation)", fmt(results["tv"], precision=6)),
+        ("%EV (Study)", _fmt_pct(results["pev_study"])),
+        ("%AV (Study)", _fmt_pct(results["pav_study"])),
         ("%GRR (Study)", _fmt_pct(results["pgrr_study"])),
+        ("%PV (Study)", _fmt_pct(results["ppv_study"])),
+        ("%EV (Tolerance)", _fmt_pct_opt(results["pev_tolerance"])),
+        ("%AV (Tolerance)", _fmt_pct_opt(results["pav_tolerance"])),
         ("%GRR (Tolerance)", _fmt_pct_opt(results["pgrr_tolerance"])),
+        ("%PV (Tolerance)", _fmt_pct_opt(results["ppv_tolerance"])),
         ("ndc", str(results["ndc"])),
         ("Verdict", verdict),
         ("Verdict Interpretation", verdict_sentence(verdict)),
         ("Parts", str(results["n_parts"])),
         ("Appraisers", str(results["n_appraisers"])),
         ("Trials", str(results["n_trials"])),
-        ("USL", _fmt_opt(report.usl)),
-        ("LSL", _fmt_opt(report.lsl)),
-        ("Mean", _fmt(results["mean"])),
+        ("USL", fmt_opt(report.usl, precision=6)),
+        ("LSL", fmt_opt(report.lsl, precision=6)),
+        ("Mean", fmt(results["mean"], precision=6)),
         ("Method", str(results["method"])),
         ("Method Limitation", str(results["method_note"])),
     ]
@@ -155,7 +147,7 @@ def _detail_rows(report: GageStudyReport) -> list[tuple[str, object]]:
 
 def _summary_rows(report: GageStudyReport) -> list[tuple[str, object]]:
     return [
-        ("Generated", _now()),
+        ("Generated", now()),
         ("Tool Version", _TOOL_VERSION),
         ("Engineering Ref", _ENGINEERING_REF),
         ("", ""),
@@ -174,7 +166,8 @@ def export_csv(report: GageStudyReport) -> bytes:
 
 
 def export_results_csv(report: GageStudyReport) -> bytes:
-    """Export a flat, one-row results table (EV/AV/GRR/PV/TV, %GRR, ndc, verdict).
+    """Export a flat, one-row results table (EV/AV/GRR/PV/TV, %EV/%AV/%GRR/%PV on both
+    the study-variation and tolerance bases, ndc, verdict).
 
     Values are app-formatted numbers/strings computed by the engine, not user
     input, so (matching the SPC exporter's convention) they are not routed
@@ -183,13 +176,19 @@ def export_results_csv(report: GageStudyReport) -> bytes:
     results = report.results
     verdict = str(results["verdict"])
     row = {
-        "EV": _fmt(results["ev"]),
-        "AV": _fmt(results["av"]),
-        "GRR": _fmt(results["grr"]),
-        "PV": _fmt(results["pv"]),
-        "TV": _fmt(results["tv"]),
+        "EV": fmt(results["ev"], precision=6),
+        "AV": fmt(results["av"], precision=6),
+        "GRR": fmt(results["grr"], precision=6),
+        "PV": fmt(results["pv"], precision=6),
+        "TV": fmt(results["tv"], precision=6),
+        "%EV Study": _fmt_pct(results["pev_study"]),
+        "%AV Study": _fmt_pct(results["pav_study"]),
         "%GRR Study": _fmt_pct(results["pgrr_study"]),
+        "%PV Study": _fmt_pct(results["ppv_study"]),
+        "%EV Tolerance": _fmt_pct_opt(results["pev_tolerance"]),
+        "%AV Tolerance": _fmt_pct_opt(results["pav_tolerance"]),
         "%GRR Tolerance": _fmt_pct_opt(results["pgrr_tolerance"]),
+        "%PV Tolerance": _fmt_pct_opt(results["ppv_tolerance"]),
         "ndc": results["ndc"],
         "Verdict": verdict,
         "Verdict Interpretation": verdict_sentence(verdict),
@@ -234,7 +233,7 @@ def export_pdf(report: GageStudyReport) -> bytes:
     pdf.add_page()
 
     pdf_title(pdf, "MSA Gage R&R Report")
-    pdf_subheader(pdf, _generated_line(_ENGINEERING_REF))
+    pdf_subheader(pdf, generated_line(_ENGINEERING_REF))
     pdf_summary_cells(
         pdf,
         [

@@ -1,12 +1,26 @@
 # Engineering Assumptions Log
 **Project:** SPC Manufacturing Quality Dashboard
 **Author:** Siddardth | M.S. Aerospace Engineering, UIUC
-**Last Updated:** July 26, 2026
+**Last Updated:** August 6, 2026
 
 This document records every non-obvious engineering decision — and every published
 constant or threshold — used in the SPC app. Each entry explains what was chosen, why,
 and where it is applied. It is the defense against any methodology question and the
 reason a constant should never be edited in isolation.
+
+> **Where the code lives (audit A12, #205).** `constants.py`, `rule_detection.py` and
+> `utils.py` were promoted out of `spc_app/spc_engine/` into **`quality_core/spc/`** so
+> SECOM, the Control Plan app and the future API share one copy instead of importing
+> sideways into this app. The `spc_app.spc_engine.*` modules of those three names are now
+> **re-export shims** — edit the constant in `quality_core/spc/`, never in the shim. The
+> "Applied In" lines below name the real home; `packages/quality-core/tests/
+> test_spc_constants.py` pins the AIAG tables whole and
+> `apps/spc/tests/test_spc_engine_shims.py` asserts the shims are the same objects, so a
+> shadow copy fails rather than silently drifting. PR 2 of #205 promoted
+> `control_charts.py`, `phase.py` and `stability.py`, and PR 3 promoted
+> `capability.py`, all the same way (their `spc_app/spc_engine/` modules are shims
+> too). `data_generator.py` is the one engine module that stays app-resident — it
+> is the app's demo dataset, not shared standards math.
 
 ---
 
@@ -23,8 +37,8 @@ range of normal samples.
 **Formulas applied:** `UCL/LCL_x = Xbarbar ± A2·Rbar`; `UCL_r = D4·Rbar`,
 `LCL_r = max(0, D3·Rbar)`; `sigma_hat = Rbar / d2`.
 
-**Applied In:** `spc_app/spc_engine/constants.py::XBAR_R_CONSTANTS` →
-`control_charts.py::compute_xbar_r`.
+**Applied In:** `quality_core/spc/constants.py::XBAR_R_CONSTANTS` →
+`quality_core/spc/control_charts.py::compute_xbar_r`.
 
 ---
 
@@ -32,8 +46,12 @@ range of normal samples.
 
 **Decision:** Use the AIAG X-bar/S constants keyed by subgroup size `n` (2–12): `A3` for
 the X-bar limits, `B4`/`B3` for the S-chart limits, and `c4` to estimate sigma
-(`sigma_hat = Sbar / c4`). X-bar/S is preferred over X-bar/R for larger subgroups (n > ~10)
-because the sample standard deviation uses all observations, not just the range.
+(`sigma_hat = Sbar / c4`). X-bar/S is preferred over X-bar/R for larger subgroups (n >= 10)
+because the sample standard deviation uses all observations, not just the range. That
+boundary is stated once, in `apps/controlplan/docs/ASSUMPTIONS_LOG.md` RULE 1 (which
+`controlplan_app/connector.py::recommend_chart` implements as `2 <= n <= 9 -> Xbar-R`,
+`n >= 10 -> Xbar-S`); this line is reworded from "n > ~10" to match it (OQ-1, #196). The
+exact cell is still flagged there for primary-source (AIAG SPC 4th Ed.) confirmation.
 
 **Source:** AIAG SPC Reference Manual, 4th Ed. (2005), X-bar/S constants table. `c4` is the
 unbiasing constant for the sample standard deviation of a normal sample.
@@ -41,8 +59,8 @@ unbiasing constant for the sample standard deviation of a normal sample.
 **Formulas applied:** `UCL/LCL_x = Xbarbar ± A3·Sbar`; `UCL_s = B4·Sbar`,
 `LCL_s = max(0, B3·Sbar)`; `sigma_hat = Sbar / c4`.
 
-**Applied In:** `spc_app/spc_engine/constants.py::XBAR_S_CONSTANTS` →
-`control_charts.py::compute_xbar_s`.
+**Applied In:** `quality_core/spc/constants.py::XBAR_S_CONSTANTS` →
+`quality_core/spc/control_charts.py::compute_xbar_s`.
 
 ---
 
@@ -58,8 +76,10 @@ length 2. `E2 = 3 / d2(2)` gives 3-sigma individuals limits from the average mov
 **Formulas applied:** `UCL/LCL_x = Xbar ± E2·MRbar`; `UCL_mr = D4·MRbar`, `LCL_mr = 0`;
 `sigma_hat = MRbar / 1.128`.
 
-**Applied In:** `spc_app/spc_engine/constants.py` (`IMR_E2`, `IMR_D4`, `IMR_D2`) →
-`control_charts.py::compute_imr`.
+**Applied In:** `quality_core/spc/constants.py` (`IMR_E2`, `IMR_D4`, `IMR_D2`) →
+`quality_core/spc/control_charts.py::imr_limits` → `quality_core/spc/
+control_charts.py::compute_imr` and `secom_app/charts.py::control_chart_for_signal`.
+`imr_limits` is the single place this formula is written (#205 PR 2).
 
 ---
 
@@ -78,7 +98,7 @@ distributions, with the lower limit clamped at 0 (and the p-chart upper limit cl
 Poisson. The c-chart requires a **constant area of opportunity** — hence the demo
 `panel_defects` stream fixes the sample size at 1 inspected panel.
 
-**Applied In:** `control_charts.py::compute_p / compute_c / compute_u`.
+**Applied In:** `quality_core/spc/control_charts.py::compute_p / compute_c / compute_u`.
 
 ---
 
@@ -99,7 +119,7 @@ limits are present; one-sided specs report only the relevant Cpk/Ppk side.
 indices. The within-vs-overall distinction (Cp/Cpk vs Pp/Ppk) is the standard short-term
 vs long-term capability split.
 
-**Applied In:** `spc_app/spc_engine/capability.py::compute_capability`.
+**Applied In:** `quality_core/spc/capability.py::compute_capability`.
 
 ---
 
@@ -137,8 +157,8 @@ verifiable: NIST/SEMATECH e-Handbook §6.1.6 — *"Process capability compares t
 in-control process to the specification limits"*
 (https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm).
 
-**Applied In:** `spc_app/spc_engine/stability.py::assess_stability` (control-chart assembly +
-WE detection) and `spc_app/spc_engine/capability.py::compute_capability_study`
+**Applied In:** `quality_core/spc/stability.py::assess_stability` (control-chart assembly +
+WE detection) and `quality_core/spc/capability.py::compute_capability_study`
 (`stable` / `stability_note` on `CapabilityStudy`). The Streamlit page
 (`spc_app/pages/process_capability.py`) is now only a consumer — it holds the stream →
 chart-type map and renders the warning.
@@ -207,7 +227,7 @@ fires at 8-in-a-row) plus the renumbered Nelson 3/4/5/6 tests and the DECISION-2
 `detect_nelson_violations` output starts with `"Western Electric"`. `apps/secom/tests/
 test_charts.py` pins the SECOM default-ruleset (`"nelson"`) label change.
 
-**Applied In:** `spc_app/spc_engine/rule_detection.py`.
+**Applied In:** `quality_core/spc/rule_detection.py`.
 
 ---
 
@@ -221,7 +241,7 @@ non-normal review.
 significance level is the conventional default. Capability indices assume an approximately
 normal distribution, so the check is advisory context for the Cpk numbers.
 
-**Applied In:** `spc_app/spc_engine/capability.py::normality_test`.
+**Applied In:** `quality_core/spc/capability.py::normality_test`.
 
 ---
 
@@ -300,9 +320,9 @@ supporting SPC evidence for the analyst's control-based rating.
   Phase I/Phase II terminology also appears explicitly in NIST §6.5.4.3 (multivariate); NIST's
   univariate sections call Phase I "retrospective."
 
-**Applied In:** `spc_app/spc_engine/phase.py` (`freeze_xbar_r`, `freeze_xbar_s`, `freeze_imr`,
-`FrozenLimits`, `ExcludedPoint`) → `spc_app/spc_engine/control_charts.py::compute_xbar_r/_s/_imr`
-(`frozen=` parameter) → `spc_app/spc_engine/constants.py` (`MIN_BASELINE_SUBGROUPS`,
+**Applied In:** `quality_core/spc/phase.py` (`freeze_xbar_r`, `freeze_xbar_s`, `freeze_imr`,
+`FrozenLimits`, `ExcludedPoint`) → `quality_core/spc/control_charts.py::compute_xbar_r/_s/_imr`
+(`frozen=` parameter) → `quality_core/spc/constants.py` (`MIN_BASELINE_SUBGROUPS`,
 `MIN_BASELINE_INDIVIDUALS`).
 
 ---
@@ -346,8 +366,8 @@ Phase I estimate — never derived from the z-series itself):
   not the original Technometrics table cell-by-cell (same "secondary, not primary-quotable" flag
   Rule 11 used for the Montgomery individuals-baseline floor).
 
-**Applied In:** `spc_app/spc_engine/control_charts.py::compute_ewma` (`EWMAResult`),
-`spc_app/spc_engine/constants.py` (`EWMA_DEFAULT_LAMBDA`, `EWMA_DEFAULT_L`, `EWMA_L_BY_LAMBDA`),
+**Applied In:** `quality_core/spc/control_charts.py::compute_ewma` (`EWMAResult`),
+`quality_core/spc/constants.py` (`EWMA_DEFAULT_LAMBDA`, `EWMA_DEFAULT_L`, `EWMA_L_BY_LAMBDA`),
 `spc_app/visualizer.py::build_ewma_chart`.
 
 ---
@@ -389,20 +409,20 @@ crossings signal; run-rule gating for CUSUM is deferred to W10-5.
   paywalled — checked against the reproduction in Montgomery §9.1.4, not cell-verified against
   the 1982 original (same treatment as Rule 12's Lucas & Saccucci citation).
 
-**Applied In:** `spc_app/spc_engine/constants.py` (`CUSUM_DEFAULT_K`, `CUSUM_DEFAULT_H`,
-`CUSUM_FIR_FRACTION`); `spc_app/spc_engine/control_charts.py::compute_cusum` (`CUSUMResult`);
+**Applied In:** `quality_core/spc/constants.py` (`CUSUM_DEFAULT_K`, `CUSUM_DEFAULT_H`,
+`CUSUM_FIR_FRACTION`); `quality_core/spc/control_charts.py::compute_cusum` (`CUSUMResult`);
 `spc_app/visualizer.py::build_cusum_chart`.
 
 ---
 
-## RULE 14 — Non-normal capability (Box-Cox / Yeo-Johnson) + Cp/Cpk confidence intervals
+## RULE 14 — Non-normal capability (Box-Cox / Yeo-Johnson) + Pp/Ppk confidence intervals
 
 **Decision:** `compute_capability_study(data, lsl, usl, *, alpha=CAPABILITY_ALPHA,
 allow_yeojohnson=True)` extends the existing normal-path `compute_capability` (unchanged
 signature/keys, plus new CI fields) with a full non-normal capability study:
 
 - **Gate:** Shapiro-Wilk (`normality_test`) on the pooled sample. Normal → normal-theory
-  Cp/Cpk/Pp/Ppk + CIs, no transform.
+  Cp/Cpk/Pp/Ppk (parametric CIs on Pp/Ppk only), no transform.
 - **Transform (non-normal, Decision 2):** positive data → Box-Cox MLE-λ (`scipy.stats.boxcox`,
   `alpha=` for the likelihood CI); non-positive data → Yeo-Johnson by default
   (`allow_yeojohnson=True`), or an opt-in documented shift `c = 1 − min(x)` then Box-Cox on
@@ -431,19 +451,31 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
   2D subgroups → `R̄/d₂(n)` (`compute_xbar_r`'s own 2≤n≤10 guard is reused, not reimplemented).
   Overall σ is always the transformed-or-raw sample SD (`ddof=1`). This preserves the
   Cp/Cpk-within vs Pp/Ppk-overall split after a transform.
-- **Confidence intervals:** `compute_capability` gains `alpha`, `n`, `cp_ci`, `cpk_ci`,
-  `cpk_lower`. Cp uses the exact χ² CI (`cp·sqrt(chi2.ppf(α/2, n−1)/(n−1))` to
-  `cp·sqrt(chi2.ppf(1−α/2, n−1)/(n−1))`); Cpk uses the Bissell (1990) large-sample normal
-  approximation (`se = sqrt(1/(9n) + Cpk²/(2(n−1)))`, two-sided `Cpk ± z_{1−α/2}·se`, one-sided
-  lower bound `Cpk − z_{1−α}·se`). These CIs apply to the normal and Box-Cox/Yeo-Johnson-normal
-  paths. The fitted-percentile path instead gets a **deterministic bootstrap** CI: fixed
+- **Confidence intervals:** `compute_capability` returns `alpha`, `n`, `ci_estimator`, `ci_df`,
+  `pp_ci`, `ppk_ci`, `ppk_lower`. The exact χ² interval
+  (`pp·sqrt(chi2.ppf(α/2, n−1)/(n−1))` to `pp·sqrt(chi2.ppf(1−α/2, n−1)/(n−1))`) and the
+  Bissell (1990) large-sample normal approximation (`se = sqrt(1/(9n) + Ppk²/(2(n−1)))`,
+  two-sided `Ppk ± z_{1−α/2}·se`, one-sided lower bound `Ppk − z_{1−α}·se`) are **derived for σ
+  estimated by the sample standard deviation `s` with ν = n−1**. They are therefore attached to
+  **Pp/Ppk**, which use `np.std(x, ddof=1)` — the estimator the derivation assumes
+  (`ci_estimator="sample_sd_ddof1"`, `ci_df=n−1`). This applies to the normal and
+  Box-Cox/Yeo-Johnson-normal paths.
+- **No CI is reported for Cp/Cpk.** Those use the within-subgroup estimator (R̄/d₂ or MR̄/d₂,
+  "Within-σ" bullet above), whose effective degrees of freedom are fewer than n−1; applying the
+  n−1 forms to them produces intervals that are too narrow. An effective-df correction for R̄/d₂
+  was considered and **not** adopted: no primary source is available on-machine, and this log
+  does not carry uncited constants (#193, audit F-05). `cp_ci`/`cpk_ci`/`cpk_lower` are `None`
+  on these paths.
+- **Percentile path (unchanged):** the fitted-percentile path instead gets a **deterministic
+  bootstrap** CI on the percentile indices themselves, reported in `cp_ci`/`cpk_ci`/`cpk_lower`
+  with `ci_estimator="bootstrap_percentile"`, `ci_df=None` (no df assumption): fixed
   `BOOTSTRAP_SEED = 12345`, fixed `BOOTSTRAP_RESAMPLES = 2000`,
   `scipy.stats.bootstrap(method="percentile")` — the statistic refits the candidate families
   per resample; a resample where every fit fails uses the empirical fallback statistic. A CI
   whose point estimate is `None` (one-sided spec) is skipped (`*_ci = None` on that side).
   Fixing the seed and resample count is mandatory for bit-reproducible, auditable CIs — this is
   an engineering choice, not a statistical one.
-- **Small-n caveat:** the Bissell/bootstrap CIs assume a large sample (n≈30–50). `n<30` never
+- **Small-n caveat:** the Bissell/χ²/bootstrap CIs assume a large sample (n≈30–50). `n<30` never
   raises; the study's `note` field carries a caveat instead (soft-warn, mirrors Rule 11/12's
   `*_adequate`/`*_note` pattern).
 - **Degenerate input:** constant data (zero variance) raises `ValueError` — no capability
@@ -457,12 +489,12 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
 - **Percentile index `Ĉ_Np = (USL−LSL)/(p_0.99865 − p_0.00135)`, "mimics ±3σ coverage"** —
   **NIST/SEMATECH e-Handbook §6.1.6 "What is Process Capability?"** — PRIMARY, quotable.
   Verified 2026-07-25. <https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc16.htm>
-- **Cp χ² exact CI + Cpk large-sample normal-approximation CI** — **Montgomery, *Introduction
-  to Statistical Quality Control*, Ch. 8 — SECONDARY.** Not present in NIST's capability
-  sections; standard textbook derivation, universally reproduced.
-- **Cpk CI variance `1/(9n) + Ĉpk²/(2(n−1))`** — **Bissell, A. F. (1990), "How Reliable Is Your
-  Capability Index?", *The Statistician* 39(3) — PAYWALLED primary.** Verified via the
-  Montgomery reproduction and the issue body only, not the original journal article.
+- **χ² Cp/Pp interval; Bissell (1990) large-sample Cpk/Ppk variance `1/(9n) + Ĉ²/(2(n−1))`** —
+  D. C. Montgomery, *Introduction to Statistical Quality Control*, Ch. 8; A. F. Bissell, "How
+  Reliable Is Your Capability Index?", *Applied Statistics* 39(3):331–340 (1990). Both are
+  derived for σ estimated by the sample standard deviation, ν = n−1. **Not verified
+  on-machine** — neither text is in the local reference set; the estimator/df pairing recorded
+  above is verified from the implementation, not from the primary text.
 - **Box & Cox (1964), "An Analysis of Transformations," *Journal of the Royal Statistical
   Society, Series B* 26(2) — PAYWALLED primary.** NIST §6.5.2 is the quotable stand-in used
   above; the original transformation paper was not directly consulted.
@@ -475,16 +507,16 @@ signature/keys, plus new CI fields) with a full non-normal capability study:
   `scipy.stats.bootstrap(method="percentile")`. The fixed seed/resample count is an engineering
   reproducibility choice, not part of the cited method itself.
 
-**Applied In:** `spc_app/spc_engine/capability.py` (`compute_capability` CI fields,
+**Applied In:** `quality_core/spc/capability.py` (`compute_capability` CI fields,
 `CapabilityStudy`, `compute_capability_study`, `_within_sigma`, `_fit_percentile_capability`,
 `_percentile_cpk`, `_bootstrap_percentile_ci`, `_cp_chi2_ci`, `_cpk_bissell_ci`);
-`spc_app/spc_engine/constants.py` (`CAPABILITY_ALPHA`, `BOXCOX_LAMBDA_CANDIDATES`,
+`quality_core/spc/constants.py` (`CAPABILITY_ALPHA`, `BOXCOX_LAMBDA_CANDIDATES`,
 `NONNORMAL_LOWER_PCTL`, `NONNORMAL_UPPER_PCTL`, `PERCENTILE_FIT_CANDIDATES`, `BOOTSTRAP_SEED`,
 `BOOTSTRAP_RESAMPLES`).
 
 **Assumption note — `force_method` user override (W10-5, #145):** `compute_capability_study`
 accepts `force_method="normal"` to skip the Shapiro-Wilk gate and compute normal-theory
-Cp/Cpk/CIs on raw data regardless of the actual normality result. This is a deliberate
+Cp/Cpk (parametric CIs on Pp/Ppk) on raw data regardless of the actual normality result. This is a deliberate
 user override, not an engine claim that the data is normal — the returned `note` always
 records "user-forced," and the responsibility for that assumption's validity is the
 analyst's, mirroring how Rule 7's stability gate still renders (marked indicative) rather
@@ -512,7 +544,7 @@ detect_violations(chart_type, points, cl, sigma, rule_set)` returns `[]` immedia
 `chart_type` outside `SHEWHART_CHART_TYPES = {"Xbar-R","Xbar-S","I-MR","p","c","u"}` (and for
 `sigma<=0`), otherwise dispatches to the existing `detect_we_violations`/
 `detect_nelson_violations` unchanged. Both page-level callers — the Control Charts page's
-per-branch rule overlay and the capability stability gate (`spc_engine/stability.py::
+per-branch rule overlay and the capability stability gate (`quality_core/spc/stability.py::
 assess_stability`) — now route through this one function, so no caller can (accidentally or otherwise) run
 WE/Nelson on an EWMA/CUSUM chart.
 
@@ -524,9 +556,9 @@ accumulators are explicitly serially correlated by their recursive definitions, 
 noted (without the gating enforcement) in RULE 12/13. No new external citation is
 introduced by this rule.
 
-**Applied In:** `spc_app/spc_engine/rule_detection.py` (`SHEWHART_CHART_TYPES`,
+**Applied In:** `quality_core/spc/rule_detection.py` (`SHEWHART_CHART_TYPES`,
 `detect_violations`) → `spc_app/pages/control_charts.py::detect_rule_violations` →
-`spc_app/spc_engine/stability.py::assess_stability`.
+`quality_core/spc/stability.py::assess_stability`.
 
 ---
 
@@ -551,7 +583,7 @@ introduced by this rule.
   MLE-λ, percentile-based process capability index (primary, quotable)*
 - *Montgomery, D. C. — Introduction to Statistical Quality Control, Ch. 8 — Cp χ² CI, Cpk
   large-sample CI (secondary)*
-- *Bissell, A. F. (1990) — The Statistician 39(3) — Cpk confidence interval variance (secondary,
+- *Bissell, A. F. (1990) — Applied Statistics 39(3):331–340 — Cpk confidence interval variance (secondary,
   paywalled primary)*
 - *Box, G. E. P. & Cox, D. R. (1964) — Journal of the Royal Statistical Society, Series B 26(2) —
   the Box-Cox transformation (secondary, paywalled primary; NIST §6.5.2 the quotable stand-in)*

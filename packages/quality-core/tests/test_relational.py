@@ -351,6 +351,70 @@ def test_non_positive_row_id_rejected() -> None:
         FailureLink(row_id=0, effect_id="E1", cause_id="C1", control_id="CT1")
 
 
+# --- FailureMode.resolve (#207) -----------------------------------------------
+
+
+def _crossed_failure_mode() -> tuple[FailureMode, list[Effect], list[Cause], list[Control]]:
+    """A mode with 3 of each entity whose links cross the indices, so a wrong-key,
+    wrong-order or always-first mapping cannot pass by coincidence."""
+    effects = [Effect(id=f"E{i}", description=f"Effect {i}", severity=i) for i in (1, 2, 3)]
+    causes = [Cause(id=f"C{i}", description=f"Cause {i}", occurrence=i) for i in (1, 2, 3)]
+    controls = [Control(id=f"CT{i}", description=f"Control {i}", detection=i) for i in (1, 2, 3)]
+    links = [
+        FailureLink(row_id=1, effect_id="E1", cause_id="C2", control_id="CT3"),
+        FailureLink(row_id=2, effect_id="E2", cause_id="C3", control_id="CT1"),
+        FailureLink(row_id=3, effect_id="E3", cause_id="C1", control_id="CT2"),
+    ]
+    fm = FailureMode(
+        id="F1-M1",
+        description="Incomplete cure",
+        effects=effects,
+        causes=causes,
+        controls=controls,
+        links=links,
+    )
+    return fm, effects, causes, controls
+
+
+@pytest.mark.parametrize(
+    ("link_index", "expected"),
+    [(0, (0, 1, 2)), (1, (1, 2, 0)), (2, (2, 0, 1))],
+)
+def test_resolve_returns_the_entities_the_link_points_to(
+    link_index: int, expected: tuple[int, int, int]
+) -> None:
+    fm, effects, causes, controls = _crossed_failure_mode()
+    e, c, ct = expected
+    # Order matters: (effect, cause, control), not any permutation of them.
+    assert fm.resolve(fm.links[link_index]) == (effects[e], causes[c], controls[ct])
+
+
+def test_relational_to_flat_places_each_links_own_entities() -> None:
+    # The crossed links through the public adapter, pinned against hand-written
+    # expectations (never against `resolve` itself, which would be circular): a
+    # traversal that returned the wrong entity would misplace S/O/D and the text.
+    fm, _effects, _causes, _controls = _crossed_failure_mode()
+    model = RelationalFMEA(functions=[_valid_function(fm)])
+    by_id = {row.ID: row for row in relational_to_flat(model).rows}
+    expected = {  # row_id: (Effect, Severity, Cause, Occurrence, Control, Detection)
+        1: ("Effect 1", 1, "Cause 2", 2, "Control 3", 3),
+        2: ("Effect 2", 2, "Cause 3", 3, "Control 1", 1),
+        3: ("Effect 3", 3, "Cause 1", 1, "Control 2", 2),
+    }
+    assert set(by_id) == set(expected)
+    for row_id, want in expected.items():
+        row = by_id[row_id]
+        got = (
+            row.Effect,
+            row.Severity,
+            row.Cause,
+            row.Occurrence,
+            row.Current_Control,
+            row.Detection,
+        )
+        assert got == want
+
+
 def test_failure_link_defaults_to_no_action() -> None:
     assert FailureLink(row_id=1, effect_id="E1", cause_id="C1", control_id="CT1").action is None
 

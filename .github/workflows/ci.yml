@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main, dev, test]
 
+# The gate only reads the repo: checkout, resolve the lock, lint, type-check, test.
+# It never comments, pushes, publishes or uploads an artifact, so GITHUB_TOKEN is
+# clamped to the minimum. Declared at workflow level so any job added later inherits
+# least privilege by default (#203, audit A14).
+permissions:
+  contents: read
+
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR), but never
 # on the trunk — every commit on main should get a completed gate run.
 concurrency:
@@ -20,10 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
         with:
           enable-cache: true
 
@@ -33,6 +40,23 @@ jobs:
       - name: Sync workspace (locked deps + dev tools)
         run: uv sync --frozen
 
+      # #202 (audit A11): the shared core is imported by every app and by the API. A UI
+      # dependency creeping back into it is a packaging regression the test suite cannot
+      # see (nothing imports streamlit *through* quality_core), so resolve quality-core's
+      # own subtree from the lock and fail if any Streamlit-chain package is in it. The
+      # `streamlit` optional extra is excluded by default, which is the point.
+      - name: Core dependency contract (no UI chain in quality-core)
+        run: |
+          uv export --package quality-core --no-dev --no-emit-workspace --no-hashes \
+            --frozen --format requirements-txt > /tmp/core-deps.txt
+          if grep -E '^(streamlit|gitpython|tornado|protobuf|pyarrow|pydeck)==' /tmp/core-deps.txt; then
+            echo "::error::quality-core resolves a Streamlit-chain dependency"
+            exit 1
+          fi
+
+      - name: README test-count drift check
+        run: uv run python scripts/check_readme_test_count.py
+
       - name: Ruff
         run: uv run ruff check .
 
@@ -41,6 +65,9 @@ jobs:
 
       - name: Pytest (with coverage)
         run: uv run pytest --cov
+
+      - name: Dependency vulnerability audit
+        run: uv run pip-audit
 
       # Core io coverage gate: quality_core.io (shared export + validated ingest)
       # is used by every tool, so it must be fully covered by its OWN tests — not
@@ -74,8 +101,26 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=100
 
-      # SPC coverage gate: the testable SPC surface (engine, simulation logic,
-      # figure builders, report exporter) must stay highly covered so it can't
+      # Core SPC coverage gate: quality_core.spc holds the shared SPC primitives
+      # (AIAG chart constants, the chart vocabulary, WE/Nelson rule detection, the
+      # chart math itself — compute_* plus the one copy of the AIAG I-MR limit
+      # formula in imr_limits — Phase I/II limit freezing, the capability stability
+      # gate, and capability itself: Cp/Cpk/Pp/Ppk plus the non-normal Box-Cox /
+      # fitted-percentile study), promoted out of spc_app so SECOM and the future API import
+      # downward instead of sideways into another app (audit A12, #205). Like io,
+      # schema, and scoring, it must be fully covered by its OWN tests, not only
+      # incidentally via the SPC suite. Held at 100% from packages/quality-core.
+      - name: Core SPC coverage gate
+        run: >
+          uv run pytest packages/quality-core
+          --cov=quality_core.spc
+          --cov-report=term-missing
+          --cov-fail-under=100
+
+      # SPC coverage gate: the testable SPC surface (spc_engine — now the app-local
+      # data_generator plus the quality_core.spc re-export shims, so a shim added and
+      # left unimported fails here — simulation logic, figure builders, report
+      # exporter) must stay highly covered so it can't
       # regress silently. The Streamlit `pages/` are excluded — they need a
       # runtime to exercise — mirroring how the FMEA bar covers fmea_app/ but not
       # its entry scripts.

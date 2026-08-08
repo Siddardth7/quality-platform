@@ -13,6 +13,7 @@ import io
 import os
 from typing import Annotated
 
+import openpyxl.xml
 import pandas as pd
 import pydantic
 import pytest
@@ -20,6 +21,7 @@ from quality_core.io.validate import (
     DEFAULT_MAX_UPLOAD_BYTES,
     IngestError,
     TableSchema,
+    clean_pydantic_message,
     load_table,
     load_table_from_path,
     read_table,
@@ -68,6 +70,37 @@ class LooseRow(pydantic.BaseModel):
 
     ID: int
     Name: str
+
+
+class RaisingRow(pydantic.BaseModel):
+    """Row model whose *model* validator raises, so Pydantic prefixes the message
+    with 'Value error, ' and reports it with an empty `loc` (#207)."""
+
+    ID: int
+    Name: str
+    Low: int
+    High: int
+
+    @pydantic.model_validator(mode="after")
+    def high_beats_low(self) -> "RaisingRow":
+        if self.High <= self.Low:
+            raise ValueError("High must be greater than Low")
+        return self
+
+
+class AssertingRow(pydantic.BaseModel):
+    """The same row-level rule expressed with `assert`, so Pydantic prefixes the
+    message with 'Assertion failed, ' instead."""
+
+    ID: int
+    Name: str
+    Low: int
+    High: int
+
+    @pydantic.model_validator(mode="after")
+    def high_beats_low(self) -> "AssertingRow":
+        assert self.High > self.Low, "High must be greater than Low"
+        return self
 
 
 class OptRow(pydantic.BaseModel):
@@ -147,6 +180,31 @@ def test_read_table_csv_roundtrip():
 def test_read_table_xlsx_roundtrip():
     df = read_table(_xlsx_bytes(GOOD_ROWS))
     assert len(df) == 2
+
+
+def test_xlsx_ingest_has_xml_bomb_hardening_enabled():
+    """The .xlsx read path is hardened against XML-bomb payloads (#202, audit A11).
+
+    `read_table` dispatches .xlsx to `pd.read_excel` (validate.py:274), which parses the
+    workbook XML with openpyxl. openpyxl swaps in defusedxml's parser only while
+    `openpyxl.xml.DEFUSEDXML` is true, and that flag is `defusedxml_available() and
+    defusedxml_env_set()` — installed AND not disabled by `OPENPYXL_DEFUSEDXML`. It is
+    bound once at import time, so both halves are asserted as observed, not monkeypatched.
+
+    quality-core declares `defusedxml` as a direct dependency precisely because this flag
+    is the only thing hardening that read; before #202 it was true only by accident,
+    transitively via fpdf2, which no core code path requires.
+    """
+    # ponytail: assert the flag, not an XML-bomb payload — a payload fixture would be
+    # testing openpyxl's parser. Upgrade to one only if we ever parse XML ourselves.
+    assert openpyxl.xml.defusedxml_available() is True
+    assert openpyxl.xml.DEFUSEDXML is True
+    # `openpyxl/xml/functions.py` checks `if LXML is True:` *before* the defusedxml branch,
+    # so an lxml in the environment silently routes the parse away from defusedxml. That is
+    # not itself a regression (lxml is used with resolve_entities=False), but it would leave
+    # the two asserts above green while naming a path they no longer exercise. Pin it, so
+    # adding lxml is a deliberate decision that has to update this test.
+    assert openpyxl.xml.LXML is False
 
 
 def test_read_table_rejects_bytes_without_filename():
@@ -801,3 +859,77 @@ def test_dod_undeclared_column_cannot_reach_a_caller_through_load_table_from_pat
     out = load_table_from_path(p, SCHEMA)
     assert list(out.columns) == ["ID", "Name", "Score"]
     assert "secret" not in out.columns
+
+
+# --- #207: clean_pydantic_message, single-sourced for core + three app sites ---
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # the two prefixes Pydantic adds to model-validator messages
+        ("Value error, usl must be greater than lsl", "usl must be greater than lsl"),
+        ("Assertion failed, usl must be greater than lsl", "usl must be greater than lsl"),
+        # already clean → untouched (every field-level error takes this path)
+        ("usl must be greater than lsl", "usl must be greater than lsl"),
+        ("Input should be a valid integer", "Input should be a valid integer"),
+        ("", ""),
+        # a mid-sentence occurrence is NOT a prefix and must survive intact
+        ("the log said Value error, at 12:00", "the log said Value error, at 12:00"),
+        ("reported Assertion failed, twice", "reported Assertion failed, twice"),
+        # near-misses: no trailing ", " → not the prefix
+        ("Value error but not the prefix", "Value error but not the prefix"),
+    ],
+)
+def test_clean_pydantic_message(raw, expected):
+    assert clean_pydantic_message(raw) == expected
+
+
+def test_clean_pydantic_message_strips_only_one_leading_prefix():
+    # Guards against over-stripping (a `while` loop or `str.replace`): exactly one
+    # leading occurrence of each prefix goes, no more.
+    assert clean_pydantic_message("Value error, Value error, doubled") == "Value error, doubled"
+
+
+def test_clean_pydantic_message_is_idempotent_on_a_cleaned_message():
+    once = clean_pydantic_message("Value error, ratings must be 1-10")
+    assert once == "ratings must be 1-10"
+    assert clean_pydantic_message(once) == once
+
+
+RAISING_SCHEMA = TableSchema(name="Range", row_model=RaisingRow)
+ASSERTING_SCHEMA = TableSchema(name="Range", row_model=AssertingRow)
+
+
+@pytest.mark.parametrize(
+    "schema", [RAISING_SCHEMA, ASSERTING_SCHEMA], ids=["raise", "assert"]
+)
+def test_validate_row_model_error_strips_pydantic_prefix(schema):
+    # #207 behaviour change: the *row* formatter now cleans the message too. A
+    # model-level rule has an empty `loc`, so there is no column clause, and the
+    # sentence must be the validator's own — no "Value error, "/"Assertion failed, ".
+    df = pd.DataFrame([{"ID": 1, "Name": "a", "Low": 5, "High": 2}])
+    with pytest.raises(IngestError) as exc:
+        validate_table(df, schema)
+    msg = str(exc.value)
+    # (pytest rewrites the `assert` model's message with its own explanation, so
+    # match the head of the sentence rather than the whole clause.)
+    assert msg.startswith("Row 2: High must be greater than Low")
+    assert " (got {'ID': 1," in msg
+    assert "Value error" not in msg
+    assert "Assertion failed" not in msg
+    assert "column" not in msg.split(" (got ")[0]
+
+
+def test_validate_row_model_error_still_echoes_the_truncated_row():
+    # #200 is NOT reverted by #207: the echo stays unconditional and truncated at
+    # _MAX_ECHO_LEN on the row path; only the message prefix is stripped.
+    long_name = "x" * 100
+    df = pd.DataFrame([{"ID": 1, "Name": long_name, "Low": 5, "High": 2}])
+    with pytest.raises(IngestError) as exc:
+        validate_table(df, RAISING_SCHEMA)
+    msg = str(exc.value)
+    assert msg.startswith("Row 2: High must be greater than Low (got ")
+    assert "...)" in msg  # truncated, not echoed whole
+    assert long_name not in msg
+    assert "Value error" not in msg

@@ -32,16 +32,32 @@ uniqueness rule (unlike ``characteristic``) — multiple rows may legitimately
 point at the same cause is not expected in practice (one row per failure mode,
 one worst-risk cause each) but is not forbidden, since a manually-added row
 with no source is simply ``None``.
+
+``sample_plan_is_placeholder`` (F-10, #196) is an optional boolean provenance
+marker: ``True`` on the rows ``controlplan_app.connector.build_control_plan``
+emits, whose ``sample_size``/``frequency``/``reaction_plan`` are the connector's
+declared placeholders rather than engineered values (the relational FMEA carries
+no sample plan or containment text). It defaults to ``False`` — a hand-authored
+or uploaded row asserts its own values — so an upload without the column, or with
+a blank cell, still validates.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, BinaryIO, Literal
+from typing import Annotated, BinaryIO
 
 import pandas as pd
 import pydantic
 from quality_core.io import IngestError, TableSchema, load_table, load_table_from_path
 from quality_core.schema._base import find_duplicates
+
+# SPC engine chart keys a control method may recommend — the variable charts
+# (`apps/spc/spc_app/pages/control_charts.py`) plus the attribute charts SPC's
+# engine computes (`compute_p`/`compute_c`/`compute_u`). Internal SPC keys, not a
+# standard — see the module docstring. Declared once in `quality_core.spc.constants`
+# (#205) and re-exported here (it stays in `__all__`), so `connector.py`'s
+# `from controlplan_app.schema import SPCChart` keeps working unchanged.
+from quality_core.spc.constants import SPCChart
 
 __all__ = [
     "SPCChart",
@@ -51,12 +67,6 @@ __all__ = [
     "load_control_plan_csv",
     "IngestError",
 ]
-
-#: SPC engine chart keys a control method may recommend — the variable charts
-#: (`apps/spc/spc_app/pages/control_charts.py`) plus the attribute charts SPC's
-#: engine computes (`compute_p`/`compute_c`/`compute_u`). Internal SPC keys, not a
-#: standard — see the module docstring.
-SPCChart = Literal["Xbar-R", "Xbar-S", "I-MR", "p", "c", "u"]
 
 
 class ControlPlanRow(pydantic.BaseModel):
@@ -85,6 +95,12 @@ class ControlPlanRow(pydantic.BaseModel):
     #: for a manually-added/edited row with no FMEA source. Persisted (not a
     #: session-only lookup) so the SPC->FMEA linkage survives CSV export/reimport.
     source_cause_id: Annotated[str | None, pydantic.Field(default=None, max_length=300)] = None
+    #: True when sample_size / frequency / reaction_plan on this row are the
+    #: connector's placeholders (F-10, #196) rather than engineered values — the
+    #: relational FMEA carries no sample plan or containment text. Default False:
+    #: a hand-authored or uploaded row asserts its own values. Set True by
+    #: ``controlplan_app.connector.build_control_plan``.
+    sample_plan_is_placeholder: bool = False
 
     @pydantic.field_validator(
         "characteristic", "measurement_method", "frequency", "reaction_plan", mode="before"
@@ -103,6 +119,15 @@ class ControlPlanRow(pydantic.BaseModel):
         if isinstance(v, str) and not v.strip():
             return None
         return v.strip() if isinstance(v, str) else v
+
+    @pydantic.field_validator("sample_plan_is_placeholder", mode="before")
+    @classmethod
+    def missing_placeholder_flag_to_false(cls, v: object) -> object:
+        # An absent/blank cell means "not marked as a placeholder", not an error —
+        # the ingest boundary's NaN→None mapping lands here too.
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return False
+        return v
 
     @pydantic.model_validator(mode="after")
     def check_tolerance(self) -> "ControlPlanRow":
@@ -145,7 +170,14 @@ CONTROL_PLAN_SCHEMA = TableSchema(
         "frequency",
         "reaction_plan",
     ),
-    optional_columns=("lsl", "usl", "target", "recommended_chart", "source_cause_id"),
+    optional_columns=(
+        "lsl",
+        "usl",
+        "target",
+        "recommended_chart",
+        "source_cause_id",
+        "sample_plan_is_placeholder",
+    ),
     dataset_model=ControlPlanDataset,
     template_hint="data/control_plan_template.csv",
 )
@@ -156,7 +188,7 @@ def load_control_plan_csv(source: str | BinaryIO) -> pd.DataFrame:
 
     Returns a DataFrame narrowed to the validated columns: the five required ones
     plus whichever of ``lsl``/``usl``/``target``/``recommended_chart``/
-    ``source_cause_id`` the upload carried. Raises :class:`IngestError` (a
+    ``source_cause_id``/``sample_plan_is_placeholder`` the upload carried. Raises :class:`IngestError` (a
     ``ValueError`` subclass) with a user-safe message on a malformed upload, for
     the page to surface via ``st.error``.
     """

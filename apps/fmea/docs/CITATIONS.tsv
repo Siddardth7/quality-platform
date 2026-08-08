@@ -1,0 +1,39 @@
+site	src_line	quote
+RULE 1	3013	The use of a Risk Priority Number (RPN) threshold is not a recommended practice for determining the need for actions.
+RULE 2	3031	It is recommended that potential Severity 9-10 failure effects with Action Priority High and Medium, at a minimum, be reviewed by management including any recommended actions that were taken.
+RULE 3	3011	The Action Priority (AP) method is introduced in this handbook.
+RULE 3	3011	It accounts for all 1000 possible combinations of S, O, and D.
+RULE 3	3011	It was created to give more emphasis on severity first, then occurrence, then detection.
+RULE 6	3017	Since the AP Table was designed to work with the Severity, Occurrence, and Detection tables provided in this handbook, if the organization chooses to modify the S, O, D, tables for specific products, processes, or projects, the AP table should also be carefully reviewed.
+RULE 7	3019	Action Priority rating tables are the same for DFMEA and PFMEA, but different for FMEA-MSR.
+README.md Flag 2	3031	potential Severity 9-10 failure effects with Action Priority High and Medium, at a minimum, be reviewed by management
+RULE 6 S10	2848	Affects safe operation of the vehicle and/or other vehicles, the health of driver or passenger(s) or road users or pedestrians.
+RULE 6 S9	2849	Noncompliance with regulations.
+RULE 6 S8	2850	Loss of primary vehicle function necessary for normal driving during expected service life.
+RULE 6 S7	2851	Degradation of primary vehicle function necessary for normal driving during expected service life.
+RULE 6 S6	2864	Loss of secondary vehicle function.
+RULE 6 S5	2865	Degradation of secondary vehicle function.
+RULE 6 S4	2866	Very objectionable appearance, sound, vibration, harshness, or haptics.
+RULE 6 S3	2867	Moderately objectionable appearance, sound, vibration, harshness, or haptics.
+RULE 6 S2	2868	Slightly objectionable appearance, sound, vibration, harshness, or haptics.
+RULE 6 S1	2869	No discernible effect.
+RULE 6 O10	4732	> 100 per thousand
+RULE 6 O9	4733	50 per thousand
+RULE 6 O8	4734	20 per thousand
+RULE 6 O7	4735	10 per thousand
+RULE 6 O6	4736	2 per thousand
+RULE 6 O5	4737	.5 per thousand
+RULE 6 O4	4738	.1 per thousand
+RULE 6 O3	4739	.01 per thousand
+RULE 6 O2	4740	1 in 1,000,000
+RULE 6 O1	4741	Failure is eliminated through prevention control
+RULE 6 D10	2976	The failure mode will not or cannot be detected.
+RULE 6 D9	2977	The failure mode is not easily detected through random or sporadic audits.
+RULE 6 D8	2978	Human inspection (visual, tactile, audible), or use of manual gauging (attribute or variable) that should detect the failure mode or failure cause.
+RULE 6 D7	2979	Machine-based detection (automated or semi-automated with notification by light, buzzer, etc.), or use of inspection equipment such as a coordinate measuring machine that should detect failure mode or failure cause.
+RULE 6 D6	2992	Human inspection (visual, tactile, audible), or use of manual gauging (attribute or variable) that will detect the failure mode or failure cause (including product sample checks).
+RULE 6 D5	2993	Machine-based detection (semi-automated with notification by light, buzzer, etc.), or use of inspection equipment such as a coordinate measuring machine that will detect failure mode or failure cause (including product sample checks).
+RULE 6 D4	2994	Machine-based automated detection method that will detect the failure mode downstream, prevent further processing or system will identify the product as discrepant and allow it to automatically move forward in the process until the designated reject unload area.
+RULE 6 D3	2995	Machine-based automated detection method that will detect the failure mode in-station, prevent further processing or system will identify the product as discrepant and allow it to automatically move forward in the process until the designated reject unload area.
+RULE 6 D2	2996	Machine-based detection method that will detect the cause and prevent the failure mode (discrepant part) from being produced.
+RULE 6 D1	2997	always detect the failure mode or failure cause

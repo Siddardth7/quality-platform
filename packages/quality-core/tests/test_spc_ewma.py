@@ -1,9 +1,8 @@
 import math
 
 import pytest
-
-from spc_app.spc_engine.constants import EWMA_DEFAULT_L, EWMA_DEFAULT_LAMBDA, EWMA_L_BY_LAMBDA
-from spc_app.spc_engine.control_charts import compute_ewma
+from quality_core.spc.constants import EWMA_DEFAULT_L, EWMA_DEFAULT_LAMBDA, EWMA_L_BY_LAMBDA
+from quality_core.spc.control_charts import compute_ewma
 
 EWMA_RESULT_KEYS = {
     "values",

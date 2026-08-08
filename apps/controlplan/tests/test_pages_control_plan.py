@@ -14,10 +14,12 @@ import io
 import pandas as pd
 import pydantic
 import pytest
+from controlplan_app.connector import build_control_plan
 from controlplan_app.pages import render_control_plan
 from controlplan_app.pages.control_plan import (
     DEMO_PATH,
     TEMPLATE_PATH,
+    _plan_to_df,
     load_uploaded_fmea,
     validate_edited_plan,
 )
@@ -156,3 +158,34 @@ def test_validate_edited_plan_accepts_null_optional_fields():
     row = {**GOOD_PLAN_ROW, "lsl": None, "usl": None, "target": None, "recommended_chart": None}
     validated = validate_edited_plan(_plan_df([row]))
     assert validated.rows[0].lsl is None
+
+
+# --- F-10 (#196): the placeholder flag through the editor round trip ----------
+
+
+def test_plan_to_df_validate_edited_plan_round_trip_preserves_placeholder_flag():
+    """The generate -> st.data_editor -> re-validate seam must not lose (or
+    invent) the provenance flag: a built plan is True, and stays True."""
+    fmea = load_uploaded_fmea(str(DEMO_PATH))
+    plan = build_control_plan(fmea)
+    assert plan.rows and all(r.sample_plan_is_placeholder for r in plan.rows)
+
+    df = _plan_to_df(plan)
+    assert "sample_plan_is_placeholder" in df.columns
+
+    revalidated = validate_edited_plan(df)
+    assert [r.sample_plan_is_placeholder for r in revalidated.rows] == [True] * len(plan.rows)
+
+
+def test_validate_edited_plan_maps_nan_placeholder_cell_to_false():
+    """An editor cell the user blanked arrives as NaN -> None; the before-validator
+    must read that as 'not a placeholder', not raise."""
+    row = {**GOOD_PLAN_ROW, "sample_plan_is_placeholder": None}
+    validated = validate_edited_plan(_plan_df([row]))
+    assert validated.rows[0].sample_plan_is_placeholder is False
+
+
+def test_validate_edited_plan_preserves_explicit_placeholder_false():
+    row = {**GOOD_PLAN_ROW, "sample_plan_is_placeholder": False}
+    validated = validate_edited_plan(_plan_df([row]))
+    assert validated.rows[0].sample_plan_is_placeholder is False

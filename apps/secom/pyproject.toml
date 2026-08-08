@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "quality-core",
-    "spc-app",  # secom_app.charts/.capability reuse spc_app.spc_engine read-only (#204)
     "streamlit>=1.56.0",
     "pandas>=3.0.2",
     "pydantic>=2.0",
@@ -16,7 +15,14 @@ dependencies = [
 
 [tool.uv.sources]
 quality-core = { workspace = true }
-spc-app = { workspace = true }
+msa-app = { workspace = true }
+
+# Test-only edge, deliberately NOT a [project] dependency: no secom_app module imports
+# msa_app. tests/test_msa.py proves the real W08 compute_gage_rr also refuses a
+# SECOM-shaped frame (#68). A runtime dependency here would re-create the cross-app
+# coupling #205 removed.
+[dependency-groups]
+dev = ["msa-app"]
 
 # Engine-only (#206): a library with no entry script, deliberately not mounted in
 # the Streamlit shell. Still installed (editable) so apps/api can `import secom_app`
