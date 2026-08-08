@@ -32,9 +32,63 @@ This document defines the required format for FMEA input files (CSV or Excel).
 | `Flag_Action_Priority_H` | RPN ≥ 200 OR Severity ≥ 9 | True if Action Priority = High |
 | `Risk_Tier` | See ASSUMPTIONS_LOG Rule 4 | Red / Yellow / Green |
 
-## Scoring Scales (AIAG FMEA-4)
+## Scoring Scales — AIAG & VDA 2019 PFMEA (default)
+
+The bundled default scale (`data/rating_scales_2019_pfmea.json`). Severity is Table P1's
+"Impact to End User (when known)" column; Occurrence is Table C2.3.1's "Incidents per 1000
+items/vehicles" column (the Alternate PFMEA Occurrence table); Detection is Table P3's
+"Opportunity for Detection" column. Every anchor is line-pinned to the handbook in
+`docs/CITATIONS.tsv` and re-checked by `tests/test_citations.py`. See ASSUMPTIONS_LOG Rule 6.
 
 ### Severity (S)
+| Score | Meaning |
+|-------|---------|
+| 10 | Affects safe operation of the vehicle and/or other vehicles, the health of driver or passenger(s) or road users or pedestrians. |
+| 9 | Noncompliance with regulations. |
+| 8 | Loss of primary vehicle function necessary for normal driving during expected service life. |
+| 7 | Degradation of primary vehicle function necessary for normal driving during expected service life. |
+| 6 | Loss of secondary vehicle function. |
+| 5 | Degradation of secondary vehicle function. |
+| 4 | Very objectionable appearance, sound, vibration, harshness, or haptics. |
+| 3 | Moderately objectionable appearance, sound, vibration, harshness, or haptics. |
+| 2 | Slightly objectionable appearance, sound, vibration, harshness, or haptics. |
+| 1 | No discernible effect. |
+
+### Occurrence (O)
+| Score | Incidents per 1000 items/vehicles |
+|-------|----------------------------------|
+| 10 | > 100 per thousand / >/= 1 in 10 |
+| 9 | 50 per thousand / 1 in 20 |
+| 8 | 20 per thousand / 1 in 50 |
+| 7 | 10 per thousand / 1 in 100 |
+| 6 | 2 per thousand / 1 in 500 |
+| 5 | .5 per thousand / 1 in 2000 |
+| 4 | .1 per thousand / 1 in 10,000 |
+| 3 | .01 per thousand / 1 in 100,000 |
+| 2 | < .001 per thousand / 1 in 1,000,000 |
+| 1 | Failure is eliminated through prevention control |
+
+### Detection (D)
+| Score | Opportunity for Detection |
+|-------|---------------------------|
+| 10 | The failure mode will not or cannot be detected. |
+| 9 | The failure mode is not easily detected through random or sporadic audits. |
+| 8 | Human inspection (visual, tactile, audible), or use of manual gauging (attribute or variable) that should detect the failure mode or failure cause. |
+| 7 | Machine-based detection (automated or semi-automated with notification by light, buzzer, etc.), or use of inspection equipment such as a coordinate measuring machine that should detect failure mode or failure cause. |
+| 6 | Human inspection (visual, tactile, audible), or use of manual gauging (attribute or variable) that will detect the failure mode or failure cause (including product sample checks). |
+| 5 | Machine-based detection (semi-automated with notification by light, buzzer, etc.), or use of inspection equipment such as a coordinate measuring machine that will detect failure mode or failure cause (including product sample checks). |
+| 4 | Machine-based automated detection method that will detect the failure mode downstream, prevent further processing or system will identify the product as discrepant and allow it to automatically move forward in the process until the designated reject unload area. Discrepant product will be controlled by a robust system that will prevent outflow of the product from the facility. |
+| 3 | Machine-based automated detection method that will detect the failure mode in-station, prevent further processing or system will identify the product as discrepant and allow it to automatically move forward in the process until the designated reject unload area. Discrepant product will be controlled by a robust system that will prevent outflow of the product from the facility. |
+| 2 | Machine-based detection method that will detect the cause and prevent the failure mode (discrepant part) from being produced. |
+| 1 | Failure mode cannot be physically produced as-designed or processed, or detection methods proven to always detect the failure mode or failure cause. |
+
+### Legacy: AIAG FMEA-4
+
+Retained as a selectable option (`data/rating_scales.json`, "AIAG FMEA-4 (legacy)"). Pair it
+with the Action Priority table only with the caveat in ASSUMPTIONS_LOG Rule 6 in mind — the AP
+table was calibrated to the 2019 tables above, not to these.
+
+#### Severity (S)
 | Score | Meaning |
 |-------|---------|
 | 10 | Safety hazard — no warning |
@@ -48,7 +102,7 @@ This document defines the required format for FMEA input files (CSV or Excel).
 | 2 | Minor defect — noticed by discriminating customers |
 | 1 | No effect |
 
-### Occurrence (O)
+#### Occurrence (O)
 | Score | Meaning | Approximate Rate |
 |-------|---------|-----------------|
 | 10 | Almost certain | ≥ 1 in 2 |
@@ -62,7 +116,7 @@ This document defines the required format for FMEA input files (CSV or Excel).
 | 2 | Remote | 1 in 1,500,000 |
 | 1 | Almost impossible | < 1 in 1,500,000 |
 
-### Detection (D)
+#### Detection (D)
 | Score | Meaning |
 |-------|---------|
 | 10 | No detection control exists |

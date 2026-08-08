@@ -11,26 +11,32 @@ from fmea_app.ap_engine import BASIS_AP, BASIS_RPN
 from fmea_app.rating_scales import (
     RatingScaleSet,
     load_default_scales,
+    load_legacy_fmea4_scales,
     load_scales_from_json,
 )
 
-_SCALE_AIAG = "AIAG FMEA-4 (default)"
+_SCALE_2019 = "AIAG & VDA 2019 PFMEA (default)"
+_SCALE_FMEA4 = "AIAG FMEA-4 (legacy)"
 _SCALE_CUSTOM = "Custom (upload JSON)"
 
 
 def render_rating_scale_selector() -> RatingScaleSet:
     """Render the S/O/D rating-scale source picker. Returns the active scale set.
 
-    Defaults to the bundled AIAG FMEA-4 scale. If the user picks Custom and
-    uploads a valid JSON scale it is used; an invalid upload surfaces an error
-    and the default is used so the rest of the app keeps working.
+    Defaults to the bundled AIAG & VDA 2019 PFMEA scale — the same handbook the
+    AP table comes from. AIAG FMEA-4 stays selectable as a legacy option. If the
+    user picks Custom and uploads a valid JSON scale it is used; an invalid
+    upload surfaces an error and the default is used so the rest of the app keeps
+    working.
     """
     choice = st.sidebar.selectbox(
         "Rating scale",
-        options=[_SCALE_AIAG, _SCALE_CUSTOM],
+        options=[_SCALE_2019, _SCALE_FMEA4, _SCALE_CUSTOM],
         key="rating_scale_choice",
         help="Reference 1–10 anchors for Severity / Occurrence / Detection. "
-        "Custom lets you load a company-specific 1–10 rubric.",
+        "The AIAG & VDA 2019 PFMEA scale is the default (it matches the Action "
+        "Priority table); AIAG FMEA-4 is the legacy scale; Custom lets you load "
+        "a company-specific 1–10 rubric.",
     )
 
     if choice == _SCALE_CUSTOM:
@@ -47,6 +53,8 @@ def render_rating_scale_selector() -> RatingScaleSet:
                 st.sidebar.error(f"Custom scale rejected: {exc}")
         else:
             st.sidebar.caption("Upload a JSON scale, or the AIAG default is used.")
+    elif choice == _SCALE_FMEA4:
+        return load_legacy_fmea4_scales()
 
     return load_default_scales()
 
