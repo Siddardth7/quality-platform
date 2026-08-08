@@ -20,7 +20,7 @@ A Python-based FMEA Risk Prioritization Tool with a live Streamlit web interface
 → Three criticality flags applied to every failure mode:
    — High RPN (>100): the standard corrective action threshold
    — Severity ≥ 9: mandatory flag regardless of RPN (safety rule from AIAG FMEA-4)
-   — Action Priority H: a simplified AIAG 5th Ed. AP "High" tier implementation
+   — Action Priority H: an RPN-side proxy for the AIAG & VDA (1st Ed., 2019) AP "High" tier
 → Color-coded ranked table (Red = immediate action, Yellow = recommended, Green = monitor)
 → Interactive Pareto chart — see which 20% of failure modes drive 80% of risk
 → Severity × Occurrence heatmap — visual risk matrix with failure mode density

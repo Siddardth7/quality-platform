@@ -1,7 +1,7 @@
 # FMEA Methodology Notes
 **Project:** FMEA Risk Prioritization Tool  
 **Author:** Siddardth | M.S. Aerospace Engineering, UIUC  
-**Engineering Reference:** AIAG FMEA-4 (4th Edition) + AIAG/VDA FMEA Handbook (5th Edition, 2019)
+**Engineering Reference:** AIAG FMEA-4 (4th Edition) + AIAG & VDA FMEA Handbook (1st Edition, 2019)
 
 ---
 
@@ -25,7 +25,7 @@ In process manufacturing — composites layup, autoclave cure, demold — a sing
 
 RPN ranges from 1 (minimum risk) to 1,000 (maximum risk).
 
-**Limitation of RPN alone:** Two failure modes with identical RPNs can have radically different risk profiles. For example, S=10, O=1, D=1 (RPN=10) describes a rare but catastrophic event — which a pure RPN ranking would bury at the bottom of the list. This is why the AIAG 5th Edition introduced the Action Priority system (see Section 4) and why this tool adds explicit Severity >= 9 flagging.
+**Limitation of RPN alone:** Two failure modes with identical RPNs can have radically different risk profiles. For example, S=10, O=1, D=1 (RPN=10) describes a rare but catastrophic event — which a pure RPN ranking would bury at the bottom of the list. This is why the AIAG & VDA FMEA Handbook (1st Edition, 2019) introduced the Action Priority system (see Section 4), and why this tool adds explicit Severity >= 9 flagging on top of it.
 
 ---
 

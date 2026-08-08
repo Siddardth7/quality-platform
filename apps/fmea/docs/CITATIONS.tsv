@@ -1,0 +1,9 @@
+site	src_line	quote
+RULE 1	3013	The use of a Risk Priority Number (RPN) threshold is not a recommended practice for determining the need for actions.
+RULE 2	3031	It is recommended that potential Severity 9-10 failure effects with Action Priority High and Medium, at a minimum, be reviewed by management including any recommended actions that were taken.
+RULE 3	3011	The Action Priority (AP) method is introduced in this handbook.
+RULE 3	3011	It accounts for all 1000 possible combinations of S, O, and D.
+RULE 3	3011	It was created to give more emphasis on severity first, then occurrence, then detection.
+RULE 6	3017	Since the AP Table was designed to work with the Severity, Occurrence, and Detection tables provided in this handbook, if the organization chooses to modify the S, O, D, tables for specific products, processes, or projects, the AP table should also be carefully reviewed.
+RULE 7	3019	Action Priority rating tables are the same for DFMEA and PFMEA, but different for FMEA-MSR.
+README.md Flag 2	3031	potential Severity 9-10 failure effects with Action Priority High and Medium, at a minimum, be reviewed by management
