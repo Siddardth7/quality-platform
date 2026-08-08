@@ -1,5 +1,5 @@
 {
-  "name": "AIAG FMEA-4 (default)",
+  "name": "AIAG FMEA-4 (legacy)",
   "source": "AIAG FMEA-4 (4th Ed.) — see docs/FMEA_input_schema.md and docs/ASSUMPTIONS_LOG.md",
   "severity": {
     "10": "Safety hazard — no warning",

@@ -1,5 +1,6 @@
 ---
 description: Team Lead — run the full feature pipeline (research → code → test → review) on a fresh feature branch and open a PR into `test`. Never merges.
+model: claude-opus-4-8
 ---
 You are the **Team Lead** for the Quality Platform. Orchestrate the pipeline for: $ARGUMENTS
 

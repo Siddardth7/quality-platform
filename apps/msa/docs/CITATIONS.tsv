@@ -1,0 +1,77 @@
+site	src_line	quote
+RULE 1	2801	The Variable Gage Study can be performed using a number of differing techniques. Three acceptable methods will be discussed in detail in this section. These are:
+RULE 1	2809	Except for the Range method, the study data design is very similar for each of these methods. The ANOVA method is preferred because it measures the operator to part interaction gauge error, whereas the Range and the Average and Range methods does not include this variation.
+RULE 1	2811	The ANOVA approach can identify appraiser-part interaction but it can also evaluate other sources of variation which is the reason why it was included. Historically, the assumption is made that the interaction is zero, in which case the results of both approaches are equivalent.
+RULE 1	2867	Unlike the Range method, this approach will allow the measurement system's variation to be decomposed into two separate components, repeatability and reproducibility.
+RULE 1	2867	However, variation due to the interaction between the appraiser and the part/gage is not accounted for in the analysis.
+RULE 1	2869	The ANOVA method can be used to determine the interaction between the gage and appraisers, if such exists.
+RULE 1	2266	There is no statistical interaction between appraisers and parts
+RULE 2	3327	K1 depends upon the number of trials used in the gage study and is equal to the inverse of d 2* which is obtained from Appendix C.
+RULE 2	3329	since there is only one range calculation
+RULE 3	1692	Repeatability is the variation in measurements obtained with one measurement instrument when used several times by one appraiser while measuring the identical characteristic on the same part.
+RULE 3	3327	is determined by multiplying the average range
+RULE 4	1724	Reproducibility is typically defined as the variation in the average of the measurements made by different appraisers using the same measuring instrument when measuring the identical characteristic on the same part
+RULE 4	3329	is determined by multiplying the maximum average appraiser difference
+RULE 4	3329	Since the appraiser variation is contaminated by the equipment variation, it must be adjusted by subtracting a fraction of the equipment variation.
+RULE 4	3333	where n = number of parts and r = number of trials.
+RULE 5	3337	is calculated by adding the square of the equipment variation and the square of the appraiser variation, and taking the square root as follows:
+RULE 5	1763	GRR is the variance equal to the sum of within-system and between-system variances.
+RULE 6	3367	is determined by multiplying the range of part averages
+RULE 6	3369	is then calculated by summing the square of both the repeatability and reproducibility variation and the part variation
+RULE 7	3401	The percent the equipment variation ( %EV ) consumes of the total variation ( TV ) is calculated by 100[ EV/TV ].
+RULE 7	2200	For measurement systems whose purpose is to analyze a process, a general guidelines for measurement system acceptability is as follows:
+RULE 7	2204	Under 10 percent
+RULE 7	2204	Generally considered to be an acceptable measurement system.
+RULE 7	2205	10 percent to 30 percent
+RULE 7	2205	May be acceptable for some applications
+RULE 7	2206	Over 30 percent
+RULE 7	2206	Considered to be unacceptable
+RULE 8	3419	In that case, %EV , %AV , %GRR and %PV are calculated by substituting the value of tolerance divided by six in the denominator of the calculations in place of the total variation ( TV ).
+RULE 8	3419	Either or both approaches can be taken depending on the intended use of the measurement system and the desires of the customer.
+RULE 8	3425	Given that the graphical analysis has not indicated any special cause variation, the rule of thumb for gage repeatability and reproducibility ( %GRR ) may be found in Chapter II, Section D.
+RULE 8	2218	The use of the GRR guidelines as threshold criteria alone is NOT an acceptable practice for determining the acceptability of a measurement system
+RULE 9	3421	the number of distinct categories that can be reliably distinguished by the measurement system. This is the number of non-overlapping 97% confidence intervals that will span the expected product variation.
+RULE 9	2214	This statistic indicates the number of categories into which the measurement process can be divided. This value should be greater than or equal to 5.
+RULE 9	5679	Number of distinct categories. 1.41 PV/GRR
+RULE 9	3427	For analysis, the ndc is the maximum of one or the calculated value truncated to the integer. This result should be greater than or equal to 5.
+RULE 10	617	For product control, variability of the measurement system must be small compared to the specification limits. Assess the measurement system to the feature tolerance.
+RULE 10	619	For process control, the variability of the measurement system ought to demonstrate effective resolution and be small compared to manufacturing process variation. Assess the measurement system to the 6-sigma process variation and/or Total Variation from the MSA study.
+RULE 11	2260	The procedures are appropriate to use when:
+RULE 11	2262	Only two factors or conditions of measurement (i.e., appraisers and parts) plus measurement system repeatability are being studied
+RULE 11	2885	Let appraiser A measure n parts in a random order
+RULE 11	2887	Let appraisers B and C measure the same n parts without seeing each other's readings
+RULE 11	2889	If three trials are needed, repeat the cycle and enter data in rows 3, 8 and 13.
+RULE 12	2877	Although the number of appraisers, trials and parts may be varied, the subsequent discussion represents the optimum conditions for conducting the study.
+RULE 12	2879	Obtain a sample of n > 10 parts
+RULE 12	2879	that represent the actual or expected range of process variation.
+RULE 12	2899	The total number of "ranges" generated ought to be > 15 for a minimal level of confidence in the results.
+RULE 14	3335	If a negative value is calculated under the square root sign, the appraiser variation ( AV ) defaults to zero.
+gage_rr_engine.py module docstring	2809	the Range and the Average and Range methods does not include this variation
+gage_rr_engine.py module docstring	2266	no statistical interaction between appraisers and parts
+gage_rr_engine.py _K1/_K2/_K3	3327	is equal to the inverse of d 2* which is obtained from Appendix C
+gage_rr_engine.py _STUDY_VARIATION_SIGMA	3419	substituting the value of tolerance divided by six in the denominator
+gage_rr_engine.py METHOD_NOTE	2809	does not include
+gage_rr_engine.py _compute_verdict	2214	This value should be greater than or equal to 5.
+gage_rr_engine.py _average_and_range_method	2867	variation due to the interaction between the appraiser and the part/gage is not accounted for in the analysis
+test_gage_rr_engine.py	3419	the value of tolerance divided by six in the denominator
+test_gage_rr_engine.py	2809	does not include
+RULE 16	3290	%EV= 100 [EV/TV]
+RULE 16	3295	%AV= 100 [AV/TV]
+RULE 16	3300	%GRR= 100 [GRR/TV]
+RULE 16	3304	% PV= 100 [PV/TV]
+RULE 17	3543	Table III-B 7 shows the ANOVA calculations for the example data from Figure III-B 15 assuming a balanced two-factor factorial design. Both factors are considered to be random.
+RULE 17	5268	The F-ratio column is calculated only for the interaction in a MSA ANOVA; it is determined by the mean square of interaction divided by mean square error.
+RULE 17	5314	In order to decrease the risk of falsely concluding that there is no interaction effect, choose a high significance level.
+RULE 17	5338	* Significant at α = 0.05 level
+RULE 17	5300	In the additive model, the interaction is not significant and the variance components for each source is determined as follow: First, the sum of square of gage error ( SSe from Table A 3) is added to the sum of square of appraiser by part interaction ( SSAP from Table A 3) and which is equal to the sum of squares pooled ( SSpool ) with ( nkr – n – k +1)
+RULE 17	5300	degrees of freedom. Then the SSpool will be divided by the ( nkr – n – k +1) to calculate MSpool .
+RULE 17	5306	Where n = number of parts, k = number of appraisers and r = number of trials.
+RULE 17	5342	Since the calculated F value for the interaction (0.434) is less than the critical value of F α , 18 , 60 , the interaction term is pooled with the equipment (error) term. That is, the estimate of variance is based on the model without interaction.
+RULE 17	5291	If the interaction of part and appraiser is significant, then there exists a nonadditive model and therefore an estimate of its variance components is given.
+RULE 17	5289	For analysis purposes, the negative variance component is set to zero.
+gage_rr_engine.py METHOD_NOTE_ANOVA	5342	the interaction term is pooled with the equipment (error) term
+gage_rr_engine.py _ANOVA_ALPHA	5314	In order to decrease the risk of falsely concluding that there is no interaction effect, choose a high significance level
+gage_rr_engine.py _anova_method	5268	The F-ratio column is calculated only for the interaction in a MSA ANOVA; it is determined by the mean square of interaction divided by mean square error.
+gage_rr_engine.py _anova_method	3543	assuming a balanced two-factor factorial design
+gage_rr_engine.py _anova_method	5342	the interaction term is pooled with the equipment (error) term
+gage_rr_engine.py _anova_method	5289	For analysis purposes, the negative variance component is set to zero

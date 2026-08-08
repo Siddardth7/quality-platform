@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 from controlplan_app.connector import (
+    _MAX_XBAR_S_N,
     _source_cause_id,
     build_control_plan,
     recommend_chart,
@@ -26,7 +27,8 @@ from quality_core.schema.relational import (
     Function,
     RelationalFMEA,
 )
-from quality_core.scoring import AP_ORDER, action_priority, rpn
+from quality_core.scoring import action_priority, rpn
+from quality_core.spc.constants import XBAR_R_CONSTANTS, XBAR_S_CONSTANTS
 
 # ---------------------------------------------------------------------------
 # Fixture builders — one link per (effect, cause, control) unless a test needs
@@ -96,6 +98,34 @@ def test_field_mapping_single_row() -> None:
     assert row.frequency == "per shift"
     assert row.recommended_chart is None
     assert row.reaction_plan == "Contain and investigate; failure effect: Joint fails in service."
+
+
+# --- F-10 (#196): placeholder provenance on emitted rows --------------------
+
+
+def test_build_control_plan_stamps_placeholder_flag_on_every_row() -> None:
+    fms = [
+        _fm("F1-M1", "Mode A", s=3, o=3, d=3, row_id=1),
+        _fm("F1-M2", "Mode B", s=9, o=8, d=8, row_id=2),
+        _fm("F1-M3", "Mode C", s=5, o=5, d=5, row_id=3),
+    ]
+    fmea = RelationalFMEA(functions=[_function("F1", "Widget", fms)])
+
+    dataset = build_control_plan(fmea)
+
+    assert len(dataset.rows) == 3
+    # Every row's sample plan is the connector's default, so every row says so.
+    assert [row.sample_plan_is_placeholder for row in dataset.rows] == [True, True, True]
+    # ...and the flag describes fields that really are the declared defaults.
+    for row in dataset.rows:
+        assert row.sample_size == 1
+        assert row.frequency == "per shift"
+
+
+def test_build_control_plan_flag_survives_model_dump() -> None:
+    fmea = RelationalFMEA(functions=[_function("F1", "Bracket", [_fm("F1-M1", "Mode A", s=3, o=3, d=3, row_id=1)])])
+    dumped = build_control_plan(fmea).rows[0].model_dump()
+    assert dumped["sample_plan_is_placeholder"] is True
 
 
 def test_one_row_per_failure_mode() -> None:
@@ -325,13 +355,14 @@ def test_dataset_round_trips_cleanly_through_schema_with_many_rows() -> None:
     ("data_type", "n", "kwargs", "expected"),
     [
         # Variable: I-MR at n=1, Xbar-R across 2..9 (boundary at 9), Xbar-S at
-        # n=10 and beyond (boundary at 10).
+        # n=10 up to the constants-table ceiling n=12 (F-07, #196 — n=13 raises,
+        # see test_recommend_chart_rejects_subgroup_size_above_xbar_s_ceiling).
         ("variable", 1, {}, "I-MR"),
         ("variable", 2, {}, "Xbar-R"),
         ("variable", 5, {}, "Xbar-R"),
         ("variable", 9, {}, "Xbar-R"),
         ("variable", 10, {}, "Xbar-S"),
-        ("variable", 50, {}, "Xbar-S"),
+        ("variable", 12, {}, "Xbar-S"),
         # Attribute: defectives -> p regardless of sample-size constancy (np folds
         # into p); defects -> c (constant sample) or u (variable sample).
         ("attribute", 5, {"defect_based": False, "constant_sample": True}, "p"),
@@ -352,10 +383,94 @@ def test_recommend_chart_rejects_invalid_subgroup_size(subgroup_size: int) -> No
         recommend_chart("variable", subgroup_size)
 
 
+# --- F-07 (#196): the upper bound on variable-data subgroup size ------------
+
+
+def test_recommend_chart_ceiling_is_the_xbar_s_constants_table_max() -> None:
+    # The guard reads the ceiling from the table, not a literal — pin both, so
+    # extending the table without re-reading ASSUMPTIONS_LOG RULE 1 is visible.
+    assert _MAX_XBAR_S_N == max(XBAR_S_CONSTANTS) == 12
+
+
+def test_recommend_chart_variable_at_ceiling_returns_xbar_s() -> None:
+    # n=12 is the last supported subgroup size: inside the guard, not over it.
+    assert recommend_chart("variable", _MAX_XBAR_S_N) == "Xbar-S"
+
+
+def test_recommend_chart_rejects_subgroup_size_above_xbar_s_ceiling() -> None:
+    # n=13 is the first unsupported size — compute_xbar_s would reject it, so the
+    # recommender must not name it (F-07, #196).
+    with pytest.raises(ValueError, match="exceeds the largest supported") as exc:
+        recommend_chart("variable", _MAX_XBAR_S_N + 1)
+    message = str(exc.value)
+    # The ceiling must be named in the message, so a silent change to it is caught.
+    assert "12" in message
+    assert "13" in message
+    assert "A3/B3/B4/c4" in message
+
+
+@pytest.mark.parametrize("n", [13, 14, 50, 1000])
+def test_recommend_chart_rejects_every_variable_size_above_the_ceiling(n: int) -> None:
+    with pytest.raises(ValueError, match="exceeds the largest supported"):
+        recommend_chart("variable", n)
+
+
+def test_recommend_chart_boundary_nine_is_xbar_r_and_ten_is_xbar_s() -> None:
+    # The Xbar-R/Xbar-S switch is unchanged by F-07 (OQ-1 resolved to option A):
+    # one case per side of the boundary, at the boundary.
+    assert recommend_chart("variable", 9) == "Xbar-R"
+    assert recommend_chart("variable", 10) == "Xbar-S"
+
+
+def test_recommend_chart_n_one_is_i_mr() -> None:
+    assert recommend_chart("variable", 1) == "I-MR"
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        ({}, "p"),
+        ({"defect_based": False, "constant_sample": False}, "p"),
+        ({"defect_based": True, "constant_sample": True}, "c"),
+        ({"defect_based": True, "constant_sample": False}, "u"),
+    ],
+)
+def test_recommend_chart_attribute_data_is_unbounded_above(kwargs: dict, expected: str) -> None:
+    """NEGATIVE GUARD: the F-07 ceiling is variable-data only.
+
+    Attribute sample sizes have no constants table and are routinely in the
+    hundreds — the guard must not fire here.
+    """
+    assert recommend_chart("attribute", 500, **kwargs) == expected
+
+
+def test_recommend_chart_variable_result_is_always_computable() -> None:
+    """The cross-module invariant F-07 is about: every chart the recommender can
+    name for variable data has the requested n in that chart's constants table —
+    and above the ceiling it names no chart at all, it raises. Walking past
+    ``_MAX_XBAR_S_N`` is what makes this load-bearing against guard *deletion*: a
+    loop that stops at the ceiling would pass even with the guard removed."""
+    for n in range(1, _MAX_XBAR_S_N + 3):
+        if n > _MAX_XBAR_S_N:
+            with pytest.raises(ValueError):
+                recommend_chart("variable", n)
+            continue
+        chart = recommend_chart("variable", n)
+        if chart == "I-MR":
+            assert n == 1
+        elif chart == "Xbar-R":
+            assert n in XBAR_R_CONSTANTS
+        else:
+            assert chart == "Xbar-S"
+            assert n in XBAR_S_CONSTANTS
+
+
 def test_recommend_chart_never_returns_np() -> None:
     # `np` is intentionally absent from the SPCChart Literal (folds into `p`).
     results = set()
-    for n in range(1, 15):
+    # 1..12 — the full variable-data domain after the F-07 (#196) ceiling; n>=13
+    # raises rather than returning a chart at all.
+    for n in range(1, _MAX_XBAR_S_N + 1):
         results.add(recommend_chart("variable", n))
     for defect_based in (False, True):
         for constant_sample in (False, True):

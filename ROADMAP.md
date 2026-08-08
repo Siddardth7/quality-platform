@@ -272,7 +272,7 @@ quality-platform/
     ├── controlplan/            # Control Plan connector — FMEA → characteristic, spec, method,
     │   └── controlplan_app/    # sample plan, recommended chart; pages/ mounted in the shell
     ├── msa/                    # MSA / Gage R&R
-    │   └── msa_app/            # Average-and-Range (no ANOVA), %GRR, ndc; pages/ mounted in the shell
+    │   └── msa_app/            # Average-and-Range (default) + ANOVA, %GRR, ndc; pages/ mounted in the shell
     └── secom/                  # SECOM real-data case study — ENGINE-ONLY, no app.py, not mounted
         ├── secom_app/          # ingest, selection, charts, capability, msa, yield_dppm,
         │                       # doe_screening — all seven at a 100% CI gate
@@ -356,8 +356,10 @@ platform.
 ### ⬜ Week 8 — MSA / Gage R&R module · **v0.8.0** *(Phase C)*
 New MSA surface over the same shared core (validated ingest, typed schema, export, theme):
 - **Gage R&R study** — repeatability (equipment variation) and reproducibility (appraiser variation)
-  by the **Average-and-Range method**; the **ANOVA method** if time allows.
-- **Outputs:** %GRR vs **study variation** and vs **tolerance**, **ndc** (number of distinct
+  by the **Average-and-Range method** (the default) and by the **ANOVA method**, which adds the
+  part × appraiser interaction term (#195, engine-level `method="anova"`).
+- **Outputs:** **%EV, %AV, %GRR and %PV** each vs **study variation** and vs **tolerance**,
+  **ndc** (number of distinct
   categories), and a clear **accept / marginal / reject** verdict against AIAG thresholds
   (ndc ≥ 5; %GRR < 10% good, 10–30% marginal, > 30% reject).
 - *(stretch)* bias, linearity, and stability studies.
@@ -377,7 +379,7 @@ This turns the platform from a synthetic demo into an analysis of real semicondu
 
 ### ⬜ Week 10 — Modern SPC depth · **v0.10.0** *(Phase D · full scope — next up)*
 **Phase I/II** control-limit freezing (establish from a baseline, then monitor new data against frozen
-limits); **EWMA + CUSUM** small-shift charts; **non-normal (Box-Cox) capability + Cp/Cpk confidence
+limits); **EWMA + CUSUM** small-shift charts; **non-normal (Box-Cox) capability + Pp/Ppk confidence
 intervals**. Standards-anchored (NIST/SEMATECH · Montgomery · AIAG); every new constant cited in
 `apps/spc/docs/ASSUMPTIONS_LOG.md`. Run-rules (WE/Nelson) gated to Shewhart charts only — EWMA/CUSUM
 signal on their own crossings. Issues **#141–#146**.

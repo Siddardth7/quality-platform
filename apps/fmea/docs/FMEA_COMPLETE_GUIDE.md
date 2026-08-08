@@ -2,7 +2,7 @@
 
 **Author:** Siddardth | M.S. Aerospace Engineering, UIUC  
 **Live App:** [fmea-risk-analyzer on Streamlit Cloud](https://fmea-risk-analyzer-mhwzcki9sdzfz5d8rbzsdn.streamlit.app/)  
-**Engineering Reference:** AIAG FMEA-4 (4th Edition, 2008) + AIAG/VDA FMEA Handbook (5th Edition, 2019)
+**Engineering Reference:** AIAG FMEA-4 (4th Edition, 2008) + AIAG & VDA FMEA Handbook (1st Edition, 2019)
 
 ---
 
@@ -402,7 +402,7 @@ This catches failures that RPN-only systems miss. Example:
 df["Flag_Action_Priority_H"] = (df["RPN"] >= 200) | (df["Severity"] >= 9)
 ```
 
-This is a simplified implementation of the AIAG FMEA 5th Edition (2019) Action Priority system. The full 5th Edition uses a 3-dimensional S×O×D lookup table; this tool uses a conservative threshold-based approximation. The 200 threshold was chosen as a conservative proxy for the "High" tier — it captures the intent without requiring the company-specific customization that the full AP table requires.
+This flag is an RPN-side proxy for the AIAG & VDA FMEA Handbook (1st Edition, 2019) Action Priority system. The handbook uses a 3-dimensional S×O×D lookup table — implemented in full in `fmea_app/ap_engine.py`; this flag is a conservative threshold-based approximation kept alongside it. The 200 threshold was chosen as a conservative proxy for the "High" tier — it captures the intent without requiring the company-specific customization that the full AP table requires.
 
 ### Risk Tier Assignment Algorithm
 
@@ -896,7 +896,7 @@ Beyond manufacturing, FMEA logic applies to any process where failures have cons
 
 ### What the Tool Does Not Handle Well
 
-**1. The Full AIAG 5th Edition Action Priority Table**  
+**1. The Full AIAG & VDA (1st Edition, 2019) Action Priority Table**  
 The official AP system uses a 3-dimensional S×O×D lookup table with company-specific customization. This tool uses a simplified threshold-based approximation (RPN ≥ 200 OR Severity ≥ 9). For organizations that have implemented the full AP table, the tool's `Flag_Action_Priority_H` output may not exactly match their classification.
 
 **2. Multi-User Collaboration**  
@@ -924,7 +924,7 @@ The tool validates that scores are in [1–10] range but cannot verify that the 
 
 **Before/After comparison:** Allow uploading two FMEA versions and generate a diff showing which failure modes changed tier (Red → Yellow, etc.) after corrective actions were implemented.
 
-**Full AIAG 5th Edition AP table:** Implement the complete 3D S×O×D lookup matrix rather than the simplified threshold approximation, making the `Flag_Action_Priority_H` output exactly compliant with the 2019 standard.
+**Full AIAG & VDA (1st Edition, 2019) AP table:** Implement the complete 3D S×O×D lookup matrix rather than the simplified threshold approximation, making the `Flag_Action_Priority_H` output exactly compliant with the 2019 handbook.
 
 **Design FMEA (DFMEA) support:** Extend the schema and validation logic to handle Design FMEA column structures.
 
@@ -991,7 +991,7 @@ The whole project was built in 4 weeks, 2 hours a day, with a documented roadmap
 A: FMEA is mandatory in automotive (IATF 16949), aerospace (AS9100), medical devices (ISO 13485), and defense (MIL-STD-1629A). It is also widely used in semiconductor manufacturing, oil and gas, and nuclear power — anywhere the consequences of failure are significant.
 
 **Q: What does AIAG stand for?**  
-A: Automotive Industry Action Group — the organization that publishes the FMEA reference manual standard. The FMEA-4 (4th Edition, 2008) is the most widely referenced version; the 5th Edition (2019, published jointly with VDA, the German automotive association) introduced the Action Priority system.
+A: Automotive Industry Action Group — the organization that publishes the FMEA reference manual standard. The FMEA-4 (4th Edition, 2008) is the most widely referenced version; it was succeeded in 2019 by the AIAG & VDA FMEA Handbook, 1st Edition (published jointly with VDA, the German automotive association), which introduced the Action Priority system. (AIAG never published a fifth edition of the FMEA manual — the 2019 book restarted the edition count as a joint AIAG/VDA publication.)
 
 **Q: Is this a real industry tool or a demo?**  
 A: It implements real AIAG FMEA-4 standards and the calculations are mathematically correct. A quality engineer could legitimately use this to analyze a real FMEA dataset. It lacks some enterprise features (user accounts, audit trails, collaboration) that a production enterprise tool would have.
@@ -1025,7 +1025,7 @@ A: The 80/20 rule (Pareto Principle) — approximately 80% of effects come from 
 A: No. RPN = 1,000 requires S=10, O=10, D=10: a catastrophic failure that is certain to occur and completely undetectable. Any failure mode at this level represents a fundamental process or design failure and would require immediate halt and redesign, not just corrective action planning.
 
 **Q: Why does the tool use RPN ≥ 200 for Action Priority H instead of the full AIAG table?**  
-A: The full AIAG FMEA 5th Edition Action Priority table has ~1,000 cells and requires company-specific customization. For a portfolio tool, implementing a conservative threshold (RPN ≥ 200) that approximates the "High" tier intent is documented in `docs/ASSUMPTIONS_LOG.md` as an accepted engineering tradeoff. It is conservative — it may flag some items as "H" that the full table would classify "M," which is safer than the reverse.
+A: The full AIAG & VDA (1st Edition, 2019) Action Priority table has ~1,000 cells and requires company-specific customization. For a portfolio tool, implementing a conservative threshold (RPN ≥ 200) that approximates the "High" tier intent is documented in `docs/ASSUMPTIONS_LOG.md` as an accepted engineering tradeoff. It is conservative — it may flag some items as "H" that the full table would classify "M," which is safer than the reverse.
 
 **Q: Is RPN the best way to measure risk?**  
 A: It is the most widely used metric, but it has known limitations. The main one: multiplication of three different scales produces ambiguous results (two completely different failure profiles can produce the same RPN). This is why AIAG introduced the Action Priority system in 2019 as a supplement. This tool addresses the main RPN weakness by adding the mandatory Severity ≥ 9 flag, which catches high-consequence failures that low Occurrence and Detection scores would otherwise hide.
@@ -1033,4 +1033,4 @@ A: It is the most widely used metric, but it has known limitations. The main one
 ---
 
 *Document generated: April 2026*  
-*Engineering reference: AIAG FMEA-4 (4th Edition) + AIAG/VDA FMEA Handbook (5th Edition, 2019)*
+*Engineering reference: AIAG FMEA-4 (4th Edition) + AIAG & VDA FMEA Handbook (1st Edition, 2019)*

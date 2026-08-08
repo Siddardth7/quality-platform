@@ -14,22 +14,26 @@ standalone SPC app never has `controlplan_app` on `sys.path` — see
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, get_args
 
 import pandas as pd
+from quality_core.spc.constants import SPCChart
 
 #: Session-state key holding the current (possibly edited) Control Plan
 #: DataFrame, set by `controlplan_app.pages.control_plan`.
 # ponytail: string contract mirrored from
 # controlplan_app.pages.control_plan._PLAN_STATE_KEY — duplicated (not imported)
 # so the standalone SPC app, which never has controlplan_app on sys.path, still
-# imports cleanly.
+# imports cleanly. Deletion deferred until Streamlit UI layer
+# (apps/spc/spc_app/pages/control_charts.py and apps/controlplan/controlplan_app/pages/control_plan.py) is removed.
 PLAN_STATE_KEY = "_controlplan_plan_df"
 
-#: The chart keys the SPC Control Charts page can actually render
-#: (`CHART_OPTIONS` in `spc_app/pages/control_charts.py`) — identical to
-#: `controlplan_app.schema.SPCChart`.
-_VALID_CHART_KEYS = ("Xbar-R", "Xbar-S", "I-MR", "p", "c", "u")
+#: The Shewhart chart keys a Control Plan characteristic may name — a *subset* of
+#: `CHART_OPTIONS` in `spc_app/pages/control_charts.py`, which also offers EWMA and
+#: CUSUM. Derived from the one chart vocabulary in
+#: `quality_core.spc.constants.SPCChart` (#205) rather than re-typed here;
+#: `get_args` returns the same `tuple[str, ...]` object the literal was built from.
+_VALID_CHART_KEYS = get_args(SPCChart)
 
 
 @dataclass(frozen=True)

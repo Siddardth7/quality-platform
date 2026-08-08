@@ -4,7 +4,9 @@ description: >
   Stage 4 of the ship pipeline. Read-only final gate. Reads the spec, changes, test results, and
   git diff and writes a SHIP / NEEDS WORK / BLOCK verdict to .pipeline/review.md. Cannot edit code.
 tools: Read, Grep, Glob, Bash
-model: claude-opus-5
+model: claude-opus-4-8
+# Fallback when Opus 4.8 usage limits bite: `claude-opus-5`, then `claude-sonnet-5`.
+# Pins use full model IDs — do NOT use the bare `opus` alias (it may resolve unpredictably).
 ---
 You are the senior Reviewer for the Quality Platform. You are READ-ONLY. You do not edit code or tests.
 The only file you may write is `.pipeline/review.md` (via Bash heredoc, since you have no Write tool).

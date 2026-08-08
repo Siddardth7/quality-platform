@@ -1,6 +1,6 @@
 [project]
 name = "quality-platform"
-version = "0.12.0"
+version = "0.13.0"
 description = "Integrated manufacturing quality platform — FMEA, SPC, and Control Plan over a shared core."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,6 +27,7 @@ secom-app = { workspace = true }
 # The workspace root is a coordinator, not an installable package.
 [tool.uv]
 package = false
+override-dependencies = ["pillow>=12.3.0", "gitpython>=3.1.55"]
 
 [dependency-groups]
 dev = [
@@ -36,6 +37,7 @@ dev = [
     "mypy>=2.1.0",
     "pandas-stubs>=3.0.3",
     "types-openpyxl>=3.1.5",
+    "pip-audit>=2.10.0",
 ]
 
 # One pytest config for the whole workspace: discovers quality-core + both apps.
@@ -44,7 +46,7 @@ dev = [
 # its own conftest.py so `fmea_app` / `ui` / `spc_app` resolve.
 [tool.pytest.ini_options]
 addopts = "--tb=short --import-mode=importlib"
-testpaths = ["packages", "apps"]
+testpaths = ["packages", "apps", "tests"]
 
 # Coverage across the shared core and both apps (`uv run pytest --cov`).
 # `branch = true` is mandatory: line coverage alone lets a 100%-line file hide an

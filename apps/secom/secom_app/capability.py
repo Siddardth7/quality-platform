@@ -3,8 +3,7 @@ secom_app/capability.py
 SECOM signal -> existing SPC capability engine (W09-3, #67).
 
 Wires a SECOM sensor column into the platform's already-tested
-`compute_capability` (`apps/spc/spc_app/spc_engine/capability.py`, reused
-read-only — see `apps/secom/CLAUDE.md` sys.path shim in `conftest.py`). This
+`compute_capability` (`quality_core.spc.capability`, reused read-only). This
 module does NOT reimplement Cp/Cpk/Pp/Ppk math; it only adapts the W09-2
 control chart result into the shape the engine expects, and couples the
 result to the W09-2 stability gate.
@@ -38,9 +37,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
+from quality_core.spc.capability import compute_capability
 
 from secom_app.charts import Ruleset, SignalControlChart, control_chart_for_signal
-from spc_app.spc_engine.capability import compute_capability
 
 __all__ = ["SignalCapability", "capability_for_signal"]
 

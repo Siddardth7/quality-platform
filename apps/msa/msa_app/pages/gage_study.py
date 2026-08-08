@@ -136,10 +136,16 @@ def render_gage_study() -> None:
     # %GRR and verdict
     col1, col2 = st.columns(2)
     with col1:
+        st.metric("%EV vs Study", f"{results['pev_study']:.2f}%")
+        st.metric("%AV vs Study", f"{results['pav_study']:.2f}%")
         st.metric("%GRR vs Study", f"{results['pgrr_study']:.2f}%")
+        st.metric("%PV vs Study", f"{results['ppv_study']:.2f}%")
         st.metric("PV (Part Variation)", f"{results['pv']:.6f}")
         if results['pgrr_tolerance'] is not None:
+            st.metric("%EV vs Tolerance", f"{results['pev_tolerance']:.2f}%")
+            st.metric("%AV vs Tolerance", f"{results['pav_tolerance']:.2f}%")
             st.metric("%GRR vs Tolerance", f"{results['pgrr_tolerance']:.2f}%")
+            st.metric("%PV vs Tolerance", f"{results['ppv_tolerance']:.2f}%")
     with col2:
         st.metric("Distinct Categories (ndc)", results['ndc'])
         verdict = results['verdict']

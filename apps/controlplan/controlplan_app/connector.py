@@ -21,12 +21,15 @@ Decisions taken (SME-confirmed — see ``.pipeline/spec.md`` "SME RESOLUTIONS"):
   fabricate one. :func:`recommend_chart` still ships as the standards core for
   W06-3/enrichment to call once a characteristic is classified.
 - **Q4 placeholders:** ``sample_size``, ``frequency``, ``reaction_plan`` have no FMEA
-  source; see the ``# ponytail:``-marked module constants below. ``lsl``/``usl``/
+  source; see the ``# ponytail:``-marked module constants below. Every emitted row
+  therefore carries ``sample_plan_is_placeholder=True`` (F-10, #196) so a consumer
+  cannot mistake a defaulted sample plan for an FMEA-derived one. ``lsl``/``usl``/
   ``target`` legitimately map to ``None`` (nullable in the schema).
 - **Q5 row set:** every failure mode becomes a row (no threshold/``min_ap`` filter),
   sorted highest-risk first.
-- **Q6 chart boundary:** ``2 <= n <= 9 -> Xbar-R``, ``n >= 10 -> Xbar-S`` — flagged in
-  ``apps/controlplan/docs/ASSUMPTIONS_LOG.md`` for primary-source (AIAG) confirmation.
+- **Q6 chart boundary:** ``2 <= n <= 9 -> Xbar-R``, ``10 <= n <= 12 -> Xbar-S`` (``n > 12``
+  raises — F-07, #196; ``XBAR_S_CONSTANTS`` stops at 12). The 9-vs-10 switch point is flagged
+  in ``apps/controlplan/docs/ASSUMPTIONS_LOG.md`` for primary-source (AIAG) confirmation.
 
 Standards citation (chart-selection rule table): AIAG SPC Reference Manual, 4th Ed.
 (2005) — variable-data chart selection (I-MR / Xbar-R / Xbar-S) and attribute-data
@@ -51,13 +54,22 @@ from typing import Iterator, Literal
 
 from quality_core.schema.relational import Cause, FailureLink, FailureMode, Function, RelationalFMEA
 from quality_core.scoring import AP_ORDER, action_priority, rpn
+from quality_core.spc.constants import XBAR_S_CONSTANTS
 
 from controlplan_app.schema import ControlPlanDataset, ControlPlanRow, SPCChart
 
 DataType = Literal["variable", "attribute"]
 
+#: Largest subgroup size the SPC engine can actually compute an X-bar/S chart for.
+#: Read from the constants table rather than hard-coded, so the guard tracks the
+#: table (F-07, #196). AIAG publishes no A3/B3/B4/c4 above n=12, so the table is
+#: deliberately not extended — see `docs/ASSUMPTIONS_LOG.md` RULE 1.
+_MAX_XBAR_S_N = max(XBAR_S_CONSTANTS)
+
 # ponytail: no FMEA source for sample plan / inspection cadence / containment text —
-# documented placeholders the W06-3 authoring UI will let a user edit per row.
+# documented placeholders the W06-3 authoring UI will let a user edit per row. Every
+# row build_control_plan emits is stamped `sample_plan_is_placeholder=True` (F-10,
+# #196) so a downstream consumer can tell these apart from engineered values.
 _DEFAULT_SAMPLE_SIZE = 1
 _DEFAULT_FREQUENCY = "per shift"
 
@@ -77,15 +89,20 @@ def recommend_chart(
     """Standards rule table (AIAG SPC Reference Manual, 4th Ed.) -> an ``SPCChart`` key.
 
     Variable data: ``n == 1`` -> ``I-MR``; ``2 <= n <= 9`` -> ``Xbar-R``;
-    ``n >= 10`` -> ``Xbar-S`` (the Xbar-R/Xbar-S boundary is flagged in
+    ``10 <= n <= 12`` -> ``Xbar-S`` (the Xbar-R/Xbar-S boundary is flagged in
     ``apps/controlplan/docs/ASSUMPTIONS_LOG.md`` for primary-source confirmation).
+    Above ``n = 12`` there is no computable variable chart — ``XBAR_S_CONSTANTS``
+    stops there and ``compute_xbar_s`` rejects it — so this raises rather than
+    naming a chart the engine cannot compute (F-07, #196).
 
     Attribute data: classifying units good/bad (``defect_based=False``) -> ``p``
     regardless of sample-size constancy (``np`` folds into ``p`` — no schema key);
     counting defects per unit (``defect_based=True``) -> ``c`` for a constant sample,
-    ``u`` for a variable sample.
+    ``u`` for a variable sample. The upper bound does **not** apply here: attribute
+    sample sizes have no constants table and are routinely large.
 
-    Raises ``ValueError`` if ``subgroup_size < 1``.
+    Raises ``ValueError`` if ``subgroup_size < 1``, or if it exceeds
+    ``max(XBAR_S_CONSTANTS)`` (12) for variable data.
     """
     if subgroup_size < 1:
         raise ValueError(f"subgroup_size must be >= 1, got {subgroup_size!r}")
@@ -95,6 +112,12 @@ def recommend_chart(
             return "I-MR"
         if subgroup_size <= 9:
             return "Xbar-R"
+        if subgroup_size > _MAX_XBAR_S_N:
+            raise ValueError(
+                f"subgroup_size {subgroup_size} exceeds the largest supported X-bar/S "
+                f"subgroup size ({_MAX_XBAR_S_N}); AIAG publishes no A3/B3/B4/c4 "
+                f"constants above it."
+            )
         return "Xbar-S"
 
     # attribute data
@@ -106,20 +129,13 @@ def recommend_chart(
 def _worst_link(failure_mode: FailureMode) -> tuple[FailureLink, int, str]:
     """Return the failure mode's worst-risk link with its (rpn, ap), by (AP, RPN, row_id).
 
-    Copies the entity-lookup traversal of ``relational_to_flat``
-    (``quality_core.schema.relational:247``): S/O/D come from the effect/cause/control
-    an entity each link points to.
+    S/O/D come from the effect/cause/control entity each link points to, resolved
+    by ``FailureMode.resolve``.
     """
-    effects = {e.id: e for e in failure_mode.effects}
-    causes = {c.id: c for c in failure_mode.causes}
-    controls = {c.id: c for c in failure_mode.controls}
-
     best: tuple[FailureLink, int, str] | None = None
     best_key: tuple[int, int, int] | None = None
     for link in failure_mode.links:
-        effect = effects[link.effect_id]
-        cause = causes[link.cause_id]
-        control = controls[link.control_id]
+        effect, cause, control = failure_mode.resolve(link)
         link_rpn = rpn(effect.severity, cause.occurrence, control.detection)
         link_ap = action_priority(effect.severity, cause.occurrence, control.detection)
         # Deterministic tie-break: AP, then RPN, then row_id (edge cases section).
@@ -180,7 +196,10 @@ def build_control_plan(fmea: RelationalFMEA) -> ControlPlanDataset:
 
     Fields with no FMEA source (`sample_size`, `frequency`, `reaction_plan`,
     `recommended_chart=None`, `lsl`/`usl`/`target=None`) are defaulted per the
-    module docstring's Q3/Q4 decisions. `source_cause_id` (OQ1, #89) is the one
+    module docstring's Q3/Q4 decisions, and every row is stamped
+    `sample_plan_is_placeholder=True` so the defaulted sample plan / frequency /
+    reaction plan are distinguishable downstream (F-10, #196).
+    `source_cause_id` (OQ1, #89) is the one
     field with a real FMEA-derived value beyond risk/description text — see
     :func:`_source_cause_id`.
     """
@@ -188,12 +207,7 @@ def build_control_plan(fmea: RelationalFMEA) -> ControlPlanDataset:
     entries: list[tuple[str, str, int, str, str, str]] = []
 
     for characteristic, function, failure_mode, link in _iter_named_modes(fmea):
-        effects = {e.id: e for e in failure_mode.effects}
-        causes = {c.id: c for c in failure_mode.causes}
-        controls = {c.id: c for c in failure_mode.controls}
-        worst_effect = effects[link.effect_id]
-        worst_cause = causes[link.cause_id]
-        worst_control = controls[link.control_id]
+        worst_effect, worst_cause, worst_control = failure_mode.resolve(link)
         link_rpn = rpn(worst_effect.severity, worst_cause.occurrence, worst_control.detection)
         link_ap = action_priority(
             worst_effect.severity, worst_cause.occurrence, worst_control.detection
@@ -226,6 +240,7 @@ def build_control_plan(fmea: RelationalFMEA) -> ControlPlanDataset:
             recommended_chart=None,
             reaction_plan=reaction_plan,
             source_cause_id=source_cause_id,
+            sample_plan_is_placeholder=True,
         )
         for characteristic, measurement_method, _rpn, _ap, reaction_plan, source_cause_id in entries
     ]
@@ -250,8 +265,7 @@ def source_index(fmea: RelationalFMEA) -> dict[str, dict[str, object]]:
     """
     index: dict[str, dict[str, object]] = {}
     for characteristic, function, failure_mode, link in _iter_named_modes(fmea):
-        causes = {c.id: c for c in failure_mode.causes}
-        cause = causes[link.cause_id]
+        _, cause, _ = failure_mode.resolve(link)
         index[characteristic] = {
             "failure_mode_id": failure_mode.id,
             "cause_id": _source_cause_id(function, failure_mode, cause),

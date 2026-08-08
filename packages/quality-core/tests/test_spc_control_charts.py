@@ -1,16 +1,18 @@
 import math
+import subprocess
+import sys
 
 import pytest
-
-from spc_app.spc_engine.control_charts import (
+from quality_core.spc.control_charts import (
     compute_c,
     compute_imr,
     compute_p,
     compute_u,
     compute_xbar_r,
     compute_xbar_s,
+    imr_limits,
 )
-from spc_app.spc_engine.phase import freeze_imr, freeze_xbar_r, freeze_xbar_s
+from quality_core.spc.phase import freeze_imr, freeze_xbar_r, freeze_xbar_s
 
 XBAR_R_SAMPLE = [
     [10, 11, 12, 13, 14],
@@ -382,3 +384,148 @@ def test_compute_imr_frozen_chart_type_mismatch_raises():
     xbar_r_frozen = freeze_xbar_r(XBAR_R_SAMPLE)
     with pytest.raises(ValueError):
         compute_imr(IMR_PHASE_II_DATA, frozen=xbar_r_frozen)  # type: ignore[arg-type]
+
+
+# --- imr_limits: the single home of the AIAG I-MR limit formula (#205 PR 2, §8.2) ---
+
+
+def test_imr_limits_matches_hand_evaluated_aiag_arithmetic():
+    """All five keys against the AIAG constants evaluated by hand, not by re-calling it.
+
+    Re-deriving the expected value with `IMR_E2 * mrbar` inside the test would only
+    restate the implementation; these numbers come from the published constants
+    (E2=2.66, D4=3.267, d2=1.128 — AIAG SPC 4th Ed.) multiplied out.
+    """
+    limits = imr_limits(10.0, 2.0)
+
+    assert limits["ucl_x"] == pytest.approx(15.32, abs=1e-12)  # 10 + 2.66*2
+    assert limits["lcl_x"] == pytest.approx(4.68, abs=1e-12)  # 10 - 2.66*2
+    assert limits["ucl_mr"] == pytest.approx(6.534, abs=1e-12)  # 3.267*2
+    assert limits["lcl_mr"] == 0.0
+    assert limits["sigma_hat"] == pytest.approx(1.7730496453900707, rel=1e-12)  # 2/1.128
+    assert set(limits) == {"ucl_x", "lcl_x", "ucl_mr", "lcl_mr", "sigma_hat"}
+
+
+def test_imr_limits_lcl_mr_is_a_hard_zero_not_a_clamped_d3_term():
+    """`lcl_mr` is literally 0.0 for every mrbar — spec §7.5, not `max(0.0, D3*mrbar)`.
+
+    Two mrbar values, one large enough that any D3 term would be visibly non-zero.
+    """
+    assert imr_limits(10.0, 2.0)["lcl_mr"] == 0.0
+    assert imr_limits(-5.0, 1000.0)["lcl_mr"] == 0.0
+
+
+def test_imr_limits_with_zero_mrbar_is_zero_width_and_zero_sigma():
+    """Spec §7.4: no guard, no raise, no clamp — degenerate input passes straight through."""
+    limits = imr_limits(7.5, 0.0)
+
+    assert limits["ucl_x"] == 7.5
+    assert limits["lcl_x"] == 7.5
+    assert limits["ucl_mr"] == 0.0
+    assert limits["lcl_mr"] == 0.0
+    assert limits["sigma_hat"] == 0.0
+
+
+def test_imr_limits_is_a_pure_function_of_its_two_arguments():
+    """Shifting the centre line moves both x limits by exactly that shift and nothing else.
+
+    Pins that `xbar` enters only the individuals limits — an implementation that
+    let it leak into `ucl_mr`/`sigma_hat` would still satisfy the point checks above.
+    """
+    base = imr_limits(0.0, 3.0)
+    shifted = imr_limits(100.0, 3.0)
+
+    assert shifted["ucl_x"] - base["ucl_x"] == pytest.approx(100.0, abs=1e-9)
+    assert shifted["lcl_x"] - base["lcl_x"] == pytest.approx(100.0, abs=1e-9)
+    assert shifted["ucl_mr"] == base["ucl_mr"]
+    assert shifted["sigma_hat"] == base["sigma_hat"]
+
+
+def test_compute_imr_reads_its_five_limit_fields_from_imr_limits():
+    """§8.3: exact `==`, not approx — compute_imr must not re-derive the arithmetic.
+
+    A second copy of the formula that rounds, reorders the terms or recomputes
+    sigma differently would still pass an approx check; bit-equality is what makes
+    the de-duplication provable.
+    """
+    result = compute_imr(IMR_SAMPLE)
+    expected = imr_limits(result["xbar"], result["mrbar"])
+
+    assert result["ucl_x"] == expected["ucl_x"]
+    assert result["lcl_x"] == expected["lcl_x"]
+    assert result["ucl_mr"] == expected["ucl_mr"]
+    assert result["lcl_mr"] == expected["lcl_mr"]
+    assert result["sigma_hat"] == expected["sigma_hat"]
+
+
+def test_compute_imr_frozen_branch_does_not_go_through_imr_limits():
+    """The other direction of the choice: with `frozen=`, the limits are the frozen ones.
+
+    Without this case a `compute_imr` that always called `imr_limits` would pass the
+    test above and silently discard Phase-I frozen limits.
+    """
+    frozen = freeze_imr(IMR_SAMPLE)
+    result = compute_imr([100.0, 101.0, 99.0], frozen=frozen)
+
+    assert result["ucl_x"] == frozen["ucl_x"]
+    assert result["lcl_x"] == frozen["lcl_x"]
+    assert result["sigma_hat"] == frozen["sigma_hat"]
+    # And they are NOT the Phase-II data's own limits: recomputing unfrozen on the
+    # same points gives a different chart, so the frozen arm really is a branch.
+    assert result["ucl_x"] != compute_imr([100.0, 101.0, 99.0])["ucl_x"]
+
+
+# --- The control_charts <-> phase import cycle (#205 PR 2, §8.6) ---
+
+_CYCLE_PROBE = """
+import importlib
+importlib.import_module("quality_core.spc.{first}")
+importlib.import_module("quality_core.spc.{second}")
+from quality_core.spc.control_charts import compute_imr, compute_xbar_r, compute_xbar_s
+from quality_core.spc.phase import freeze_imr, freeze_xbar_r, freeze_xbar_s
+
+xbar_r = [[10, 11, 12], [11, 12, 13], [9, 10, 11]]
+xbar_s = [list(range(1, 13)), list(range(2, 14)), list(range(3, 15))]
+imr = [10, 12, 11, 15, 14]
+
+assert compute_imr(imr, frozen=freeze_imr(imr))["ucl_x"] == freeze_imr(imr)["ucl_x"]
+assert compute_xbar_r(xbar_r, frozen=freeze_xbar_r(xbar_r))["ucl_x"] == freeze_xbar_r(xbar_r)["ucl_x"]
+assert compute_xbar_s(xbar_s, frozen=freeze_xbar_s(xbar_s))["ucl_x"] == freeze_xbar_s(xbar_s)["ucl_x"]
+print("CYCLE_OK")
+"""
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [("control_charts", "phase"), ("phase", "control_charts")],
+)
+def test_both_import_orders_work_and_frozen_paths_run(first, second):
+    """§8.6: the lazy `_require_frozen` import is what keeps the cycle breakable.
+
+    Run in a FRESH interpreter, because the in-process module cache would hide the
+    cycle entirely — by the time this test file runs, both modules are long imported.
+    `phase` imports `compute_*` at module level; promoting `control_charts`' lazy
+    `from ...phase import _require_frozen` to module level makes one of these two
+    orders an ImportError, and exercising `frozen=` proves the lazy import resolves
+    at runtime rather than merely parsing.
+    """
+    script = _CYCLE_PROBE.format(first=first, second=second)
+    completed = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, check=False
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "CYCLE_OK" in completed.stdout
+
+
+def test_importing_the_spc_package_alone_works_in_a_fresh_interpreter():
+    """`import quality_core.spc` triggers the `__init__` re-export of both cycle halves."""
+    completed = subprocess.run(
+        [sys.executable, "-c", "import quality_core.spc; print(quality_core.spc.imr_limits)"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "imr_limits" in completed.stdout
