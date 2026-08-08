@@ -6,6 +6,8 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-08
+
 ### Changed
 
 - **FMEA default S/O/D rating scale is now the AIAG & VDA 2019 PFMEA scale (#256).** The 30
