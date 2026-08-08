@@ -59,3 +59,19 @@ RULE 16	3290	%EV= 100 [EV/TV]
 RULE 16	3295	%AV= 100 [AV/TV]
 RULE 16	3300	%GRR= 100 [GRR/TV]
 RULE 16	3304	% PV= 100 [PV/TV]
+RULE 17	3543	Table III-B 7 shows the ANOVA calculations for the example data from Figure III-B 15 assuming a balanced two-factor factorial design. Both factors are considered to be random.
+RULE 17	5268	The F-ratio column is calculated only for the interaction in a MSA ANOVA; it is determined by the mean square of interaction divided by mean square error.
+RULE 17	5314	In order to decrease the risk of falsely concluding that there is no interaction effect, choose a high significance level.
+RULE 17	5338	* Significant at α = 0.05 level
+RULE 17	5300	In the additive model, the interaction is not significant and the variance components for each source is determined as follow: First, the sum of square of gage error ( SSe from Table A 3) is added to the sum of square of appraiser by part interaction ( SSAP from Table A 3) and which is equal to the sum of squares pooled ( SSpool ) with ( nkr – n – k +1)
+RULE 17	5300	degrees of freedom. Then the SSpool will be divided by the ( nkr – n – k +1) to calculate MSpool .
+RULE 17	5306	Where n = number of parts, k = number of appraisers and r = number of trials.
+RULE 17	5342	Since the calculated F value for the interaction (0.434) is less than the critical value of F α , 18 , 60 , the interaction term is pooled with the equipment (error) term. That is, the estimate of variance is based on the model without interaction.
+RULE 17	5291	If the interaction of part and appraiser is significant, then there exists a nonadditive model and therefore an estimate of its variance components is given.
+RULE 17	5289	For analysis purposes, the negative variance component is set to zero.
+gage_rr_engine.py METHOD_NOTE_ANOVA	5342	the interaction term is pooled with the equipment (error) term
+gage_rr_engine.py _ANOVA_ALPHA	5314	In order to decrease the risk of falsely concluding that there is no interaction effect, choose a high significance level
+gage_rr_engine.py _anova_method	5268	The F-ratio column is calculated only for the interaction in a MSA ANOVA; it is determined by the mean square of interaction divided by mean square error.
+gage_rr_engine.py _anova_method	3543	assuming a balanced two-factor factorial design
+gage_rr_engine.py _anova_method	5342	the interaction term is pooled with the equipment (error) term
+gage_rr_engine.py _anova_method	5289	For analysis purposes, the negative variance component is set to zero
