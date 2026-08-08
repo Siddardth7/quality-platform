@@ -8,7 +8,7 @@ Functions:
     flag_critical(df)    — applies AIAG FMEA-4 flags (High RPN, High Severity, Action Priority)
     rank_by_rpn(df)      — sorts DataFrame descending by RPN; adds Risk_Tier column
 
-Engineering reference: AIAG FMEA-4 (4th Edition) + AIAG/VDA FMEA Handbook (5th Edition, 2019)
+Engineering reference: AIAG FMEA-4 (4th Edition) + AIAG & VDA FMEA Handbook (1st Edition, 2019)
 See docs/ASSUMPTIONS_LOG.md for every threshold decision.
 
 Author: Siddardth | M.S. Aerospace Engineering, UIUC
@@ -209,13 +209,16 @@ def flag_critical(df: pd.DataFrame) -> pd.DataFrame:
         Source: RULE 1 in docs/ASSUMPTIONS_LOG.md
 
     Flag_High_Severity
-        True if Severity ≥ 9. Safety-critical flag — corrective action
-        required regardless of Occurrence or Detection scores.
+        True if Severity ≥ 9, regardless of Occurrence or Detection. A
+        repo-chosen safety heuristic, deliberately more conservative than
+        the handbook's own Action Priority table (which rates S 9-10 / O 1
+        as Low) — not a handbook requirement.
         Source: RULE 2 in docs/ASSUMPTIONS_LOG.md
 
     Flag_Action_Priority_H
-        True if RPN ≥ 200 OR Severity ≥ 9. Simplified implementation of
-        the AIAG 5th Edition Action Priority "High" tier.
+        True if RPN ≥ 200 OR Severity ≥ 9. An RPN-side proxy flag, NOT the
+        Action Priority determination — that is `ap_engine.action_priority()`,
+        the published AIAG & VDA (1st Ed., 2019) table lookup.
         Source: RULE 3 in docs/ASSUMPTIONS_LOG.md
 
     Parameters

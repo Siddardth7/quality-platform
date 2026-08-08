@@ -484,7 +484,7 @@ Week: W1
 Status: In Progress
 Due Date: March 30, 2026
 Done When: flag_critical() flags correct rows against manual check of demo dataset
-Notes: AIAG FMEA-4 Action Priority H = RPN ≥ 200 OR Severity ≥ 9. Source: AIAG 5th Ed. summary PDF
+Notes: AIAG FMEA-4 Action Priority H = RPN ≥ 200 OR Severity ≥ 9. Source: third-party summary of the AIAG & VDA FMEA Handbook (1st Ed., 2019)
 ```
 
 ```

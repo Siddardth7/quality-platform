@@ -11,7 +11,7 @@
 
 > **Live Demo →** [fmea-risk-analyzer-mhwzcki9sdzfz5d8rbzsdn.streamlit.app](https://fmea-risk-analyzer-mhwzcki9sdzfz5d8rbzsdn.streamlit.app/)
 
-**Engineering Reference:** AIAG FMEA-4 (4th Edition, 2008) + AIAG/VDA FMEA Handbook (5th Edition, 2019)  
+**Engineering Reference:** AIAG FMEA-4 (4th Edition, 2008) + AIAG & VDA FMEA Handbook (1st Edition, 2019)  
 **Author:** Siddardth | M.S. Aerospace Engineering, University of Illinois Urbana-Champaign
 
 ---
@@ -97,7 +97,7 @@ For example:
 - `S=10, O=1, D=1` → RPN = **10** — *rare but catastrophic, undetectable*
 - `S=2, O=5, D=1` → RPN = **10** — *common but minor, easily caught*
 
-A naive RPN-only ranking would treat these identically. This is why AIAG introduced the **Severity ≥ 9 mandatory flag** and the **Action Priority system** in the 5th Edition — both implemented in this tool.
+A naive RPN-only ranking would treat these identically. This is why the **AIAG & VDA FMEA Handbook (1st Edition, 2019)** introduced the **Action Priority system**, implemented in full in this tool; the **Severity ≥ 9 mandatory flag** is this tool's own additional safety heuristic (see `docs/ASSUMPTIONS_LOG.md` RULE 2).
 
 ---
 
@@ -111,7 +111,7 @@ The RPN > 100 threshold is the most widely cited corrective action cutoff in Tie
 
 ### Flag 2 — `Flag_High_Severity` (Severity ≥ 9)
 
-**Severity 9 and 10 failure modes require immediate corrective action regardless of Occurrence or Detection scores.** This is explicitly stated in both AIAG FMEA-4 (Section 3) and the AIAG/VDA 5th Edition. The engineering rationale: even a failure that happens once every million cycles, but causes a safety incident when it does, cannot be optimized away by good detection controls.
+**This tool flags every Severity 9 or 10 failure mode for corrective action, regardless of Occurrence or Detection scores.** That is a deliberately conservative choice by this repo, *not* a standards requirement: the AIAG & VDA FMEA Handbook (1st Edition, 2019) rates S 9–10 with Occurrence 1 as Action Priority **Low**, and recommends only that *"potential Severity 9-10 failure effects with Action Priority High and Medium, at a minimum, be reviewed by management"* (§3.5.9). The engineering rationale for going further: even a failure that happens once every million cycles, but causes a safety incident when it does, cannot be optimized away by good detection controls. See `docs/ASSUMPTIONS_LOG.md` RULE 2.
 
 Real-world composite manufacturing example: Autoclave overpressure (S=10) and vacuum bag burst during cure (S=9) are assigned mandatory corrective action even if they occur once in ten years — because when they do occur, the consequences are catastrophic (explosion risk, complete part loss).
 

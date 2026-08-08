@@ -6,8 +6,47 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- **FMEA standards provenance: the "AIAG FMEA 5th Edition" does not exist (#197).** The 2019
+  document is the **AIAG & VDA FMEA Handbook, 1st Edition** — a joint publication that restarted
+  the edition count. The phantom edition was cited in `apps/fmea/docs/ASSUMPTIONS_LOG.md` and in
+  four live app files, two of which printed it onto **exported Excel and PDF reports**
+  (`fmea_app/exporter.py`); in an IATF 16949 core-tools context a report citing a nonexistent
+  standard edition is itself an audit finding. Every live citation now names the handbook
+  correctly; dated planning records under `docs/plans/` and `docs/superpowers/plans/` are left
+  alone as historical artifacts.
+- **RULE 2 was attributing a repo heuristic to AIAG (#197).** `ASSUMPTIONS_LOG.md` claimed both
+  editions "state explicitly that Severity 9–10 failure modes require action independent of
+  Occurrence and Detection." The handbook says the opposite: its Table AP rates S 9–10 with
+  Occurrence 1 as **Low**, and §3.5.9 recommends only that S 9–10 effects *with AP High or
+  Medium* be reviewed by management. `Flag_High_Severity` (every S ≥ 9 row, regardless of O/D)
+  is now documented as this repo's deliberately-more-conservative safety heuristic. **No code
+  behaviour changed** — the flag fires exactly as before. The same false claim is corrected in
+  `apps/fmea/README.md` and `apps/fmea/docs/FMEA_COMPLETE_GUIDE.md`.
+- **RULE 3 marked superseded, RULE 6's scope claim corrected (#197).** RULE 3 now describes
+  `Flag_Action_Priority_H` as the RPN ≥ 200-or-S ≥ 9 proxy it is, with a forward pointer to
+  RULE 7's real table lookup; the RPN-threshold rationale is kept and labelled a repo decision.
+  RULE 6 no longer claims the rating scale is irrelevant to the AP result: the *math* is
+  scale-independent, but AP fidelity depends on the scale that originated the S/O/D integer,
+  and the bundled default is FMEA-4 (2008) while the shipped AP table is from the 2019 handbook.
+  Shipping the 2019 S/O/D tables as the default scale is tracked in **#256** — split out of #197
+  because the handbook's PFMEA Occurrence/Detection tables are OCR-mangled in the available
+  conversion and cannot be transcribed verbatim without fabrication risk.
+
 ### Added
 
+- **Machine-checked citation manifest for FMEA (#197).** `apps/fmea/docs/CITATIONS.tsv` plus
+  `apps/fmea/tests/test_citations.py`, mirroring the MSA precedent (#223): every AIAG & VDA
+  quotation in the FMEA docs is re-asserted against the licensed handbook at a pinned line
+  (+/-2 for wrapping) under formatting-tolerant matching, and no blockquote may exist in
+  `ASSUMPTIONS_LOG.md` without a manifest row backing it. The tests **skip** where the licensed
+  handbook is absent (CI); `FMEA_HANDBOOK_PATH` points them at a local copy. Nothing is quoted
+  from the OCR-mangled Table AP band-label or PFMEA scale cells, deliberately.
+- **Reintroduction guard for the phantom edition (#197).**
+  `apps/fmea/tests/test_docs_provenance.py` fails if `ASSUMPTIONS_LOG.md`, `app.py`,
+  `fmea_analyzer.py`, `fmea_app/rpn_engine.py`, or `fmea_app/exporter.py` regains a
+  case-insensitive "5th Ed"/"5th Edition". Runs on CI with no licensed source needed.
 - **ANOVA (crossed, with interaction) Gage R&R method for MSA (#195).**
   `compute_gage_rr()` gains a `method=` selector: `"average_and_range"` (the **default**,
   behaviour unchanged on every existing call site) or `"anova"`, a new `_anova_method()`
