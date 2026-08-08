@@ -19,9 +19,12 @@ import json
 import pytest
 
 from fmea_app.rating_scales import (
+    DEFAULT_SCALES_PATH,
     FACTORS,
+    LEGACY_FMEA4_SCALES_PATH,
     RatingScaleSet,
     load_default_scales,
+    load_legacy_fmea4_scales,
     load_scales_from_json,
     load_scales_from_mapping,
 )
@@ -41,12 +44,49 @@ def _valid_mapping() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# RS-01 / RS-02 — bundled default
+# RS-01 / RS-02 — bundled default (now AIAG & VDA 2019 PFMEA, #256)
 # ---------------------------------------------------------------------------
+
+# The 2019 PFMEA anchors these tests pin. Verbatim from the shipped JSON; the
+# handbook provenance of every string lives in CITATIONS.tsv (test_citations.py).
+_SEV10_2019 = (
+    "Affects safe operation of the vehicle and/or other vehicles, the health of "
+    "driver or passenger(s) or road users or pedestrians."
+)
+_DET10_2019 = "The failure mode will not or cannot be detected."
+_DET1_2019 = (
+    "Failure mode cannot be physically produced as-designed or processed, or "
+    "detection methods proven to always detect the failure mode or failure cause."
+)
+
 
 def test_rs01_default_scales_load_complete():
     scales = load_default_scales()
-    assert scales.name == "AIAG FMEA-4 (default)"
+    assert scales.name == "AIAG & VDA 2019 PFMEA (default)"
+    assert scales.source  # citation preserved
+    for factor in FACTORS:
+        scale = getattr(scales, factor)
+        assert set(scale) == set(range(1, 11))
+    assert getattr(scales, "severity")[10] == _SEV10_2019
+
+
+def test_rs02_to_frame_orders_10_to_1():
+    scales = load_default_scales()
+    frame = scales.to_frame("detection")
+    assert list(frame["Score"]) == list(range(10, 0, -1))
+    assert frame.iloc[0]["Meaning"] == _DET10_2019  # score 10
+    assert frame.iloc[-1]["Meaning"] == _DET1_2019  # score 1
+    assert len(frame) == 10
+
+
+# ---------------------------------------------------------------------------
+# RS-01b / RS-02b — legacy AIAG FMEA-4 scale (moved from old RS-01/RS-02, #256).
+# Losing this coverage would silently drop the FMEA-4 anchors that still ship.
+# ---------------------------------------------------------------------------
+
+def test_rs01b_legacy_fmea4_scales_load_complete():
+    scales = load_legacy_fmea4_scales()
+    assert scales.name == "AIAG FMEA-4 (legacy)"
     assert scales.source  # citation preserved
     for factor in FACTORS:
         scale = getattr(scales, factor)
@@ -54,13 +94,27 @@ def test_rs01_default_scales_load_complete():
     assert getattr(scales, "severity")[10] == "Safety hazard — no warning"
 
 
-def test_rs02_to_frame_orders_10_to_1():
-    scales = load_default_scales()
+def test_rs02b_legacy_fmea4_to_frame_orders_10_to_1():
+    scales = load_legacy_fmea4_scales()
     frame = scales.to_frame("detection")
     assert list(frame["Score"]) == list(range(10, 0, -1))
     assert frame.iloc[0]["Meaning"] == "No detection control exists"   # score 10
     assert frame.iloc[-1]["Meaning"] == "Almost certain detection"      # score 1
     assert len(frame) == 10
+
+
+# ---------------------------------------------------------------------------
+# Both bundled JSON files independently satisfy RatingScaleSet validation.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("path", [DEFAULT_SCALES_PATH, LEGACY_FMEA4_SCALES_PATH])
+def test_bundled_json_files_validate(path):
+    scales = load_scales_from_json(path.read_text(encoding="utf-8"))
+    assert scales.name  # a name field is present
+    for factor in FACTORS:
+        scale = getattr(scales, factor)
+        assert set(scale) == set(range(1, 11))  # ratings 1–10 complete
+        assert all(str(desc).strip() for desc in scale.values())  # none blank
 
 
 # ---------------------------------------------------------------------------

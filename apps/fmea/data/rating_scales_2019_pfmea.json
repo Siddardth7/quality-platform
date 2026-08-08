@@ -1,0 +1,40 @@
+{
+  "name": "AIAG & VDA 2019 PFMEA (default)",
+  "source": "AIAG & VDA FMEA Handbook, 1st Ed. (2019) — Severity: Table P1 \"Impact to End User (when known)\"; Occurrence: Table C2.3.1 \"Incidents per Thousand\" (Alternate PFMEA Occurrence); Detection: Table P3 \"Opportunity for Detection\". See apps/fmea/docs/ASSUMPTIONS_LOG.md Rule 6 and docs/CITATIONS.tsv.",
+  "severity": {
+    "10": "Affects safe operation of the vehicle and/or other vehicles, the health of driver or passenger(s) or road users or pedestrians.",
+    "9": "Noncompliance with regulations.",
+    "8": "Loss of primary vehicle function necessary for normal driving during expected service life.",
+    "7": "Degradation of primary vehicle function necessary for normal driving during expected service life.",
+    "6": "Loss of secondary vehicle function.",
+    "5": "Degradation of secondary vehicle function.",
+    "4": "Very objectionable appearance, sound, vibration, harshness, or haptics.",
+    "3": "Moderately objectionable appearance, sound, vibration, harshness, or haptics.",
+    "2": "Slightly objectionable appearance, sound, vibration, harshness, or haptics.",
+    "1": "No discernible effect."
+  },
+  "occurrence": {
+    "10": "> 100 per thousand / >/= 1 in 10",
+    "9": "50 per thousand / 1 in 20",
+    "8": "20 per thousand / 1 in 50",
+    "7": "10 per thousand / 1 in 100",
+    "6": "2 per thousand / 1 in 500",
+    "5": ".5 per thousand / 1 in 2000",
+    "4": ".1 per thousand / 1 in 10,000",
+    "3": ".01 per thousand / 1 in 100,000",
+    "2": "< .001 per thousand / 1 in 1,000,000",
+    "1": "Failure is eliminated through prevention control"
+  },
+  "detection": {
+    "10": "The failure mode will not or cannot be detected.",
+    "9": "The failure mode is not easily detected through random or sporadic audits.",
+    "8": "Human inspection (visual, tactile, audible), or use of manual gauging (attribute or variable) that should detect the failure mode or failure cause.",
+    "7": "Machine-based detection (automated or semi-automated with notification by light, buzzer, etc.), or use of inspection equipment such as a coordinate measuring machine that should detect failure mode or failure cause.",
+    "6": "Human inspection (visual, tactile, audible), or use of manual gauging (attribute or variable) that will detect the failure mode or failure cause (including product sample checks).",
+    "5": "Machine-based detection (semi-automated with notification by light, buzzer, etc.), or use of inspection equipment such as a coordinate measuring machine that will detect failure mode or failure cause (including product sample checks).",
+    "4": "Machine-based automated detection method that will detect the failure mode downstream, prevent further processing or system will identify the product as discrepant and allow it to automatically move forward in the process until the designated reject unload area. Discrepant product will be controlled by a robust system that will prevent outflow of the product from the facility.",
+    "3": "Machine-based automated detection method that will detect the failure mode in-station, prevent further processing or system will identify the product as discrepant and allow it to automatically move forward in the process until the designated reject unload area. Discrepant product will be controlled by a robust system that will prevent outflow of the product from the facility.",
+    "2": "Machine-based detection method that will detect the cause and prevent the failure mode (discrepant part) from being produced.",
+    "1": "Failure mode cannot be physically produced as-designed or processed, or detection methods proven to always detect the failure mode or failure cause."
+  }
+}

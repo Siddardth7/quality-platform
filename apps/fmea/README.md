@@ -76,7 +76,7 @@ The **Risk Priority Number (RPN)** is the core metric of Process FMEA. It is cal
 RPN = Severity (S) × Occurrence (O) × Detection (D)
 ```
 
-Each factor is scored on a **1–10 integer scale** per AIAG FMEA-4:
+Each factor is scored on a **1–10 integer scale**. The app's default anchors are the **AIAG & VDA 2019 PFMEA** scale (Severity, Occurrence, and Detection tables from the 2019 handbook); **AIAG FMEA-4 (2008)** is selectable as a legacy scale and custom scales can be uploaded — see [`docs/FMEA_input_schema.md`](docs/FMEA_input_schema.md) and `docs/ASSUMPTIONS_LOG.md` RULE 6. The illustrative anchors below use the FMEA-4 scale:
 
 | Score | Severity (S) — Impact of the failure effect | Occurrence (O) — Likelihood of the cause | Detection (D) — Ability to catch before customer |
 |:---:|---|---|---|

@@ -6,6 +6,20 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- **FMEA default S/O/D rating scale is now the AIAG & VDA 2019 PFMEA scale (#256).** The 30
+  anchors ship as `apps/fmea/data/rating_scales_2019_pfmea.json` — Severity from Table P1
+  ("Impact to End User"), Occurrence from Table C2.3.1 ("Incidents per 1000 items/vehicles"),
+  Detection from Table P3 ("Opportunity for Detection") — each line-pinned in
+  `apps/fmea/docs/CITATIONS.tsv` and re-verified against the handbook by `test_citations.py`.
+  This closes the mismatch flagged in #197: the default scale and the shipped Action Priority
+  table (RULE 7) now come from the same handbook and are calibrated together. **AIAG FMEA-4 is
+  retained as a selectable legacy option** (`data/rating_scales.json`, now named
+  `AIAG FMEA-4 (legacy)`, loaded by `load_legacy_fmea4_scales()`); the rating-scale sidebar
+  selector is now three-way (2019 default / FMEA-4 legacy / custom upload). **No math changed** —
+  RPN and AP are pure functions of the integer S/O/D scores; only what a score *means* changed.
+
 ### Fixed
 
 - **FMEA standards provenance: the "AIAG FMEA 5th Edition" does not exist (#197).** The 2019
