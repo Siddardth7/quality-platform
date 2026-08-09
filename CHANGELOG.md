@@ -8,6 +8,21 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **The engines are now a published, documented API surface (#261, M1-2).** Six packages —
+  `quality-core`, `fmea-app`, `spc-app`, `msa-app`, `controlplan-app`, `secom-app` — each ship
+  an `API.md` next to their `pyproject.toml`, listing every stable symbol with its kind,
+  purpose, source line, full signature, and I/O types (types owned by another package are
+  cross-referenced, never restated). `mcp-app` is excluded: it is the consumer, not a
+  published engine. Four modules that had no declared boundary gained an `__all__` —
+  `quality_core.scoring`, `fmea_app.rpn_engine`, `fmea_app.rating_scales`,
+  `controlplan_app.connector`; the other published modules already had one. Each `API.md`
+  carries a machine-checkable `<!-- STABLE SYMBOLS: <module> -->` manifest block per module,
+  and a new `tests/test_api_surface.py` per package asserts `__all__` and manifest are set-equal
+  in **both** directions, so drift fails CI whichever way it happens (the `CITATIONS.tsv`
+  precedent, adapted to markdown). `spc-app`'s `API.md` names
+  `spc_app.exporter.ControlChartReport` and `spc_app.control_plan_config.SPCViewConfig`
+  explicitly as UI-report internals that are deliberately **not** part of the stable surface.
+  **No behaviour change** — this documents the contract that already existed.
 - **MCP server scaffold: `apps/mcp` (#260, M1-1).** A new workspace app, `mcp_app`, hosting a
   FastMCP server (`fastmcp==3.4.6`, exact pin because the API is new and still moving) served
   over stdio — the transport Claude Desktop / Cursor / Claude Code launch. It ships only the
@@ -17,6 +32,18 @@ All notable changes to the Quality Platform are documented here. The format foll
   per-surface CI coverage gate holds `mcp_app.server` at 100% line+branch from day one, and
   `apps/mcp/mcp_app` joins `mypy.ini`'s `files =`. Namespace convention recorded for M1-3+:
   meta tools stay flat and unprefixed, engine tools take a `<domain>_` prefix.
+
+### Changed
+
+- **`fmea-app` and `controlplan-app` are now buildable wheels (#261).** Both dropped
+  `[tool.uv] package = false` and gained a hatchling `[build-system]` plus
+  `[tool.hatch.build.targets.wheel]`, matching the treatment `spc-app`/`secom-app` (#204) and
+  `msa-app` (#231) already had. `uv build --package <name>` now produces a wheel for all six
+  published packages. Config-only: both apps still run in place via `streamlit run`.
+- **Minimal PyPI metadata on the six published packages (#261).** Each `[project]` table gained
+  an `authors` entry. `license` is deliberately **not** set — the repo has no `LICENSE` file
+  yet, and a license identifier without one would be a false claim; `classifiers` and
+  `[project.urls]` are deferred to M6 alongside the actual upload.
 
 ## [0.13.0] - 2026-08-08
 
