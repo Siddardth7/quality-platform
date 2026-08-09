@@ -6,7 +6,7 @@ then the one for the app you are touching.
 
 ## What this repo is
 
-A **uv workspace monorepo** for manufacturing quality tooling: five Streamlit/engine apps
+A **uv workspace monorepo** for manufacturing quality tooling: six apps
 over one shared core. Python 3.11, workspace version `0.13.0`.
 
 ```
@@ -16,6 +16,7 @@ apps/spc/                Statistical Process Control (control charts, capability
 apps/msa/                Measurement System Analysis (crossed Gage R&R)
 apps/controlplan/        Control Plan (+ FMEA -> Control Plan connector)
 apps/secom/              SECOM semiconductor case study — engine-only, no UI (#206)
+apps/mcp/                MCP server — exposes engines as tools (FastMCP, stdio) (#260)
 shell/ + app.py          unified Streamlit shell mounting FMEA, SPC, Control Plan, Gage R&R
 ```
 
@@ -45,7 +46,7 @@ uv run mypy
 uv run pytest --cov
 ```
 
-Plus a **core dependency contract** (no Streamlit chain in `quality-core`) and **eight
+Plus a **core dependency contract** (no Streamlit chain in `quality-core`) and **nine
 per-surface coverage gates**, each at `--cov-fail-under=100` with branch coverage on
 (`[tool.coverage.run] branch=true`):
 
@@ -56,6 +57,7 @@ per-surface coverage gates**, each at `--cov-fail-under=100` with branch coverag
 | Control Plan | `controlplan_app.{connector,schema}` |
 | MSA | `msa_app.{gage_rr_engine,schema,exporter}` |
 | SECOM | all seven `secom_app` engine modules (no `pages/` exclusion — SECOM has no UI) |
+| MCP | `mcp_app.server` |
 
 Streamlit `pages/` and entry scripts are excluded from app gates — they need a runtime.
 
