@@ -107,7 +107,22 @@ Violating these has cost real rework.
 - **Negative controls are mandatory**, and a control that does not fail is a FINDING.
   Mutate the fix and prove the tests are load-bearing.
 - **Audit docs by `git grep <pattern>`, never by a hand-listed set of files.** Patterns have
-  under-matched on four consecutive PRs — a line-wrapped phrase defeated one (issue #235).
+  under-matched on four consecutive PRs — a line-wrapped phrase defeated one (issue #235). Build
+  every doc-audit pattern this way:
+  1. **Shortest stable token first.** Grep a bare token that cannot itself be wrapped by prose —
+     an issue number (`#205`), a short identifier (`PR 3`) — never a multi-word phrase. Triage
+     every hit by hand; a token match is a candidate, not a verdict.
+  2. **If a phrase is unavoidable, normalize before matching.** Hard-wrapped Markdown (especially
+     blockquoted `>` continuation lines) can split any multi-word phrase at any point. Join lines
+     and strip `> ` prefixes first, then grep the normalized text:
+     `sed -E 's/^>[[:space:]]?//' <file> | tr '\n' ' ' | grep -o '<phrase>'`
+     — never grep the raw file for a phrase longer than one stable token.
+  3. **Self-check the pattern before trusting it.** Construct one synthetic line-wrapped instance
+     of the exact phrase being hunted (mimic the worst case: split mid-phrase, `> `-prefixed
+     continuation) and confirm the pattern — raw and normalized — behaves as expected: the naive
+     single-line regex must FAIL to match it, and the normalized/token approach must MATCH it. A
+     doc pattern deserves a negative control exactly as much as a test does. Record the check (the
+     fixture line and the two `grep` invocations) in `.pipeline/spec.md` next to the pattern.
 - **A subagent that dies mid-run can leave mutation residue.** After any agent failure,
   check `git status` and grep for `# MUTATION` before branching or committing.
 - **One agent, one worktree. Never run two agents in the same checkout.** Branch state is

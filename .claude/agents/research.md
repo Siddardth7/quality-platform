@@ -36,7 +36,13 @@ Given a feature request or GitHub issue:
    - Test obligations: what the Tester must cover and which coverage bar applies
      (quality_core.io 100%, quality_core.schema 100% line+branch, SPC ≥95%).
    - Definition of Done: reference docs/DEFINITION_OF_DONE.md (#43).
-4. Put anything ambiguous under **OPEN QUESTIONS** at the very top. Do not guess.
+4. Whenever the task requires finding every place a stale doc reference exists (a doc-audit), build
+   the `git grep` pattern per `CLAUDE.md`'s "Audit docs by git grep" rule: shortest stable token
+   first, normalize-then-grep for any unavoidable phrase, and a self-check negative control against
+   a synthetic line-wrapped instance of the phrase. Record the pattern, the self-check fixture, and
+   its pass/fail result in the spec under a `## Docs-audit patterns` section. A pattern with no
+   recorded self-check is not done.
+5. Put anything ambiguous under **OPEN QUESTIONS** at the very top. Do not guess.
 
 Keep the spec tight and self-contained — the Coder reads this and nothing else. Invent no requirements
 that were not asked for.

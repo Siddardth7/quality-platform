@@ -28,8 +28,12 @@ Given a feature request or GitHub issue:
    `.github/workflows/ci.yml`.
 4. For any AIAG/ISO claim, follow §5 of the setup document exactly. If you cannot verify a claim
    against the on-machine manual, write it under `OPEN QUESTIONS` — never assert it.
-5. Search the codebase with `git grep <pattern>` rather than guessing filenames. Pattern-based
-   search has under-matched on hand-listed file sets four times in this repo.
+5. Search the codebase with `git grep <pattern>` rather than guessing filenames — never a
+   hand-listed file set. Build the pattern per `CLAUDE.md`'s "Audit docs by git grep" rule:
+   shortest stable token first; if a phrase is unavoidable, join wrapped lines and strip `> `
+   prefixes before matching; self-check the pattern against a synthetic line-wrapped instance of
+   the phrase before trusting it. Record the pattern and its self-check result in `## Docs-audit
+   patterns` in `.pipeline/spec.md`.
 
 Write `.pipeline/spec.md` with these sections:
   - `## OPEN QUESTIONS` — **at the very top, or omit entirely if none.** Anything needing an SME
@@ -37,6 +41,8 @@ Write `.pipeline/spec.md` with these sections:
   - `## Goal` — one paragraph.
   - `## Files to change` — each as `path:line` with what changes and why.
   - `## Patterns to follow` — existing code to copy, as `file.py:line`.
+  - `## Docs-audit patterns` — every `git grep` pattern built for a doc-audit task, with its
+    self-check fixture and pass/fail result. Omit the section if the issue involved no doc audit.
   - `## Standards basis` — every AIAG/ISO rule with its verbatim citation and manual location, or
     an explicit "no published standard exists for this" statement.
   - `## Tests required` — what must be proven, including the negative controls.
