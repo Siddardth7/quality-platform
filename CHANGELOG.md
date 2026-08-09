@@ -6,6 +6,18 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **MCP server scaffold: `apps/mcp` (#260, M1-1).** A new workspace app, `mcp_app`, hosting a
+  FastMCP server (`fastmcp==3.4.6`, exact pin because the API is new and still moving) served
+  over stdio — the transport Claude Desktop / Cursor / Claude Code launch. It ships only the
+  two meta tools that describe the server process itself, `health` and `version`; no engine
+  tool lands here yet. It is an installed distribution (hatchling, like `msa-app`/`secom-app`)
+  so the `quality-mcp` console entry point resolves: `uvx --from . quality-mcp`. A ninth
+  per-surface CI coverage gate holds `mcp_app.server` at 100% line+branch from day one, and
+  `apps/mcp/mcp_app` joins `mypy.ini`'s `files =`. Namespace convention recorded for M1-3+:
+  meta tools stay flat and unprefixed, engine tools take a `<domain>_` prefix.
+
 ## [0.13.0] - 2026-08-08
 
 ### Changed
