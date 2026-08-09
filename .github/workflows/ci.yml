@@ -193,3 +193,15 @@ jobs:
           --cov=secom_app.doe_screening
           --cov-report=term-missing
           --cov-fail-under=100
+
+      # MCP coverage gate: the FastMCP server scaffold (#260) — health/version meta tools
+      # and the stdio entry point — is new testable surface and must stay fully covered
+      # from day one so every later M1 tool lands on an already-green foundation. No
+      # pages/ exclusion is needed (there is no UI); mcp_app.server carries the logic
+      # (the __init__ version constant is covered on import), mirroring the MSA/SECOM gates.
+      - name: MCP coverage gate
+        run: >
+          uv run pytest apps/mcp
+          --cov=mcp_app.server
+          --cov-report=term-missing
+          --cov-fail-under=100
