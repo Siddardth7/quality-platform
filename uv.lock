@@ -1605,12 +1605,14 @@ version = "0.13.0"
 source = { editable = "apps/mcp" }
 dependencies = [
     { name = "fastmcp" },
+    { name = "fmea-app" },
     { name = "quality-core" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = "==3.4.6" },
+    { name = "fmea-app", editable = "apps/fmea" },
     { name = "quality-core", editable = "packages/quality-core" },
 ]
 
