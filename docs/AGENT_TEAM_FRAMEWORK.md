@@ -26,14 +26,15 @@ branch without the SME.**
 | # | Role | Implemented as | Model | Reads | Writes |
 |---|------|----------------|-------|-------|--------|
 | 0 | **Stakeholder / SME** | Human (Sid) | — | everything | approvals, merges, direction |
-| 1 | **Team Lead / Orchestrator** | `.claude/commands/ship.md` (+ `promote`, `release`) run by the **main daily session (Opus 4.8)** | Opus 4.8 | all `.pipeline/` files | branches, PRs (via `gh`), sequencing |
-| 2 | **Research & Planning** | `.claude/agents/research.md` | Opus 4.8 | codebase, standards, web | `.pipeline/spec.md` |
-| 3 | **Coding** | `.claude/agents/coder.md` | Opus 4.8 → Fable 5 on limits | `spec.md`, codebase | source changes + `.pipeline/changes.md` |
-| 4 | **Testing / QA** | `.claude/agents/tester.md` | Opus 4.8 → Fable 5 on limits | `changes.md`, `spec.md`, code | tests + `.pipeline/test-results.md` |
-| 5 | **Reviewer** | `.claude/agents/reviewer.md` (read-only) | Opus 4.8 | all `.pipeline/` + `git diff` | `.pipeline/review.md` verdict |
+| 1 | **Team Lead / Orchestrator** | `.claude/commands/ship.md` (+ `promote`, `release`) run by the **main daily session** | Opus 5 | all `.pipeline/` files | branches, PRs (via `gh`), sequencing |
+| 2 | **Research & Planning** | `.claude/agents/research.md` | `claude-opus-5` | codebase, standards, web | `.pipeline/spec.md` |
+| 3 | **Coding** | `.claude/agents/coder.md` | `claude-opus-5` → Sonnet 5, then Fable 5 on limits | `spec.md`, codebase | source changes + `.pipeline/changes.md` |
+| 4 | **Testing / QA** | `.claude/agents/tester.md` | `claude-opus-5` → Sonnet 5, then Fable 5 on limits | `changes.md`, `spec.md`, code | tests + `.pipeline/test-results.md` |
+| 5 | **Reviewer** | `.claude/agents/reviewer.md` (read-only) | `claude-opus-5` | all `.pipeline/` + `git diff` | `.pipeline/review.md` verdict |
+| 6 | **Auditor** | `.claude/agents/auditor.md` (read-only), run by `.claude/commands/audit.md` | `claude-opus-5` | codebase, standards, web | `.pipeline/audit-<scope>.md` findings |
 
 **Why the Team Lead is a command, not a subagent.** In Claude Code, a subagent cannot spawn other
-subagents — only the main session can delegate. So the Team Lead *is* the main daily session (Opus 4.8)
+subagents — only the main session can delegate. So the Team Lead *is* the main daily session (Opus 5)
 executing an orchestrator command; that command is what invokes Research → Coder → Tester → Reviewer in order.
 This is a hard platform constraint, and it is also the cleanest design: the conductor sits in the main
 loop where the `Task`/delegation tool lives.
@@ -42,27 +43,37 @@ loop where the `Task`/delegation tool lives.
 prefers conclusions it could just patch. Stripping edit access forces an honest verdict. This is a
 structural guarantee, not a style choice.
 
+**Why the Auditor is read-only too — and stronger.** Same bias argument, plus a process one: every
+fix must travel through `/ship` (research → code → test → review) so it lands under CI and the
+coverage gates. An auditor that patches what it finds bypasses the entire pipeline, and the fixes
+arrive ungated. The Auditor finds and proves; the pipeline fixes. It also never files GitHub issues
+directly — it *proposes* themes, and the SME approves before anything reaches the backlog.
+
+**Reviewer vs Auditor.** The Reviewer judges *one change* against *one spec*, inside a `/ship` run.
+The Auditor judges *the standing codebase* against *external standards*, outside any feature work.
+Different question, different cadence — hence a separate role rather than a wider Reviewer.
+
 ---
 
-## 3. Model routing — built with Fable 5, run on Opus 4.8
+## 3. Model routing — run on Opus 5
 
-**Two different models, two different jobs:**
-- **Fable 5 is the build-time model.** The team — this framework, the agent files, the commands — is
-  *authored* with Fable 5. Fable 5 does not run the day-to-day pipeline.
-- **Opus 4.8 is the daily driver.** When the team runs, the main session (which *is* the Team Lead)
-  runs on Opus 4.8, and the subagents run per the table below.
+**Opus 5 is the daily driver.** When the team runs, the main session (which *is* the Team Lead) runs on
+Opus 5, and the subagents run per the table below.
 
 | Role | Runtime model | Why |
 |------|---------------|-----|
-| Team Lead, Research, Reviewer | **Opus 4.8** | Highest-leverage reasoning — planning sets the ceiling, review is the last gate, orchestration must not drop a step. Each runs roughly once per feature. |
-| Coder, Tester | **Opus 4.8** by default, **Fable 5** as fallback | Run on Opus 4.8 for top quality; when you're bumping Opus usage limits, switch these two (the token-heavy roles) to Fable 5 to keep shipping. |
+| Team Lead, Research, Reviewer, **Auditor** | **`claude-opus-5`** | Highest-leverage reasoning — planning sets the ceiling, review is the last gate, orchestration must not drop a step, and an audit that misreads a handbook constant is worse than no audit. Each runs roughly once per feature (the Auditor, once per scope). |
+| Coder, Tester | **`claude-opus-5`** by default; **`claude-sonnet-5`**, then **`claude-fable-5`**, as fallback | Run on Opus 5 for top quality; when you're bumping Opus usage limits, step these two (the token-heavy roles) down to keep shipping. |
 
-**How the models are pinned:** subagent frontmatter uses `model: opus`, which resolves to the account's
-current Opus (4.8). Because the main daily session runs on Opus 4.8, `inherit` would also resolve to
-Opus 4.8 — but we pin `opus` explicitly so routing holds regardless of the session model. To pin the
-exact build, use `model: claude-opus-4-8`. **The Fable-5 fallback for Coder/Tester** is operational:
-when Opus limits bite, change those two agents' frontmatter to `model: claude-fable-5` (or run them in a
-Fable 5 session), then switch back. The reasoning roles stay on Opus 4.8.
+**How the models are pinned:** subagent frontmatter pins the **full model ID** —
+`model: claude-opus-5`. **Never use the bare `opus` alias: it may resolve to a degraded 4.8.**
+`.claude/agents/coder.md` and `.claude/agents/tester.md` carry that warning inline, next to their
+fallback chain. Do not "simplify" a full ID back to an alias, and do not rely on `inherit` — an
+explicit pin holds regardless of the session model.
+
+> **Never make a verifier weaker than the producer.** Whatever the Coder runs on, the Tester and
+> Reviewer must be at least as strong. If you step the Coder down under usage limits, that is fine;
+> stepping the Tester or Reviewer *below* the Coder is not.
 
 ---
 
@@ -86,7 +97,7 @@ flowchart LR
 
 | Branch | Role | Receives from | Gate to leave |
 |--------|------|---------------|---------------|
-| `feat/<issue>` | one issue's work, ephemeral, branched off `dev` | local (Coder) | Reviewer verdict `SHIP` + PR opened |
+| `feat/<issue>` | one issue's work, ephemeral, branched off `test` | local (Coder) | Reviewer verdict `SHIP` + PR opened |
 | **`test`** | the **testing branch** — CI + QA run here | `feat/*` via PR | CI `gate` green on the merged PR |
 | **`dev`** | **integration** — a whole version accumulates and sits here | `test` via `/promote` | version scope complete **and** all coverage bars met |
 | **`main`** | **production** — tagged releases only | `dev` via `/release` | SME approval + tag → deploy |
@@ -111,7 +122,7 @@ sequenceDiagram
     participant T as Tester
     participant Rv as Reviewer
     SME->>Lead: /ship W06-2 (or a feature description)
-    Lead->>Lead: branch feat/W06-2 off dev · clear .pipeline/
+    Lead->>Lead: branch feat/W06-2 off test · clear .pipeline/
     Lead->>R: delegate
     R-->>Lead: .pipeline/spec.md (OPEN QUESTIONS? → stop)
     Lead->>C: delegate
@@ -124,7 +135,7 @@ sequenceDiagram
     SME->>SME: review, merge to test → /promote → (version end) /release
 ```
 
-1. **Local (Coder).** Team Lead branches `feat/<issue>` off `origin/dev`, runs the pipeline, code is written locally.
+1. **Local (Coder).** Team Lead branches `feat/<issue>` off `origin/test` — the PR target — runs the pipeline, code is written locally. Base on `origin/test`, **not** `origin/dev`: `dev` carries a release lead that causes ~14-file phantom conflicts in the PR against `test`.
 2. **PR → `test`.** On a `SHIP` verdict, Team Lead opens a PR into `test`. Tests live with the code; CI runs the gate on the PR. SME merges when green.
 3. **Promote → `dev`.** `/promote` opens a `test → dev` PR once CI is green — the tested feature joins integration. `dev` accumulates the version's features and is where coverage is tracked.
 4. **Release → `main`.** When the version's issue set is complete on `dev` and every coverage bar holds, `/release vX.Y.0` opens a `dev → main` PR. On SME approval + merge: tag `vX.Y.0`; Streamlit Cloud deploys `main` to production.
@@ -153,199 +164,79 @@ start of every `/ship` run so no agent reads a stale file from the last feature.
 
 ## 7. Agent definitions — live in `.claude/agents/`
 
-> **These files exist in this repo** — `.claude/agents/` and `.claude/commands/` are version-controlled
-> and are the canonical team. The listings below are reference copies; if they ever drift, the files win.
+> **The files are authoritative and are not reproduced here.** `.claude/agents/` is
+> version-controlled and *is* the canonical team. Earlier revisions of this document pasted full
+> copies; they drifted — a stale copy sent feature branches off the wrong base and taught the bare
+> `opus` alias this repo explicitly forbids. Read the files. Summaries below are navigational only.
 
-### `.claude/agents/research.md`
+Every agent pins `model: claude-opus-5` (see §3 — never the bare `opus` alias).
 
-```markdown
+| Agent | Stage | Tools | Writes | Hard constraint |
+|---|---|---|---|---|
+| [`research.md`](../.claude/agents/research.md) | 1 | `Read, Grep, Glob, Write, WebSearch, WebFetch, Bash` | `.pipeline/spec.md` | Never writes implementation code. Verifies every standards claim against a **primary** source; flags anything checkable only against a third-party reproduction. |
+| [`coder.md`](../.claude/agents/coder.md) | 2 | `Read, Write, Edit, Grep, Glob, Bash` | source changes + `.pipeline/changes.md` | Implements *exactly* the spec — no scope expansion. |
+| [`tester.md`](../.claude/agents/tester.md) | 3 | `Read, Write, Edit, Grep, Glob, Bash` | tests + `.pipeline/test-results.md` | **Never fixes the code.** Writes negative controls and proves tests are load-bearing. |
+| [`reviewer.md`](../.claude/agents/reviewer.md) | 4 | `Read, Grep, Glob, Bash` — **no `Write`, no `Edit`** | `.pipeline/review.md` (Bash heredoc) | Read-only final gate. **The tool restriction *is* the gate** — grant it `Write` and the review becomes theatre. |
+
+`coder.md` and `tester.md` additionally carry their fallback chain inline
+(`claude-sonnet-5`, then `claude-fable-5`) with the bare-alias warning.
+
+### `.claude/agents/auditor.md`
+
+> **The file is authoritative — it is not reproduced here.** At ~97 lines with three scope
+> definitions and an explicit out-of-scope list, pasting it would create a second copy to drift.
+> Read [`.claude/agents/auditor.md`](../.claude/agents/auditor.md) directly.
+
+| | |
+|---|---|
+| **Frontmatter** | `tools: Read, Grep, Glob, Bash, WebSearch, WebFetch` · `model: claude-opus-5` — no `Write`, no `Edit` |
+| **Writes** | `.pipeline/audit-<scope>.md` only, via Bash heredoc (same read-only pattern as the Reviewer) |
+| **Scopes** | `domain` (AIAG/VDA fidelity) · `security` (deps, secrets, trust boundaries, dead code) · `architecture` (coupling, boundary violations, Streamlit leakage into engines) |
+| **Out of scope** | The Streamlit presentation layer (deleted by the web migration) and coverage findings on already-100%-gated surfaces. See `docs/research/web-platform-migration.md` §2.2. |
+| **Never** | edits code, files GitHub issues, or fixes what it finds |
+
+Findings are severity-ranked (`HIGH` / `MEDIUM` / `LOW` / `UNVERIFIED`) and grouped into **themes**,
+each sized to one `/ship` rung. One issue per theme — a 24k-LOC audit filed finding-by-finding would
+swamp the milestone.
+
 ---
-name: research
-description: >
-  Stage 1 of the ship pipeline. Investigates the codebase, the relevant AIAG/quality
-  standards, and prior art, then writes a tight implementation spec to .pipeline/spec.md.
-  First stage, before the coder. Never writes implementation code.
-tools: Read, Grep, Glob, Write, WebSearch, WebFetch, Bash
-model: opus
----
-You are the Research & Planning specialist for the Quality Platform. You do NOT write implementation code.
 
-Given a feature request or GitHub issue:
-1. Read the relevant codebase to understand current patterns, the shared `quality_core` contracts
-   (schema / io / theme), and the existing tests. Name the exact files a coder should copy patterns
-   from (file:line).
-2. When the task touches a quality standard (AIAG-VDA FMEA, AIAG SPC/MSA, Cp/Cpk), verify each rule
-   against a PRIMARY source and record it. Never invent thresholds or tables. Flag any claim that can
-   only be checked against a third-party reproduction.
-3. Write the spec to `.pipeline/spec.md` with these sections:
-   - Context & research: what exists today, patterns to follow (file:line), standards references.
-   - Files to create or modify (exact paths).
-   - Interfaces / function signatures needed.
-   - Edge cases the implementation must handle.
-   - Test obligations: what the Tester must cover and which coverage bar applies
-     (quality_core.io 100%, quality_core.schema 100% line+branch, SPC ≥95%).
-   - Definition of Done: reference docs/DEFINITION_OF_DONE.md (#43).
-4. Put anything ambiguous under **OPEN QUESTIONS** at the very top. Do not guess.
+## 8. Orchestrator commands — live in `.claude/commands/`
 
-Keep the spec tight and self-contained — the Coder reads this and nothing else. Invent no requirements
-that were not asked for.
+> **The files are authoritative and are not reproduced here** — same reason as §7.
+
+| Command | What it does | Base / target |
+|---|---|---|
+| [`ship.md`](../.claude/commands/ship.md) | Runs the full pipeline (research → code → test → review) on a fresh feature branch and opens a PR. **Never merges.** | branch off `origin/test` → PR into `test` |
+| [`promote.md`](../.claude/commands/promote.md) | Promotes green, tested features from `test` to `dev` (integration). | PR `test` → `dev` |
+| [`release.md`](../.claude/commands/release.md) | Cuts a version release and tags it for production. | PR `dev` → `main`, tag `vX.Y.0` |
+| [`audit.md`](../.claude/commands/audit.md) | Read-only audit → SME triage → approved themes filed as issues. **Never fixes code.** | no branch, no PR |
+
+`ship.md` also carries a **"Standing rules learned the hard way"** block that no summary replaces —
+never claiming an unrun gate or mutation result, restoring by content hash rather than
+`git checkout` (which reverts to the base branch and has destroyed work in this repo), clearing
+`__pycache__` between mutation runs, and never staging the untracked `spikes/` / `marketing/`
+scratch dirs. **Read it before running the pipeline.**
+
+### `.claude/commands/audit.md`
+
+Runs **outside** the feature pipeline — no branch, no PR, no code change. It orchestrates the
+read-only Auditor, then converts approved findings into issues that each re-enter through `/ship`.
+
+```
+/audit domain | security | architecture
+   │
+   ├─ 0 · prep — clean tree required (a dirty tree makes findings unattributable)
+   ├─ 1 · delegate to the `auditor` subagent → .pipeline/audit-<scope>.md
+   ├─ 2 · Team Lead reads it — spot-checks file:line, demands primary sources,
+   │       drops out-of-scope findings, right-sizes themes
+   ├─ 3 · present to the SME → STOP for approval          ← the gate
+   ├─ 4 · gh issue create for approved themes only (label: audit)
+   └─ 5 · hand off — recommend /ship order, start nothing
 ```
 
-### `.claude/agents/coder.md`
-
-```markdown
----
-name: coder
-description: >
-  Stage 2 of the ship pipeline. Implements exactly the spec at .pipeline/spec.md on the
-  current feature branch, then summarizes changes to .pipeline/changes.md. After research,
-  before tester.
-tools: Read, Write, Edit, Grep, Glob, Bash
-model: opus
-# Fallback: switch to `claude-fable-5` when Opus usage limits bite.
----
-You are the Implementation specialist for the Quality Platform.
-
-1. Read `.pipeline/spec.md` in full. If it contains OPEN QUESTIONS, STOP and surface them — do not guess.
-2. Implement exactly what the spec describes on the current git branch. Follow the patterns it names.
-   Reuse `quality_core` (schema / io / theme) instead of duplicating. Do not add features the spec did
-   not ask for, and do not refactor unrelated code.
-3. Match the repo conventions: ruff-clean, mypy-strict, one logical change. Do not weaken the gate.
-4. Write a short summary to `.pipeline/changes.md`: which files changed, what each change does, and
-   anything the Tester should focus on.
-
-You write code that matches the repo. You do NOT write tests (Tester's job) and you do NOT judge your
-own work (Reviewer's job).
-```
-
-### `.claude/agents/tester.md`
-
-```markdown
----
-name: tester
-description: >
-  Stage 3 of the ship pipeline. Writes and runs tests for the changes in .pipeline/changes.md,
-  checks coverage, and reports to .pipeline/test-results.md. Never fixes the code. After coder,
-  before reviewer.
-tools: Read, Write, Edit, Grep, Glob, Bash
-model: opus
-# Fallback: switch to `claude-fable-5` when Opus usage limits bite.
----
-You are the Test / QA specialist for the Quality Platform.
-
-1. Read `.pipeline/changes.md` and `.pipeline/spec.md` to see what was built and what it must satisfy.
-2. Read the changed files. Write tests covering the happy path, every edge case the spec named, and at
-   least one failure case. Match the repo's framework (pytest) and existing test style.
-3. Run the full gate:
-   - `uv run ruff check .`
-   - `uv run mypy`
-   - `uv run pytest --cov`
-   Confirm the relevant coverage bar holds (quality_core.io 100%, quality_core.schema 100% line+branch,
-   SPC ≥95%).
-4. If anything fails, write the failures and coverage gaps to `.pipeline/test-results.md` and STOP.
-   Do NOT fix the code — that breaks the separation of duties.
-5. If all pass, record the summary (tests added, coverage numbers) in `.pipeline/test-results.md`.
-
-You test behavior, not implementation details. A failure pauses the pipeline for the Reviewer or the
-SME; you never patch around it.
-```
-
-### `.claude/agents/reviewer.md`
-
-```markdown
----
-name: reviewer
-description: >
-  Stage 4 of the ship pipeline. Read-only final gate. Reads the spec, changes, test results, and
-  git diff and writes a SHIP / NEEDS WORK / BLOCK verdict to .pipeline/review.md. Cannot edit code.
-tools: Read, Grep, Glob, Bash
-model: opus
----
-You are the senior Reviewer for the Quality Platform. You are READ-ONLY. You do not edit code or tests.
-
-1. Read `.pipeline/spec.md`, `.pipeline/changes.md`, and `.pipeline/test-results.md`.
-2. Run `git diff` and `git diff --stat` to see the actual changes.
-3. Assess:
-   - Does the code do exactly what the spec said — no more, no less?
-   - Are the tests meaningful (real behavior) or superficial?
-   - Any correctness, security (CSV-injection escaping, input trust boundaries), performance, or
-     standards-fidelity issue? For any AIAG/quality claim, is it backed by a primary source, not a
-     third-party copy?
-   - Does it honor the Definition of Done (#43) and the coverage gates?
-4. Write a verdict to `.pipeline/review.md`:
-   `VERDICT: SHIP` | `VERDICT: NEEDS WORK` | `VERDICT: BLOCK`
-   For NEEDS WORK or BLOCK, list exactly what to fix and where (file:line).
-
-Be the last line of defense. Green tests are not the same as correct behavior — if the code is wrong,
-say BLOCK.
-```
-
----
-
-## 8. Orchestrator commands — copy into `.claude/commands/`
-
-### `.claude/commands/ship.md` — the Team Lead
-
-```markdown
----
-description: Team Lead — run the full feature pipeline (research → code → test → review) on a fresh feature branch and open a PR into `test`. Never merges.
----
-You are the **Team Lead** for the Quality Platform. Orchestrate the pipeline for: $ARGUMENTS
-
-Rules: run stages in order, never skip, confirm each handoff file exists before the next stage, and
-NEVER merge or push to a protected branch. The SME (Sid) is the final gate.
-
-0. Prep. Clear `.pipeline/` of stale files. `git fetch`; ensure a clean tree; base new work on
-   `origin/dev`: `git switch -c feat/<slug> origin/dev`.
-1. Research. Delegate to the `research` subagent with the request. Wait for `.pipeline/spec.md`.
-   If it has OPEN QUESTIONS, STOP and show them to the SME.
-2. Code. Delegate to the `coder` subagent. Wait for `.pipeline/changes.md`.
-3. Test. Delegate to the `tester` subagent. Wait for `.pipeline/test-results.md`.
-   If tests or coverage failed, STOP and show the SME.
-4. Review. Delegate to the `reviewer` subagent. Read `.pipeline/review.md`.
-5. Gate.
-   - SHIP → commit (conventional message + `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`),
-     push `feat/<slug>`, open a PR into `test` with `gh` (link the issue; paste the review verdict +
-     coverage into the body). Report the PR URL and branch-ladder status. DO NOT merge.
-   - NEEDS WORK / BLOCK → STOP. Summarize the fixes and leave the branch for the SME.
-
-Report the final verdict and the exact next human action. Do not touch `dev` or `main`.
-```
-
-### `.claude/commands/promote.md`
-
-```markdown
----
-description: Team Lead — promote green, tested features from `test` to `dev` (integration).
----
-You are the Team Lead. Promote validated work from `test` to `dev`.
-
-1. Confirm CI is green on the latest `test` commit (`gh run list --branch test`).
-2. Confirm every PR merged into `test` since the last promotion carried a SHIP review.
-3. Open a PR `test → dev` summarizing the features included and current coverage numbers.
-   Do NOT merge — the SME approves the promotion.
-
-`dev` is where a version accumulates until it is complete and every coverage bar is met.
-```
-
-### `.claude/commands/release.md`
-
-```markdown
----
-description: Team Lead — cut a version release from `dev` to `main` and tag it for production.
----
-You are the Team Lead. Cut release $ARGUMENTS (e.g. v0.6.0) from `dev` to `main`.
-
-1. Confirm the version's issue set is fully merged into `dev` and closed.
-2. Confirm the full gate is green on `dev` and every coverage bar holds
-   (quality_core.io 100%, quality_core.schema 100% line+branch, SPC ≥95%).
-3. Update CHANGELOG.md and the version single-source-of-truth for $ARGUMENTS.
-4. Open a PR `dev → main` with the release notes. Do NOT merge — the SME approves.
-5. After the SME merges: tag `$ARGUMENTS` on `main` and confirm the production deploy
-   (Streamlit Cloud follows `main`).
-
-`main` is production. Only `dev` merges into it, at version boundaries.
-```
+Issue bodies must be **self-contained**: `.pipeline/` is gitignored, so a link to the report dies with
+the session. The filed issues are the durable record of the audit.
 
 ---
 
@@ -365,12 +256,12 @@ printf '\n# agent pipeline handoff (transient)\n.pipeline/\n' >> .gitignore
 
 # 3 · create the agent + command files from sections 7 and 8
 mkdir -p .claude/agents .claude/commands
-#   → paste research.md, coder.md, tester.md, reviewer.md into .claude/agents/
-#   → paste ship.md, promote.md, release.md into .claude/commands/
+#   → paste research.md, coder.md, tester.md, reviewer.md, auditor.md into .claude/agents/
+#   → paste ship.md, promote.md, release.md, audit.md into .claude/commands/
 ```
 
 Then, in the GitHub UI (or `gh api`), add **branch protection** for `test`, `dev`, and `main` per §4,
-and run the **daily session on Opus 4.8** (the Team Lead orchestrator runs there; the subagents pin
+and run the **daily session on Opus 5** (the Team Lead orchestrator runs there; the subagents pin
 their own models via frontmatter).
 
 **Verify the wiring:** run `/ship` on one small, bounded issue and watch the four handoff files appear

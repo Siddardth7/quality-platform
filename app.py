@@ -1,8 +1,10 @@
 """Quality Platform — unified Streamlit shell.
 
 One app, one URL: a single ``st.navigation`` sidebar mounts the landing page,
-the FMEA Risk Analyzer, and the three SPC workflows (Control Charts, Process
-Capability, Live Simulation). This module owns the platform chrome —
+the FMEA Risk Analyzer, the three SPC workflows (Control Charts, Process
+Capability, Live Simulation), the Control Plan, and the MSA Gage R&R study.
+(SECOM is engine-only — issue #206 — so it mounts no page.) This module owns
+the platform chrome —
 ``st.set_page_config`` and ``apply_theme`` are called here exactly once; every
 mounted page is a render callable that draws into the current container and
 sets no page config of its own.
@@ -25,9 +27,11 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 # Make all first-party code importable from the checked-out repo
 # ---------------------------------------------------------------------------
-# The apps are workspace members built as runnable Streamlit folders, not wheels
-# (``package = false``), so ``fmea_app`` / ``ui`` / ``spc_app`` are not on
-# ``sys.path`` by default. quality-core IS an installed (editable) package locally,
+# Most apps are workspace members built as runnable Streamlit folders, not wheels
+# (``package = false``), so ``fmea_app`` / ``ui`` are not on ``sys.path`` by default.
+# ``spc_app`` (#204) and ``msa_app`` (#231) are editable installs locally, but not on a
+# plain ``pip install -r requirements.txt`` host, so they stay listed below.
+# quality-core IS an installed (editable) package locally,
 # but on a plain ``pip install -r requirements.txt`` host (Streamlit Cloud) it is
 # not installed — requirements.txt carries only third-party deps. Putting its
 # source root on the path too lets the shell run from the repo with no editable

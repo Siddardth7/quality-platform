@@ -2,15 +2,13 @@
 
 Two layers: ``lsl``/``usl``/``target``/``recommended_chart`` are deliberately
 excluded from ``CONTROL_PLAN_SCHEMA.required_columns`` (SME resolution 2) so a
-CSV that omits them is still the valid "not SPC-monitored" shape, and
-``quality_core.io.load_table`` never routes them into ``ControlPlanRow``. But per
-the NEEDS-WORK fix, ``load_control_plan_csv`` re-checks any of those four columns
-that *are* present in the upload via ``_reject_bad_optional_values``, which routes
-them back through ``ControlPlanRow``'s own validators — so the tolerance/target
--range/chart-enum rules are exercised both by constructing ``ControlPlanRow``
-directly (fast, isolated) and through the real CSV path (below, proving the
-upload-time rejection actually fires). Mirrors ``apps/msa/tests/test_schema.py``
-structurally.
+CSV that omits them is still the valid "not SPC-monitored" shape. They are
+declared as ``optional_columns`` instead (#200), so ``quality_core.io`` validates
+any of them the upload *does* carry through ``ControlPlanRow``'s own validators in
+the normal ingest pass — so the tolerance/target-range/chart-enum rules are
+exercised both by constructing ``ControlPlanRow`` directly (fast, isolated) and
+through the real CSV path (below, proving the upload-time rejection actually
+fires). Mirrors ``apps/msa/tests/test_schema.py`` structurally.
 """
 
 from __future__ import annotations
@@ -412,10 +410,10 @@ def test_duplicate_characteristic_rejected_via_csv():
 
 
 # --- load_control_plan_csv: optional tolerance/chart columns, when present ----
-# NEEDS-WORK fix: lsl/usl/target/recommended_chart stay out of required_columns
-# (nullable), but load_control_plan_csv now re-checks them via
-# _reject_bad_optional_values whenever the uploaded CSV carries the column —
-# these prove that happens through the real CSV path, not just ControlPlanRow(...).
+# lsl/usl/target/recommended_chart stay out of required_columns (nullable) but are
+# declared in optional_columns, so quality_core.io validates them whenever the
+# uploaded CSV carries the column (#200) — these prove that happens through the
+# real CSV path, not just ControlPlanRow(...).
 
 
 def test_usl_below_lsl_rejected_via_csv():
@@ -484,6 +482,172 @@ def test_one_sided_spec_usl_only_loads_clean_via_csv():
     rows = [{**_good_csv_row(), "usl": 3.2, "lsl": None, "target": None}]
     out = load_control_plan_csv(_csv(rows))
     assert len(out) == 1
+
+
+def test_optional_columns_are_the_six_declared_ones():
+    assert CONTROL_PLAN_SCHEMA.optional_columns == (
+        "lsl",
+        "usl",
+        "target",
+        "recommended_chart",
+        "source_cause_id",
+        "sample_plan_is_placeholder",
+    )
+
+
+def test_placeholder_flag_is_optional_never_required():
+    # F-10 (#196) is additive: an upload predating the column must still validate.
+    assert "sample_plan_is_placeholder" not in CONTROL_PLAN_SCHEMA.required_columns
+
+
+# ---------------------------------------------------------------------------
+# sample_plan_is_placeholder (F-10, #196)
+# ---------------------------------------------------------------------------
+
+
+def test_placeholder_flag_defaults_to_false():
+    # A hand-authored row asserts its own sample plan — it is not a placeholder.
+    assert ControlPlanRow(**GOOD_ROW_KWARGS).sample_plan_is_placeholder is False
+
+
+def test_placeholder_flag_explicit_true_round_trips():
+    row = ControlPlanRow(**GOOD_ROW_KWARGS, sample_plan_is_placeholder=True)
+    assert row.sample_plan_is_placeholder is True
+    assert ControlPlanRow(**row.model_dump()).sample_plan_is_placeholder is True
+
+
+def test_placeholder_flag_explicit_false_round_trips():
+    # The other direction of the same choice: an engineered row can carry False
+    # and it must not be silently upgraded to True.
+    row = ControlPlanRow(**GOOD_ROW_KWARGS, sample_plan_is_placeholder=False)
+    assert row.sample_plan_is_placeholder is False
+    assert ControlPlanRow(**row.model_dump()).sample_plan_is_placeholder is False
+
+
+@pytest.mark.parametrize("blank", [None, "", "   ", "\t\n"])
+def test_placeholder_flag_missing_or_blank_coerces_to_false(blank):
+    # The before-validator's coercion arm: a NaN->None cell from the ingest
+    # boundary, or a blank CSV cell, means "not flagged" — not a validation error.
+    row = ControlPlanRow(**GOOD_ROW_KWARGS, sample_plan_is_placeholder=blank)
+    assert row.sample_plan_is_placeholder is False
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("true", True), ("True", True), (1, True), ("false", False), ("False", False), (0, False)],
+)
+def test_placeholder_flag_non_blank_values_pass_through_to_coercion(raw, expected):
+    # The before-validator's passthrough arm: a non-blank value is handed to
+    # pydantic's non-strict bool coercion untouched (both directions).
+    row = ControlPlanRow(**GOOD_ROW_KWARGS, sample_plan_is_placeholder=raw)
+    assert row.sample_plan_is_placeholder is expected
+
+
+def test_placeholder_flag_rejects_uninterpretable_value():
+    with pytest.raises(pydantic.ValidationError):
+        ControlPlanRow(**GOOD_ROW_KWARGS, sample_plan_is_placeholder="maybe")
+
+
+def test_dataset_preserves_placeholder_flag_per_row():
+    rows = [
+        ControlPlanRow(**{**GOOD_ROW_KWARGS, "characteristic": "A"}, sample_plan_is_placeholder=True),
+        ControlPlanRow(**{**GOOD_ROW_KWARGS, "characteristic": "B"}, sample_plan_is_placeholder=False),
+    ]
+    dataset = ControlPlanDataset(rows=rows)
+    assert [r.sample_plan_is_placeholder for r in dataset.rows] == [True, False]
+
+
+def test_csv_without_placeholder_column_validates_and_reads_false():
+    out = load_control_plan_csv(_csv([_good_csv_row()]))
+    assert len(out) == 1
+    assert "sample_plan_is_placeholder" not in out.columns
+    # The column is absent from the narrowed frame, but the model default holds.
+    assert ControlPlanRow(**out.iloc[0].to_dict()).sample_plan_is_placeholder is False
+
+
+@pytest.mark.parametrize(("cell", "expected"), [(True, True), (False, False)])
+def test_csv_with_placeholder_column_parses_both_values(cell, expected):
+    rows = [{**_good_csv_row(), "sample_plan_is_placeholder": cell}]
+    out = load_control_plan_csv(_csv(rows))
+    assert len(out) == 1
+    assert bool(out["sample_plan_is_placeholder"].iloc[0]) is expected
+
+
+def test_csv_with_blank_placeholder_cell_validates_as_false():
+    rows = [
+        {**_good_csv_row(), "characteristic": "A", "sample_plan_is_placeholder": True},
+        {**_good_csv_row(), "characteristic": "B", "sample_plan_is_placeholder": None},
+    ]
+    out = load_control_plan_csv(_csv(rows))
+    assert len(out) == 2
+    flags = [
+        ControlPlanRow(
+            **{k: (None if pd.isna(v) else v) for k, v in rec.items()}
+        ).sample_plan_is_placeholder
+        for rec in out.to_dict("records")
+    ]
+    assert flags == [True, False]
+
+
+def test_undeclared_column_dropped_and_declared_ones_survive_via_csv():
+    # #200: the narrowed return is the five required columns plus the present
+    # optional ones, in schema order — an undeclared column cannot ride through.
+    rows = [
+        {
+            **_good_csv_row(),
+            "lsl": 24.90,
+            "usl": 25.10,
+            "target": 25.00,
+            "recommended_chart": "Xbar-R",
+            "operator_notes": "third shift",
+        }
+    ]
+    out = load_control_plan_csv(_csv(rows))
+    assert list(out.columns) == [
+        "characteristic",
+        "measurement_method",
+        "sample_size",
+        "frequency",
+        "reaction_plan",
+        "lsl",
+        "usl",
+        "target",
+        "recommended_chart",
+    ]
+    assert "operator_notes" not in out.columns
+
+
+@pytest.mark.parametrize(
+    ("extra", "sentence"),
+    [
+        ({"lsl": 25.0, "usl": 24.0}, "usl must be greater than lsl"),
+        ({"lsl": 25.0, "usl": 26.0, "target": 27.0}, "target must be within [lsl, usl]"),
+    ],
+)
+def test_model_level_error_shape_row_addressed_with_truncated_row_echo(extra, sentence):
+    # #200 known message change, asserted deliberately rather than by accident: a
+    # model-validator error has no `loc`, so the message carries no column name,
+    # and the core formatter (_format_row_error) *always* echoes the offending
+    # input — here the whole row dict, truncated at 50 chars. The deleted app-local
+    # _reject_bad_optional_values used to suppress that echo.
+    with pytest.raises(IngestError) as exc:
+        load_control_plan_csv(_csv([{**_good_csv_row(), **extra}]))
+    msg = str(exc.value)
+    # #207: the core formatter now routes msg through clean_pydantic_message, so
+    # pydantic's "Value error, " prefix is stripped here too. Everything else about
+    # the shape (no column clause, truncated echo) is #200's and is unchanged below.
+    assert msg.startswith(f"Row 2: {sentence} (got {{'characteristic': ")
+    assert "Value error" not in msg
+    assert "column" not in msg.split(" (got ")[0]  # no column name on a model-level error
+    assert "...)" in msg  # the row dict is truncated, not echoed whole
+
+
+def test_field_level_optional_error_still_names_the_column():
+    # Contrast with the model-level shape above: a field error keeps its `loc`.
+    rows = [{**_good_csv_row(), "recommended_chart": "Bogus"}]
+    with pytest.raises(IngestError) as exc:
+        load_control_plan_csv(_csv(rows))
+    assert str(exc.value).startswith("Row 2, column 'recommended_chart': ")
 
 
 def test_mixed_recommended_chart_presence_only_bad_row_rejected():

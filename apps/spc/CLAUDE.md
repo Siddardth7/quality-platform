@@ -45,7 +45,9 @@ CI (`.github/workflows/ci.yml`, job id `gate`) runs exactly these on Python 3.11
 
 ### Single test
 ```bash
-uv run pytest apps/spc/tests/test_control_charts.py -q          # one module
+uv run pytest apps/spc/tests/test_visualizer.py -q              # one module
+uv run pytest packages/quality-core/tests/test_spc_control_charts.py -q   # chart math (core)
+uv run pytest packages/quality-core/tests/test_spc_capability.py -q       # capability (core)
 uv run pytest apps/spc -k "capability" -q                       # by keyword
 ```
 
@@ -66,14 +68,27 @@ spc_app/pages/process_capability.py  render_capability — Cp/Cpk + stability ga
 spc_app/pages/live_simulation.py     render_simulation — live subgroup stream
         │
         ▼
-spc_app/spc_engine/             pure SPC computation (fully unit-tested):
-    control_charts.py             compute_xbar_r/_s, compute_imr, compute_p/c/u
-                                  (each returns a precise TypedDict result)
-    capability.py                 compute_capability (Cp/Cpk/Pp/Ppk), normality_test
-    rule_detection.py             detect_we_violations, detect_nelson_violations
-    constants.py                  AIAG SPC chart constants (see ASSUMPTIONS_LOG.md)
-    data_generator.py             deterministic 6-stream demo dataset
-    utils.py                      subgroup_rows
+spc_app/spc_engine/             pure SPC computation (fully unit-tested). Everything
+                                except data_generator.py is now a re-export shim over
+                                quality_core.spc (#205):
+    control_charts.py             shim -> quality_core.spc.control_charts:
+                                  compute_xbar_r/_s, compute_imr, compute_p/c/u,
+                                  compute_ewma/_cusum, imr_limits (each compute_*
+                                  returns a precise TypedDict result)
+    capability.py                 shim -> quality_core.spc.capability:
+                                  compute_capability (Cp/Cpk/Pp/Ppk), normality_test,
+                                  compute_capability_study (+ stable/stability_note)
+    phase.py                      shim -> quality_core.spc.phase: freeze_xbar_r/_s/_imr
+    stability.py                  shim -> quality_core.spc.stability: assess_stability
+                                  (chart + WE detection), stability_fields
+    rule_detection.py             shim -> quality_core.spc.rule_detection:
+                                  detect_we_violations, detect_nelson_violations
+    constants.py                  shim -> quality_core.spc.constants: AIAG SPC chart
+                                  constants (see ASSUMPTIONS_LOG.md)
+    data_generator.py             7-stream demo dataset. Instantiates local rng seed
+                                  (42) on each call, ensuring reproducible demo data
+                                  across all generate_demo_dataset() invocations.
+    utils.py                      shim -> quality_core.spc.utils: subgroup_rows
 spc_app/simulation/engine.py    SimulationEngine — mean shift / spike / drift injection
 spc_app/visualizer.py           Plotly builders: control chart, capability histogram, Cpk gauge
 spc_app/control_plan_config.py  Control Plan -> SPC view config (W07-1, #88)
@@ -84,18 +99,33 @@ spc_app/fmea_feedback.py        SPC OOC signal -> candidate FMEA occurrence feed
 → `compute_*` (engine) → `detect_we/nelson_violations` → `build_control_chart` with rule
 overlays → `summarize_metrics` for the metric tiles.
 
-**Capability stability gate:** the Capability page runs `assess_control_chart` first —
-Western Electric rule detection on the stream's control chart — and shows a prominent
-warning when the process is out of statistical control, because Cp/Cpk are only
-meaningful on a stable process.
+**Capability stability gate:** lives in `quality_core/spc/stability.py` (promoted by #205
+PR 2; `spc_engine/stability.py` is a re-export shim — edit the core module). The page
+calls `assess_stability(frame, chart_type)` — Western Electric rule detection on the
+stream's control chart — passes the resulting signal list to `compute_capability_study(...,
+violations=...)`, and shows a prominent warning when the process is out of statistical
+control, because Cp/Cpk are only meaningful on a stable process. The study carries
+`stable: bool | None` / `stability_note: str | None`; `stable is None` means **not
+assessed** (no chart context supplied), never "in control". The engine never derives the
+chart type itself — the page holds the stream → chart-type map (see ASSUMPTIONS_LOG RULE 7).
 
 ## Conventions that matter here
 
 - **Version SSOT** is `spc_app/__init__.py::__version__`, read by `app.py`. Bump it (and
   `apps/spc/pyproject.toml`) together at release.
-- **AIAG constants** live in `spc_app/spc_engine/constants.py`; every value is cited in
-  `docs/ASSUMPTIONS_LOG.md`. Don't change one without updating the other.
-- **Engine returns TypedDicts** (`XbarRResult`, … `UResult` in `control_charts.py`). Page
+- **AIAG constants** live in **`quality_core/spc/constants.py`** (promoted out of this app
+  by audit A12, #205); `spc_app/spc_engine/constants.py` is a **re-export shim** — editing
+  it is always wrong. Same for `rule_detection.py`, `utils.py`, (PR 2 of #205)
+  `control_charts.py`, `phase.py`, `stability.py` and (PR 3) `capability.py`: change
+  the code in `quality_core/spc/`, never in the shim. Every value is cited in
+  `docs/ASSUMPTIONS_LOG.md`; don't change one without updating the other.
+  `data_generator.py` is the only app-resident engine module left — it is the app's
+  demo dataset, not shared standards math.
+- **The AIAG I-MR limit formula** is written exactly once, in
+  `quality_core.spc.control_charts.imr_limits()`; `compute_imr` and SECOM's
+  `control_chart_for_signal` both consume it (#205 PR 2). Do not re-derive it.
+- **Engine returns TypedDicts** (`XbarRResult`, … `UResult` in
+  `quality_core/spc/control_charts.py`). Page
   dispatch variables that span chart types are typed `Mapping[str, Any]` (honest read-only
   union surface); engine functions keep their exact types.
 - **Coverage bar:** the testable SPC surface (`spc_engine` + `simulation` + `visualizer`)

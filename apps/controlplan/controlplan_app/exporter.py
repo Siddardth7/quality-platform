@@ -17,7 +17,6 @@ All return raw bytes suitable for ``st.download_button()``.
 from __future__ import annotations
 
 import io
-from datetime import datetime
 from typing import Any
 
 import openpyxl
@@ -27,6 +26,8 @@ from quality_core.io.export import (
     export_csv as _core_export_csv,
 )
 from quality_core.io.export import (
+    generated_line,
+    now,
     pdf_subheader,
     pdf_title,
     render_table,
@@ -43,6 +44,8 @@ from controlplan_app.schema import ControlPlanDataset
 # `source_cause_id` (OQ1, W07-2 #89) is appended last so the FMEA join key
 # survives a CSV export/reimport round trip — not part of the original AIAG
 # column set, so it goes after it rather than reordering the documented shape.
+# `sample_plan_is_placeholder` (F-10, #196) follows it for the same reason. The
+# PDF table (`_PDF_TABLE_COLS`) stays the fixed-width AIAG nine.
 _EXPORT_COLUMNS = [
     "characteristic",
     "lsl",
@@ -54,6 +57,7 @@ _EXPORT_COLUMNS = [
     "recommended_chart",
     "reaction_plan",
     "source_cause_id",
+    "sample_plan_is_placeholder",
 ]
 
 _COL_WIDTHS = {
@@ -66,6 +70,7 @@ _COL_WIDTHS = {
     "frequency": 14,
     "recommended_chart": 16,
     "reaction_plan": 40,
+    "sample_plan_is_placeholder": 24,
 }
 
 _PDF_TABLE_COLS = [
@@ -98,7 +103,7 @@ def export_csv(dataset: ControlPlanDataset) -> bytes:
 
 def _metadata_rows(df: pd.DataFrame) -> list[tuple[str, object]]:
     return [
-        ("Generated", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("Generated", now()),
         ("Tool Version", _TOOL_VERSION),
         ("Engineering Ref", "AIAG Control Plan format (see ROADMAP.md §4)"),
         ("Row Count", len(df)),
@@ -150,11 +155,7 @@ def _pdf_row_rgb(row: pd.Series) -> tuple[int, int, int]:
 def _pdf_page1(pdf: Any, df: pd.DataFrame) -> None:
     pdf.add_page()
     pdf_title(pdf, "Control Plan")
-    pdf_subheader(
-        pdf,
-        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}   |   "
-        "AIAG Control Plan format",
-    )
+    pdf_subheader(pdf, generated_line("AIAG Control Plan format"))
     render_table(
         pdf, df,
         columns=_PDF_TABLE_COLS,

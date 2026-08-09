@@ -3,7 +3,7 @@ app.py
 FMEA Risk Prioritization Tool — Streamlit Web Application (orchestrator)
 
 Author: Siddardth | M.S. Aerospace Engineering, UIUC
-Engineering reference: AIAG FMEA-4 + AIAG/VDA FMEA Handbook (5th Ed., 2019)
+Engineering reference: AIAG FMEA-4 + AIAG & VDA FMEA Handbook (1st Ed., 2019)
 """
 
 from __future__ import annotations
@@ -231,7 +231,7 @@ def render_fmea() -> None:
         st.sidebar.divider()
         st.sidebar.caption(
             "Engineering ref: AIAG FMEA-4 (4th Ed.) + "
-            "AIAG/VDA FMEA Handbook (5th Ed., 2019)"
+            "AIAG & VDA FMEA Handbook (1st Ed., 2019)"
         )
         render_landing(TEMPLATE_CSV)
         st.divider()
@@ -272,7 +272,7 @@ def render_fmea() -> None:
     st.sidebar.divider()
     st.sidebar.caption(
         "Engineering ref: AIAG FMEA-4 (4th Ed.) + "
-        "AIAG/VDA FMEA Handbook (5th Ed., 2019)"
+        "AIAG & VDA FMEA Handbook (1st Ed., 2019)"
     )
 
     # ── Apply filters ─────────────────────────────────────────────────────

@@ -52,7 +52,7 @@ def test_export_csv_header_matches_export_order():
     assert header == [
         "characteristic", "lsl", "usl", "target", "measurement_method",
         "sample_size", "frequency", "recommended_chart", "reaction_plan",
-        "source_cause_id",
+        "source_cause_id", "sample_plan_is_placeholder",
     ]
 
 
@@ -63,8 +63,34 @@ def test_export_csv_empty_dataset_does_not_crash():
     assert header == [
         "characteristic", "lsl", "usl", "target", "measurement_method",
         "sample_size", "frequency", "recommended_chart", "reaction_plan",
-        "source_cause_id",
+        "source_cause_id", "sample_plan_is_placeholder",
     ]
+
+
+def test_export_csv_carries_placeholder_flag_value():
+    # F-10 (#196): the provenance flag survives export, both directions.
+    flagged = export_csv(_dataset([_row(sample_plan_is_placeholder=True)])).decode("utf-8")
+    plain = export_csv(_dataset([_row(sample_plan_is_placeholder=False)])).decode("utf-8")
+    assert flagged.splitlines()[1].split(",")[-1] == "True"
+    assert plain.splitlines()[1].split(",")[-1] == "False"
+
+
+def test_export_excel_carries_placeholder_flag_column():
+    out = export_excel(_dataset([_row(sample_plan_is_placeholder=True)]))
+    wb = openpyxl.load_workbook(io.BytesIO(out))
+    ws = wb["Control Plan"]
+    header = [cell.value for cell in ws[1]]
+    assert header[-1] == "sample_plan_is_placeholder"
+    assert ws.cell(2, len(header)).value in (True, "True")
+
+
+def test_export_pdf_column_set_unchanged_by_placeholder_flag():
+    # The PDF is a fixed-width printed AIAG table — F-10 deliberately did NOT
+    # add a column there. Pin it, so a future export change is a decision.
+    from controlplan_app.exporter import _PDF_TABLE_COLS
+
+    assert "sample_plan_is_placeholder" not in _PDF_TABLE_COLS
+    assert len(_PDF_TABLE_COLS) == 9
 
 
 def test_export_csv_escapes_formula_injection():
@@ -167,7 +193,7 @@ def test_to_dataframe_directly_covers_empty_and_nonempty_branches():
     assert list(empty_df.columns) == [
         "characteristic", "lsl", "usl", "target", "measurement_method",
         "sample_size", "frequency", "recommended_chart", "reaction_plan",
-        "source_cause_id",
+        "source_cause_id", "sample_plan_is_placeholder",
     ]
     assert empty_df.empty
 

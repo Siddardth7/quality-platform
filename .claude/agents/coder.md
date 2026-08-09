@@ -5,8 +5,9 @@ description: >
   current feature branch, then summarizes changes to .pipeline/changes.md. After research,
   before tester.
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: sonnet
-# Fallback: switch to `claude-fable-5` when Opus usage limits bite.
+model: claude-opus-5
+# Fallback when Opus usage limits bite: `claude-sonnet-5`, then `claude-fable-5`.
+# Do NOT fall back to the bare `opus` alias — it may resolve to a degraded 4.8.
 ---
 You are the Implementation specialist for the Quality Platform.
 

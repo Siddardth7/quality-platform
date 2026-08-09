@@ -9,15 +9,20 @@ extend-exclude = [".venv", "**/__pycache__"]
 select = ["E", "F", "W", "I"]
 ignore = [
     "E501",  # line too long — handled by formatter
-    "F401",  # unused import — some are re-exports
 ]
 
 [lint.per-file-ignores]
 "**/tests/**" = ["F811"]  # allow redefinition in tests
+# F401 was globally suppressed for "re-exports" (#203, audit A14). It was buying nothing:
+# every re-export __init__ declares __all__, which ruff already honours. The one module
+# that re-exports without __all__ is listed here; everything else now fails CI as it should.
+"apps/fmea/fmea_app/exporter.py" = ["F401"]  # re-exports quality_core.io names for ui/
 
-# The apps are not installed (package = false) and live under apps/*, so ruff's
-# isort cannot auto-detect their top-level packages as first-party. Declare them
-# so import groups match how each app is written. quality-core is intentionally
+# fmea/msa/controlplan are not installed (package = false) and all five apps live
+# under apps/*, so ruff's isort cannot auto-detect their top-level packages as
+# first-party. Declare them so import groups match how each app is written.
+# (spc/secom have been installed since #204; the declarations below are harmless
+# for them and are kept so the list reads as one set.) quality-core is intentionally
 # omitted: it is an installed (editable) workspace package, so both apps already
 # import it as a third-party dependency — listing it here would churn their
 # existing import blocks.

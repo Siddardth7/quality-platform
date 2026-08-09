@@ -54,9 +54,28 @@ issue = read this file + the issue body, nothing else. It is mirrored as a **pin
 6. **Green + clean + logged.** Full suite green (`uv run pytest`), `uv run ruff check .` clean,
    `uv run mypy` clean, and a `CHANGELOG.md` entry under `[Unreleased]` **in the same PR**.
 
-7. **PR + squash-merge.** One branch per issue off `main` (`feat|fix|chore|docs/<#>-<slug>`). Open a
-   PR whose body says *what* and *why* and **quotes the test/coverage evidence**. CI (the gate) must
-   be green to merge. **Squash-merge**, then close the issue.
+7. **PR + merge — and the merge type is not a preference.** One branch per issue off **`origin/test`**
+   (`feat|fix|chore|docs/<#>-<slug>`), which is also the PR target. Do **not** branch off `main` or
+   `dev`: `dev` carries a release lead, and basing on it produces ~14 files of phantom conflict in
+   the PR against `test`. Open a PR whose body says *what* and *why* and **quotes the test/coverage
+   evidence**. CI (the gate) must be green to merge. Then close the issue.
+
+   | Merge | Type | Why |
+   |---|---|---|
+   | feature → `test` | **Squash** | The feature branch is disposable; one clean commit per issue on `test`. |
+   | `test` → `dev` | **Real merge commit** (`--no-ff`) | Both branches are long-lived. |
+   | `dev` → `main` | **Real merge commit** (`--no-ff`) | Same. |
+
+   **Never squash between long-lived branches.** A squash rewrites the merged commits under a new
+   SHA with no parent link to the originals, so git can no longer see the two branches as related.
+   The merge-base stops advancing and every subsequent promotion re-presents already-integrated work
+   as conflicts — permanently, and worse each time.
+
+   This is not hypothetical: on 2026-08-01 the `test`↔`dev` merge-base was found stranded at `#105`,
+   with `test` 66 ahead and `dev` 23 ahead holding the *same content* under different SHAs. Four
+   squashed `chore(promote):` commits caused it, and the repair was a 36-file manual resolve. A
+   `.gitattributes` `CHANGELOG.md merge=union` rule now auto-resolves the changelog half; the merge
+   type is what prevents the rest.
 
 ---
 
@@ -73,6 +92,20 @@ issue = read this file + the issue body, nothing else. It is mirrored as a **pin
 - [ ] Roll `CHANGELOG.md` (`[Unreleased]` → `[x.y.z] - date`, open a fresh `[Unreleased]`) and bump
       the version in `pyproject.toml` + `packages/quality-core/pyproject.toml` — a `chore(release):`
       commit.
+- [ ] **`README.md` and `ROADMAP.md` reconciled with the tree that is being tagged.** Both are
+      release artifacts, not background docs — they are the first thing a reader sees and the
+      easiest thing to leave behind. At minimum, check every one of these and fix what has drifted:
+      - **README** — the test-count badge against the collected count, the feature/tool list against
+        what actually ships, any version or coverage number, and every claim about *how* a thing is
+        implemented (not merely that it exists).
+      - **ROADMAP** — status line and date, the shipped-versions list, the "next release" row, and
+        any phase whose plan changed during the cycle. A superseded plan must be marked cancelled
+        where it appears, not silently deleted.
+
+      Stale docs are not cosmetic. `#194` shipped a fix whose *only* defect was README and ROADMAP
+      advertising an ANOVA Gage R&R the engine does not implement — the code was right and the docs
+      were lying, and it took two review rounds to close. A doc claim that survives a release is
+      indistinguishable from a verified one to everybody downstream.
 - [ ] **Tag + push — done by the human owner, never automated.**
 
 ---

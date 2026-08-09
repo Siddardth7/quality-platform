@@ -55,12 +55,19 @@ from spc_app.visualizer import build_control_chart, build_cusum_chart, build_ewm
 DEMO_PATH = Path(__file__).resolve().parents[2] / "data" / "demo_composites_aerospace.csv"
 RULE_REFERENCE = pd.DataFrame(
     [
+        # The two sets are independent, each with its own numbering — selecting
+        # one never emits the other's labels. The run-length rule differs on
+        # purpose: Western Electric uses 8 in a row, Nelson Test 2 uses 9.
         ("Western Electric", "Rule 1", "1 point beyond +/-3 sigma"),
         ("Western Electric", "Rule 2", "2 of 3 consecutive beyond +/-2 sigma on the same side"),
         ("Western Electric", "Rule 3", "4 of 5 consecutive beyond +/-1 sigma on the same side"),
         ("Western Electric", "Rule 4", "8 consecutive points on the same side of the centerline"),
-        ("Nelson", "Rule 5", "6 consecutive points trending up or down"),
-        ("Nelson", "Rule 6", "14 consecutive points alternating up and down"),
+        ("Nelson", "Rule 1", "1 point beyond +/-3 sigma"),
+        ("Nelson", "Rule 2", "9 consecutive points on the same side of the centerline"),
+        ("Nelson", "Rule 3", "6 consecutive points trending up or down"),
+        ("Nelson", "Rule 4", "14 consecutive points alternating up and down"),
+        ("Nelson", "Rule 5", "2 of 3 consecutive beyond +/-2 sigma on the same side"),
+        ("Nelson", "Rule 6", "4 of 5 consecutive beyond +/-1 sigma on the same side"),
         ("Nelson", "Rule 7", "15 consecutive points within +/-1 sigma of the centerline"),
         ("Nelson", "Rule 8", "8 consecutive points outside +/-1 sigma on both sides"),
     ],

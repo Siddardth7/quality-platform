@@ -14,11 +14,12 @@ plan — is the AIAG Control Plan column structure (see ROADMAP.md §4). This is
 introduces no thresholds, indices, or computed values (no Cp/Cpk, no AP table);
 it is a typed ingest contract only. ``lsl``/``usl``/``target``/``recommended_chart``
 are nullable — not every characteristic has a tolerance or is SPC-monitored (e.g.
-attribute go/no-go, visual) — so they are left out of ``required_columns``, but
-``load_control_plan_csv`` still rejects a bad value in any of them when the column
-is present in the upload (see :func:`_reject_bad_optional_values`). FMEA → Control
-Plan mapping (W06-2) and the SPC chart type set consumption (Week 7) build on this
-contract but are out of scope here.
+attribute go/no-go, visual) — so they are declared as ``optional_columns`` rather
+than ``required_columns``: absent is fine, present is validated by ``ControlPlanRow``
+like any other column. (This app prototyped that mechanism as a local post-hoc
+re-validation pass; #200 moved it into ``quality_core.io`` and deleted the copy.)
+FMEA → Control Plan mapping (W06-2) and the SPC chart type set consumption
+(Week 7) build on this contract but are out of scope here.
 
 This schema stays app-local (not promoted into ``quality_core.schema``) until
 W06-2/W07 exercise and stabilise its shape — see the Week-5 deferred-extraction
@@ -31,16 +32,32 @@ uniqueness rule (unlike ``characteristic``) — multiple rows may legitimately
 point at the same cause is not expected in practice (one row per failure mode,
 one worst-risk cause each) but is not forbidden, since a manually-added row
 with no source is simply ``None``.
+
+``sample_plan_is_placeholder`` (F-10, #196) is an optional boolean provenance
+marker: ``True`` on the rows ``controlplan_app.connector.build_control_plan``
+emits, whose ``sample_size``/``frequency``/``reaction_plan`` are the connector's
+declared placeholders rather than engineered values (the relational FMEA carries
+no sample plan or containment text). It defaults to ``False`` — a hand-authored
+or uploaded row asserts its own values — so an upload without the column, or with
+a blank cell, still validates.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any, BinaryIO, Literal, cast
+from typing import Annotated, BinaryIO
 
 import pandas as pd
 import pydantic
-from quality_core.io import IngestError, TableSchema, load_table
+from quality_core.io import IngestError, TableSchema, load_table, load_table_from_path
 from quality_core.schema._base import find_duplicates
+
+# SPC engine chart keys a control method may recommend — the variable charts
+# (`apps/spc/spc_app/pages/control_charts.py`) plus the attribute charts SPC's
+# engine computes (`compute_p`/`compute_c`/`compute_u`). Internal SPC keys, not a
+# standard — see the module docstring. Declared once in `quality_core.spc.constants`
+# (#205) and re-exported here (it stays in `__all__`), so `connector.py`'s
+# `from controlplan_app.schema import SPCChart` keeps working unchanged.
+from quality_core.spc.constants import SPCChart
 
 __all__ = [
     "SPCChart",
@@ -50,12 +67,6 @@ __all__ = [
     "load_control_plan_csv",
     "IngestError",
 ]
-
-#: SPC engine chart keys a control method may recommend — the variable charts
-#: (`apps/spc/spc_app/pages/control_charts.py`) plus the attribute charts SPC's
-#: engine computes (`compute_p`/`compute_c`/`compute_u`). Internal SPC keys, not a
-#: standard — see the module docstring.
-SPCChart = Literal["Xbar-R", "Xbar-S", "I-MR", "p", "c", "u"]
 
 
 class ControlPlanRow(pydantic.BaseModel):
@@ -84,6 +95,12 @@ class ControlPlanRow(pydantic.BaseModel):
     #: for a manually-added/edited row with no FMEA source. Persisted (not a
     #: session-only lookup) so the SPC->FMEA linkage survives CSV export/reimport.
     source_cause_id: Annotated[str | None, pydantic.Field(default=None, max_length=300)] = None
+    #: True when sample_size / frequency / reaction_plan on this row are the
+    #: connector's placeholders (F-10, #196) rather than engineered values — the
+    #: relational FMEA carries no sample plan or containment text. Default False:
+    #: a hand-authored or uploaded row asserts its own values. Set True by
+    #: ``controlplan_app.connector.build_control_plan``.
+    sample_plan_is_placeholder: bool = False
 
     @pydantic.field_validator(
         "characteristic", "measurement_method", "frequency", "reaction_plan", mode="before"
@@ -102,6 +119,15 @@ class ControlPlanRow(pydantic.BaseModel):
         if isinstance(v, str) and not v.strip():
             return None
         return v.strip() if isinstance(v, str) else v
+
+    @pydantic.field_validator("sample_plan_is_placeholder", mode="before")
+    @classmethod
+    def missing_placeholder_flag_to_false(cls, v: object) -> object:
+        # An absent/blank cell means "not marked as a placeholder", not an error —
+        # the ingest boundary's NaN→None mapping lands here too.
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return False
+        return v
 
     @pydantic.model_validator(mode="after")
     def check_tolerance(self) -> "ControlPlanRow":
@@ -144,67 +170,28 @@ CONTROL_PLAN_SCHEMA = TableSchema(
         "frequency",
         "reaction_plan",
     ),
+    optional_columns=(
+        "lsl",
+        "usl",
+        "target",
+        "recommended_chart",
+        "source_cause_id",
+        "sample_plan_is_placeholder",
+    ),
     dataset_model=ControlPlanDataset,
     template_hint="data/control_plan_template.csv",
 )
 
 
-#: Optional tolerance/chart columns excluded from ``required_columns`` (nullable —
-#: see the module docstring), so ``quality_core.io.load_table`` never reads or
-#: validates them. Checked separately, below, when present in the upload.
-_OPTIONAL_COLUMNS: tuple[str, ...] = (
-    "lsl", "usl", "target", "recommended_chart", "source_cause_id",
-)
-
-
-def _reject_bad_optional_values(df: pd.DataFrame) -> None:
-    """Reject bad ``lsl``/``usl``/``target``/``recommended_chart`` values, if present.
-
-    These columns are deliberately nullable and left out of ``required_columns``
-    (an attribute/visual characteristic has no tolerance or chart), so
-    ``load_table`` never routes them into ``ControlPlanRow`` for validation. If
-    the uploaded CSV carries any of them, re-run each row through
-    ``ControlPlanRow`` (reusing its existing ``usl``/``target``/chart validators
-    rather than duplicating the rules) so a bad value is still rejected.
-
-    A column absent from the CSV entirely is skipped — that is the normal,
-    valid "not SPC-monitored" shape and needs no re-check.
-    """
-    present = [col for col in _OPTIONAL_COLUMNS if col in df.columns]
-    if not present:
-        return
-
-    columns = [*CONTROL_PLAN_SCHEMA.required_columns, *present]
-    for offset, record in enumerate(df[columns].to_dict(orient="records")):
-        clean = {str(key): (None if pd.isna(value) else value) for key, value in record.items()}
-        try:
-            ControlPlanRow(**cast("dict[str, Any]", clean))
-        except pydantic.ValidationError as exc:
-            first = exc.errors()[0]
-            column = ".".join(str(part) for part in first.get("loc", ()))
-            where = f"Row {offset + 2}" + (f", column '{column}'" if column else "")
-            msg = first.get("msg", "invalid value")
-            for prefix in ("Value error, ", "Assertion failed, "):
-                msg = msg.removeprefix(prefix)
-            # A field-level error (loc set) echoes the one bad cell; a row-level
-            # validator (e.g. usl<lsl, target-out-of-bounds) has no single loc, so
-            # echoing the whole row would be noisy — the message names the rule.
-            echo = f" (got {first.get('input')!r})" if column else ""
-            raise IngestError(
-                f"{where}: {msg}{echo}."
-                f" Check your data against the template at {CONTROL_PLAN_SCHEMA.template_hint}."
-            ) from exc
-
-
 def load_control_plan_csv(source: str | BinaryIO) -> pd.DataFrame:
     """Read + validate an uploaded Control Plan ``.csv`` against :data:`CONTROL_PLAN_SCHEMA`.
 
-    Returns the validated DataFrame unchanged. Raises :class:`IngestError` (a
+    Returns a DataFrame narrowed to the validated columns: the five required ones
+    plus whichever of ``lsl``/``usl``/``target``/``recommended_chart``/
+    ``source_cause_id``/``sample_plan_is_placeholder`` the upload carried. Raises :class:`IngestError` (a
     ``ValueError`` subclass) with a user-safe message on a malformed upload, for
-    the page to surface via ``st.error``. Also rejects a bad ``lsl``/``usl``/
-    ``target``/``recommended_chart`` value when that optional column is present
-    in the upload — see :func:`_reject_bad_optional_values`.
+    the page to surface via ``st.error``.
     """
-    df = load_table(source, CONTROL_PLAN_SCHEMA)
-    _reject_bad_optional_values(df)
-    return df
+    if isinstance(source, str):
+        return load_table_from_path(source, CONTROL_PLAN_SCHEMA)
+    return load_table(source, CONTROL_PLAN_SCHEMA)

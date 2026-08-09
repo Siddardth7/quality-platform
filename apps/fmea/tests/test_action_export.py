@@ -16,7 +16,6 @@ import re
 from datetime import date
 
 import openpyxl
-import pandas as pd
 from quality_core.io import export_csv
 from quality_core.schema import (
     Action,
@@ -73,6 +72,30 @@ def test_action_columns_present_and_correct() -> None:
     # a row without an action gets blanks, not scores
     row2 = df[df["ID"] == 2].iloc[0]
     assert row2["Action_Owner"] == "" and row2["RPN_Revised"] == ""
+
+
+def test_action_effectiveness_uses_its_own_links_entities_not_the_first() -> None:
+    # #207: _relational_actions resolves S/O/D through FailureMode.resolve. Two
+    # links share one failure mode and the action sits on the *second*, so a
+    # traversal that returned the first effect/control would score 9x1x5=45
+    # instead of the correct 4x1x2=8.
+    dataset = FMEADataset(rows=[
+        FMEARow(**_ROWS[0]),  # type: ignore[arg-type]
+        FMEARow(**{**_ROWS[0], "ID": 2, "Effect": "Blistering", "Severity": 4,  # type: ignore[arg-type]
+                   "Cause": "Short dwell", "Occurrence": 3,
+                   "Current_Control": "Timer", "Detection": 2}),
+    ])
+    model = flat_to_relational(dataset)
+    fm = model.functions[0].failure_modes[0]
+    assert len(fm.links) == 2  # both rows landed on one failure mode
+    second = next(link for link in fm.links if link.row_id == 2)
+    second.action = Action(owner="QE", o_after=1)
+    df = run_pipeline_relational(RelationalFMEA(functions=model.functions))
+
+    row2 = df[df["ID"] == 2].iloc[0]
+    assert row2["RPN"] == 4 * 3 * 2
+    assert row2["RPN_Revised"] == 4 * 1 * 2
+    assert df[df["ID"] == 1].iloc[0]["RPN_Revised"] == ""  # link 1 has no action
 
 
 def test_no_action_means_no_action_columns() -> None:

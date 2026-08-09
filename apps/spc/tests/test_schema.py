@@ -9,12 +9,15 @@ the documented template — must itself validate.
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from spc_app.schema import SPC_SCHEMA, IngestError, load_spc_csv
 from spc_app.spc_engine.data_generator import generate_demo_dataset
+
+DEMO_CSV_PATH = Path(__file__).resolve().parents[1] / "data" / "demo_composites_aerospace.csv"
 
 GOOD_ROWS = [
     {"stream": "ply_thickness", "subgroup": 1, "value": 0.2503, "sample_size": 5,
@@ -65,6 +68,15 @@ def test_demo_dataset_validates_as_a_template():
     # upload template, so it must pass the schema unchanged.
     out = load_spc_csv(_csv_from_frame(generate_demo_dataset()))
     assert set(out["chart_type"].unique()) >= {"xbar_r", "imr", "p", "u", "c"}
+
+
+def test_csv_path_string_is_read_from_disk(tmp_path):
+    # A str source routes to load_table_from_path (the #199 fail-closed split): the
+    # narrowed load_table refuses paths outright, so this branch must stay covered.
+    path = tmp_path / "upload.csv"
+    path.write_text(pd.DataFrame(GOOD_ROWS).to_csv(index=False))
+    out = load_spc_csv(str(path))
+    assert len(out) == 3
 
 
 def test_optional_limits_may_be_blank():
@@ -138,3 +150,102 @@ def test_empty_upload_is_friendly():
     empty = pd.DataFrame(columns=["stream", "subgroup", "value", "sample_size"])
     with pytest.raises(IngestError, match="at least one"):
         load_spc_csv(_csv_from_frame(empty))
+
+
+# --- #200: declared optional columns, and everything else dropped -------------
+
+
+def test_optional_columns_are_the_four_declared_ones():
+    assert SPC_SCHEMA.optional_columns == ("sample_size", "lsl", "usl", "chart_type")
+
+
+def test_undeclared_columns_are_dropped_from_the_result():
+    # parameter is a demo-dataset label no code reads; note/operator is what a real
+    # exporter adds. Both are dropped silently — normal in the field, not an error.
+    rows = [{**r, "parameter": "Ply", "chart_type": "xbar_r", "note": "x", "operator": "A"}
+            for r in GOOD_ROWS]
+    out = load_spc_csv(_csv(rows))
+    assert list(out.columns) == ["stream", "subgroup", "value", "sample_size", "lsl",
+                                 "usl", "chart_type"]
+
+
+def test_declared_optional_columns_survive_with_their_values():
+    rows = [{**GOOD_ROWS[0], "chart_type": "p"}]
+    out = load_spc_csv(_csv(rows))
+    assert out["sample_size"].iloc[0] == 5.0
+    assert out["lsl"].iloc[0] == 0.245
+    assert out["usl"].iloc[0] == 0.255
+    assert out["chart_type"].iloc[0] == "p"
+
+
+@pytest.mark.parametrize("bad", [0, -1, "abc", float("inf")])
+def test_bad_sample_size_is_row_and_column_addressed(bad):
+    rows = [
+        {"stream": "ply", "subgroup": 1, "value": 0.25, "sample_size": 5},
+        {"stream": "ply", "subgroup": 2, "value": 0.25, "sample_size": bad},
+    ]
+    with pytest.raises(IngestError) as exc:
+        load_spc_csv(_csv(rows))
+    msg = str(exc.value)
+    assert "Row 3" in msg  # header is row 1
+    assert "sample_size" in msg
+
+
+@pytest.mark.parametrize("n", [2.5, 0.87])
+def test_fractional_sample_size_accepted(n):
+    # SME resolution 4: for a u chart n is the *area of opportunity*, legitimately
+    # non-integer and possibly < 1 — so float/gt=0, not int/ge=1.
+    rows = [{"stream": "panel_defects", "subgroup": 1, "value": 3, "sample_size": n}]
+    assert load_spc_csv(_csv(rows))["sample_size"].iloc[0] == n
+
+
+@pytest.mark.parametrize("col", ["lsl", "usl"])
+def test_infinite_tolerance_rejected(col):
+    rows = [{"stream": "ply", "subgroup": 1, "value": 0.25, col: float("inf")}]
+    with pytest.raises(IngestError) as exc:
+        load_spc_csv(_csv(rows))
+    assert col in str(exc.value)
+
+
+def test_blank_optional_cells_are_accepted_and_stay_nan():
+    rows = [
+        {"stream": "ply", "subgroup": 1, "value": 0.25, "sample_size": 5,
+         "lsl": 0.2, "usl": 0.3, "chart_type": "xbar_r"},
+        {"stream": "ply", "subgroup": 2, "value": 0.26, "sample_size": None,
+         "lsl": None, "usl": None, "chart_type": None},
+    ]
+    out = load_spc_csv(_csv(rows))
+    assert out.loc[1, ["sample_size", "lsl", "usl", "chart_type"]].isna().all()
+
+
+@pytest.mark.parametrize("key", ["xbar_r", "xbar_s", "imr", "p", "u", "c"])
+def test_each_engine_chart_key_is_accepted(key):
+    rows = [{"stream": "ply", "subgroup": 1, "value": 0.25, "chart_type": key}]
+    assert load_spc_csv(_csv(rows))["chart_type"].iloc[0] == key
+
+
+@pytest.mark.parametrize("bad", ["Xbar-R", "I-MR", "xbarr", "XBAR_R", "junk"])
+def test_control_plan_display_labels_and_junk_chart_types_rejected(bad):
+    # Pins that SPC's chart_type vocabulary is the *engine* keys, NOT Control Plan's
+    # SPCChart display labels ("Xbar-R", "I-MR", ...). The two are deliberately
+    # distinct — this test fails the day someone merges them.
+    rows = [{"stream": "ply", "subgroup": 1, "value": 0.25, "chart_type": bad}]
+    with pytest.raises(IngestError) as exc:
+        load_spc_csv(_csv(rows))
+    msg = str(exc.value)
+    assert "Row 2" in msg
+    assert "chart_type" in msg
+
+
+def test_bundled_demo_csv_still_validates_unchanged():
+    # apps/spc/data/demo_composites_aerospace.csv is the documented upload template
+    # and carries all six engine chart keys plus a fractional u-chart sample_size.
+    # It must survive the #200 narrowing untouched.
+    out = load_spc_csv(str(DEMO_CSV_PATH))
+    assert list(out.columns) == ["stream", "subgroup", "value", "sample_size", "lsl",
+                                 "usl", "chart_type"]
+    assert "parameter" not in out.columns
+    assert set(out["chart_type"].unique()) == {"xbar_r", "xbar_s", "imr", "p", "u", "c"}
+    u_sizes = out.loc[out["chart_type"] == "u", "sample_size"]
+    assert ((u_sizes > 0) & (u_sizes < 2)).all()  # fractional area of opportunity
+    assert out["lsl"].isna().any()  # blank tolerance cells stay NaN

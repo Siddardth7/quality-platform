@@ -1,7 +1,11 @@
 # SECOM — Semiconductor Manufacturing Dataset
 
-Scaffold for the SECOM app. It mounts into the unified Quality Platform shell
-alongside FMEA, SPC, MSA, and Control Plan, sharing `quality_core`.
+**SECOM is engine-only (#206).** It is a tested analysis *library* over the SECOM
+dataset — consumed by its own suite and, from P3 onward, by the platform API — and
+is deliberately **not** mounted in the unified Streamlit shell: there is no `app.py`
+here and no `st.navigation` entry, unlike FMEA, SPC, Control Plan, and MSA. It is a
+full workspace member (`pyproject.toml`) sharing `quality_core`. All SPC chart and
+capability math comes from `quality_core.spc` (#205) — this app imports no other app.
 
 SECOM (UCI ML Repository, dataset 179) is real semiconductor fab process data:
 1567 production runs x 590 sensor readings, with a pass/fail label and a
@@ -31,8 +35,10 @@ standard-vs-heuristic labelling of every screening rule.
 
 - **`secom_app/charts.py`** (W09-2, #66) — `control_chart_for_signal()` /
   `control_charts_for_selection()` run every `select_signals()`-kept signal
-  through the *existing* SPC I-MR engine (`apps/spc/spc_app/spc_engine/`,
-  reused read-only, no reimplemented control-limit math). Handles SECOM's
+  through the shared SPC I-MR engine (`quality_core.spc.control_charts`, reused
+  read-only). The AIAG limit formula is not reimplemented here: SECOM feeds its
+  own gap-aware pooled `mrbar` into `imr_limits()`, the single place that formula
+  is written (#205 PR 2). Handles SECOM's
   honest missingness by splitting each signal into gap-free runs before any
   moving-range math (a moving range never spans a missing cell), and attaches
   a per-signal lag-1 autocorrelation diagnostic flag (never a filter/gate).
@@ -40,7 +46,7 @@ standard-vs-heuristic labelling of every screening rule.
 
 - **`secom_app/capability.py`** (W09-3, #67) — Cp/Cpk/Pp/Ppk against
   caller-supplied limits, stability-gated: `capability_for_signal()` reuses
-  the existing SPC `compute_capability` (never re-derives Cp/Cpk math) fed
+  `quality_core.spc.capability`'s `compute_capability` (never re-derives Cp/Cpk math) fed
   the W09-2 control chart's present values and within-process σ̂; still
   computes indices on an unstable process but flags `stable=False` with a
   `stability_warning` rather than fabricating a limit or hard-suppressing.
@@ -59,9 +65,8 @@ standard-vs-heuristic labelling of every screening rule.
   detection (`control_charts_for_selection`, no anomaly rule re-derived) to
   rank kept signals by how many special-cause violation events land on
   failed wafers — an association/screening Pareto, not a root-cause claim.
-  `secom_app/pages/yield_dppm.py` (`render_yield_dppm()`) is a thin,
-  non-gated Streamlit view of this engine's output, mirroring
-  `msa_app/pages/gage_study.py`.
+  Engine-only: the thin Streamlit view that shipped with W09-5 was deleted by
+  #206 (see the engine-only note at the top).
 
 - **`secom_app/doe_screening.py`** (W11-1, #72) — `screen_signals()` runs an
   observational univariate effect screen (Welch's t + Cohen's d, BH-FDR
