@@ -541,7 +541,7 @@ wheels = [
 [[package]]
 name = "controlplan-app"
 version = "0.13.0"
-source = { virtual = "apps/controlplan" }
+source = { editable = "apps/controlplan" }
 dependencies = [
     { name = "fpdf2" },
     { name = "openpyxl" },
@@ -897,7 +897,7 @@ wheels = [
 [[package]]
 name = "fmea-app"
 version = "0.13.0"
-source = { virtual = "apps/fmea" }
+source = { editable = "apps/fmea" }
 dependencies = [
     { name = "fpdf2" },
     { name = "matplotlib" },
@@ -2687,8 +2687,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "controlplan-app", virtual = "apps/controlplan" },
-    { name = "fmea-app", virtual = "apps/fmea" },
+    { name = "controlplan-app", editable = "apps/controlplan" },
+    { name = "fmea-app", editable = "apps/fmea" },
     { name = "mcp-app", editable = "apps/mcp" },
     { name = "msa-app", editable = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },

@@ -58,6 +58,11 @@ from quality_core.spc.constants import XBAR_S_CONSTANTS
 
 from controlplan_app.schema import ControlPlanDataset, ControlPlanRow, SPCChart
 
+#: Stable public surface (#261) — the three engine entry points. Everything else in
+#: this module (``_reaction_plan``, ``_worst_link``, ``_iter_named_modes``, ...) is
+#: an internal helper.
+__all__ = ["build_control_plan", "recommend_chart", "source_index"]
+
 DataType = Literal["variable", "attribute"]
 
 #: Largest subgroup size the SPC engine can actually compute an X-bar/S chart for.
