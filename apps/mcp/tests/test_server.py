@@ -6,10 +6,13 @@ patched out: the real call blocks forever serving the stdio protocol loop.
 """
 
 import asyncio
+import math
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import pytest
+import quality_core.spc.capability as capability
 from fastmcp.exceptions import ToolError
 from mcp_app import __version__
 from mcp_app.server import (
@@ -21,6 +24,25 @@ from mcp_app.server import (
     fmea_score,
     health,
     main,
+    spc_apply_imr,
+    spc_apply_xbar_r,
+    spc_apply_xbar_s,
+    spc_assess_stability,
+    spc_c,
+    spc_capability,
+    spc_cusum,
+    spc_detect_nelson_violations,
+    spc_detect_we_violations,
+    spc_ewma,
+    spc_freeze_imr,
+    spc_freeze_xbar_r,
+    spc_freeze_xbar_s,
+    spc_imr,
+    spc_normality_test,
+    spc_p,
+    spc_u,
+    spc_xbar_r,
+    spc_xbar_s,
     version,
 )
 from quality_core.schema import (
@@ -76,6 +98,25 @@ def test_exactly_the_expected_tools_are_registered():
         "fmea_run_relational",
         "fmea_list_scales",
         "fmea_get_scale",
+        "spc_xbar_r",
+        "spc_xbar_s",
+        "spc_imr",
+        "spc_p",
+        "spc_c",
+        "spc_u",
+        "spc_ewma",
+        "spc_cusum",
+        "spc_freeze_xbar_r",
+        "spc_freeze_xbar_s",
+        "spc_freeze_imr",
+        "spc_apply_xbar_r",
+        "spc_apply_xbar_s",
+        "spc_apply_imr",
+        "spc_detect_we_violations",
+        "spc_detect_nelson_violations",
+        "spc_capability",
+        "spc_normality_test",
+        "spc_assess_stability",
     }
 
 
@@ -247,3 +288,500 @@ def test_fmea_get_scale_custom_bad_json_raises_toolerror():
 def test_fmea_get_scale_unknown_id_raises_toolerror():
     with pytest.raises(ToolError, match="Unknown scale_id 'bogus'"):
         fmea_get_scale("bogus")
+
+
+# ===========================================================================
+# SPC tools (#263). Golden datasets and expected numbers are lifted verbatim
+# from packages/quality-core/tests/test_spc_*.py — the MCP layer adds no
+# arithmetic, so the boundary must return the already-verified engine numbers.
+# ===========================================================================
+
+XBAR_R_SAMPLE = [
+    [10, 11, 12, 13, 14],
+    [11, 12, 13, 14, 15],
+    [9, 10, 11, 12, 13],
+]
+XBAR_S_SAMPLE = [list(range(1, 13)), list(range(2, 14)), list(range(3, 15))]
+IMR_SAMPLE = [10, 12, 11, 15, 14]
+P_COUNTS = [3, 5, 4]
+P_SAMPLE_SIZES = [100, 120, 80]
+C_COUNTS = [4, 7, 5, 6]
+U_COUNTS = [2, 4, 3]
+U_SAMPLE_SIZES = [1.0, 2.0, 1.5]
+
+# Phase II data (test_spc_control_charts.py:282-292) — different means/ranges
+# from the baseline, so "limits unchanged" is a real claim, not a tautology.
+XBAR_R_PHASE_II_DATA = [[20, 21, 22, 23, 24], [19, 18, 17, 16, 15]]
+XBAR_S_PHASE_II_DATA = [list(range(20, 32)), list(range(30, 18, -1))]
+IMR_PHASE_II_DATA = [50, 55, 48, 60, 52, 47]
+
+EWMA_VALUES = [11.0, 9.5, 10.2, 10.8, 9.9]
+MU0 = 10.0
+SIGMA = 1.0
+
+
+# ---------------------------------------------------------------------------
+# Charts — golden limits + points, not merely "no error"
+# ---------------------------------------------------------------------------
+
+
+def test_spc_xbar_r_golden_limits_and_points():
+    r = spc_xbar_r(XBAR_R_SAMPLE)
+    assert r["subgroup_means"] == pytest.approx([12.0, 13.0, 11.0])
+    assert r["ranges"] == pytest.approx([4.0, 4.0, 4.0])
+    assert r["ucl_x"] == pytest.approx(14.308, rel=1e-4)
+    assert r["lcl_x"] == pytest.approx(9.692, rel=1e-4)
+    assert r["ucl_r"] == pytest.approx(8.456, rel=1e-4)
+    assert r["lcl_r"] == pytest.approx(0.0)
+    assert r["sigma_hat"] == pytest.approx(4.0 / 2.326, rel=1e-4)
+
+
+def test_spc_xbar_s_golden_limits():
+    r = spc_xbar_s(XBAR_S_SAMPLE)
+    subgroup_std = math.sqrt(13.0)
+    assert r["ucl_x"] == pytest.approx(7.5 + 0.886 * subgroup_std, rel=1e-4)
+    assert r["sigma_hat"] == pytest.approx(subgroup_std / 0.9776, rel=1e-4)
+
+
+def test_spc_imr_golden_limits_and_moving_ranges():
+    r = spc_imr(IMR_SAMPLE)
+    assert r["moving_ranges"] == pytest.approx([2.0, 1.0, 4.0, 1.0])
+    assert r["ucl_x"] == pytest.approx(17.72, rel=1e-4)
+    assert r["lcl_x"] == pytest.approx(7.08, rel=1e-4)
+    assert r["ucl_mr"] == pytest.approx(6.534, rel=1e-4)
+    assert r["sigma_hat"] == pytest.approx(2.0 / 1.128, rel=1e-4)
+
+
+def test_spc_p_golden_pbar_and_proportions():
+    r = spc_p(P_COUNTS, P_SAMPLE_SIZES)
+    assert r["pbar"] == pytest.approx(12.0 / 300.0, rel=1e-4)
+    assert r["proportions"] == pytest.approx([0.03, 5 / 120, 0.05], rel=1e-4)
+    pbar = 12.0 / 300.0
+    assert r["ucl"][0] == pytest.approx(
+        pbar + 3.0 * math.sqrt((pbar * (1.0 - pbar)) / 100.0), rel=1e-4
+    )
+    assert r["lcl"][0] == pytest.approx(0.0)
+
+
+def test_spc_c_golden_cbar_and_limits():
+    r = spc_c(C_COUNTS)
+    assert r["cbar"] == pytest.approx(5.5)
+    assert r["ucl"] == pytest.approx(5.5 + 3.0 * math.sqrt(5.5), rel=1e-4)
+    assert r["lcl"] == pytest.approx(0.0)
+
+
+def test_spc_u_golden_ubar_and_limits():
+    r = spc_u(U_COUNTS, U_SAMPLE_SIZES)
+    assert r["ubar"] == pytest.approx(2.0)
+    assert r["ucl"][1] == pytest.approx(2.0 + 3.0 * math.sqrt(2.0 / 2.0), rel=1e-4)
+    assert r["lcl"][0] == pytest.approx(0.0)
+
+
+def test_spc_ewma_golden_recursion_and_echoed_defaults():
+    r = spc_ewma(EWMA_VALUES, MU0, SIGMA)
+    # z0 seeds from mu0, not x0 (test_spc_ewma.py:41-54).
+    z0 = 0.2 * EWMA_VALUES[0] + 0.8 * MU0
+    assert r["z"][0] == pytest.approx(z0)
+    assert r["z"][1] == pytest.approx(0.2 * EWMA_VALUES[1] + 0.8 * z0)
+    # Defaults pulled from the engine constants, echoed on the result.
+    assert r["lam"] == pytest.approx(0.20)
+    assert r["L"] == pytest.approx(2.860)
+    assert r["pairing_adequate"] is True
+
+
+def test_spc_ewma_mismatched_pairing_is_flagged_not_swallowed():
+    # A tabulated lambda paired with a non-tabulated L must come back flagged.
+    r = spc_ewma(EWMA_VALUES, MU0, SIGMA, lam=0.05, L=3.0)
+    assert r["pairing_adequate"] is False
+    assert r["pairing_note"] != ""
+
+
+def test_spc_ewma_untabulated_lambda_pairing_ok_branch():
+    # Custom lambda not in EWMA_L_BY_LAMBDA -> the "no key matches" fallback: adequate.
+    r = spc_ewma(EWMA_VALUES, MU0, SIGMA, lam=0.15, L=3.0)
+    assert r["pairing_adequate"] is True
+    assert r["pairing_note"] == ""
+
+
+def test_spc_cusum_golden_recursion_and_echoed_defaults():
+    r = spc_cusum([11.0, 9.5, 10.2], MU0, SIGMA)
+    z0 = (11.0 - MU0) / SIGMA
+    assert r["c_plus"][0] == pytest.approx(max(0.0, z0 - 0.5))
+    assert r["c_minus"][0] == pytest.approx(max(0.0, -z0 - 0.5))
+    assert r["k"] == pytest.approx(0.5)
+    assert r["h"] == pytest.approx(5.0)
+    assert r["fir"] is False
+
+
+def test_spc_cusum_fir_head_start_seeds_both_arms():
+    r = spc_cusum([MU0] * 5, MU0, SIGMA, fir=True)
+    # seed = 0.5 * h = 2.5; z0 = 0 -> c_plus0 = max(0, -0.5 + 2.5) = 2.0.
+    assert r["fir"] is True
+    assert r["c_plus"][0] == pytest.approx(2.0)
+    assert r["c_minus"][0] == pytest.approx(2.0)
+
+
+# ---------------------------------------------------------------------------
+# Phase — freeze + apply round trip (the acceptance criterion)
+# ---------------------------------------------------------------------------
+
+
+def test_spc_freeze_xbar_r_returns_frozen_limits_shape():
+    frozen = spc_freeze_xbar_r(XBAR_R_SAMPLE)
+    assert frozen["chart_type"] == "xbar_r"
+    assert frozen["n"] == 5
+    assert frozen["sigma_method"] == "Rbar/d2"
+    # 3 subgroups is below the AIAG baseline floor -> soft-flagged, never raised.
+    assert frozen["baseline_adequate"] is False
+    assert frozen["baseline_note"] != ""
+
+
+def test_spc_apply_xbar_r_round_trip_uses_frozen_limits_verbatim():
+    frozen = spc_freeze_xbar_r(XBAR_R_SAMPLE)
+    r = spc_apply_xbar_r(XBAR_R_PHASE_II_DATA, frozen)
+    # Phase II limits equal the frozen ones, nothing recomputed from new data.
+    assert r["xbarbar"] == pytest.approx(frozen["center_line"])
+    assert r["rbar"] == pytest.approx(frozen["dispersion_center"])
+    assert r["ucl_x"] == pytest.approx(frozen["ucl_x"])
+    assert r["lcl_x"] == pytest.approx(frozen["lcl_x"])
+    assert r["ucl_r"] == pytest.approx(frozen["ucl_disp"])
+    assert r["lcl_r"] == pytest.approx(frozen["lcl_disp"])
+    assert r["sigma_hat"] == pytest.approx(frozen["sigma_hat"])
+    # But the plotted points ARE the new data's, not the baseline's.
+    assert r["subgroup_means"] == pytest.approx([22.0, 17.0])
+    assert r["subgroup_means"] != pytest.approx(
+        spc_xbar_r(XBAR_R_SAMPLE)["subgroup_means"]
+    )
+
+
+def test_spc_apply_xbar_s_round_trip_uses_frozen_limits_verbatim():
+    frozen = spc_freeze_xbar_s(XBAR_S_SAMPLE)
+    r = spc_apply_xbar_s(XBAR_S_PHASE_II_DATA, frozen)
+    assert r["ucl_x"] == pytest.approx(frozen["ucl_x"])
+    assert r["lcl_x"] == pytest.approx(frozen["lcl_x"])
+    assert r["ucl_s"] == pytest.approx(frozen["ucl_disp"])
+    assert r["sigma_hat"] == pytest.approx(frozen["sigma_hat"])
+
+
+def test_spc_apply_imr_round_trip_uses_frozen_limits_verbatim():
+    frozen = spc_freeze_imr(IMR_SAMPLE)
+    r = spc_apply_imr(IMR_PHASE_II_DATA, frozen)
+    assert r["xbar"] == pytest.approx(frozen["center_line"])
+    assert r["ucl_x"] == pytest.approx(frozen["ucl_x"])
+    assert r["lcl_x"] == pytest.approx(frozen["lcl_x"])
+    assert r["ucl_mr"] == pytest.approx(frozen["ucl_disp"])
+    assert r["sigma_hat"] == pytest.approx(frozen["sigma_hat"])
+    assert r["values"] == pytest.approx(IMR_PHASE_II_DATA)
+
+
+def test_spc_freeze_xbar_r_exclusion_shifts_limits():
+    baseline = [list(row) for row in XBAR_R_SAMPLE] + [[10, 100, 5, 95, 50]]
+    no_excl = spc_freeze_xbar_r(baseline)
+    with_excl = spc_freeze_xbar_r(
+        baseline, excluded=[{"index": 3, "cause": "tool jam, log #4471"}]
+    )
+    assert with_excl["ucl_x"] != pytest.approx(no_excl["ucl_x"])
+
+
+def test_spc_freeze_imr_phase_i_range_recorded_verbatim():
+    # tuple[str, str] survives the boundary as a 2-tuple/array (JSON round-trip).
+    rng = ("2026-01-01T00:00:00+00:00", "2026-02-01T00:00:00+00:00")
+    frozen = spc_freeze_imr(IMR_SAMPLE, phase_i_range=rng)
+    assert tuple(frozen["phase_i_range"]) == rng
+
+
+# ---------------------------------------------------------------------------
+# Rules — WE + Nelson flagged at the right indices on golden series
+# ---------------------------------------------------------------------------
+
+
+def test_spc_detect_we_violations_golden_indices():
+    # A >3sigma point fires WE Rule 1 at index 2 (test_spc_rule_detection.py:31).
+    v = spc_detect_we_violations([0.1, 0.2, 3.2], cl=0.0, sigma=1.0)
+    assert {"index": 2, "rule": "Western Electric Rule 1"} in v
+
+
+def test_spc_detect_we_violations_clean_series_is_empty():
+    assert spc_detect_we_violations([0.2, -0.1, 0.4, -0.3, 0.1], cl=0.0, sigma=1.0) == []
+
+
+def test_spc_detect_nelson_violations_golden_run_rule():
+    # 9-in-a-row fires Nelson Rule 2 at index 8 (test_spc_rule_detection.py:283).
+    v = spc_detect_nelson_violations([1.0] * 9, cl=0.0, sigma=1.0)
+    assert v == [{"index": 8, "rule": "Nelson Rule 2"}]
+
+
+def test_spc_detect_nelson_eight_in_a_row_does_not_fire_run_rule():
+    # Nelson's run test is 9-in-a-row, not WE's 8 (boundary, one below the edge).
+    assert spc_detect_nelson_violations([1.0] * 8, cl=0.0, sigma=1.0) == []
+
+
+# ---------------------------------------------------------------------------
+# Capability — indices + the #193 CI/df/estimator pairing, per method path
+# ---------------------------------------------------------------------------
+
+NORMAL_DATA = np.random.default_rng(0).normal(10.0, 0.5, size=40).tolist()
+
+
+def test_spc_capability_normal_path_indices_and_ci_pairing():
+    study = spc_capability(NORMAL_DATA, 8.0, 12.0, force_method="normal")
+    assert study["method"] == "normal"
+    for key in ("cp", "cpk", "pp", "ppk"):
+        assert study[key] is not None
+    # #193: the parametric CI rides Pp/Ppk (ddof=1), never the within-sigma Cp/Cpk.
+    assert study["cp_ci"] is None
+    assert study["cpk_ci"] is None
+    assert study["pp_ci"] is not None
+    assert study["ppk_ci"] is not None
+    assert study["ci_estimator"] == "sample_sd_ddof1"
+    assert study["ci_df"] == study["n"] - 1
+
+
+def test_spc_capability_percentile_path_flips_the_ci_pairing(monkeypatch):
+    monkeypatch.setattr(capability, "BOOTSTRAP_RESAMPLES", 50)
+    study = spc_capability(NORMAL_DATA, 8.0, 12.0, force_method="percentile")
+    assert study["method"] == "percentile"
+    # Percentile method computes no Pp/Ppk; the bootstrap CI rides Cp/Cpk.
+    assert study["pp"] is None
+    assert study["ppk"] is None
+    assert study["pp_ci"] is None
+    assert study["ppk_ci"] is None
+    assert study["cp_ci"] is not None
+    assert study["cpk_ci"] is not None
+    assert study["ci_estimator"] == "bootstrap_percentile"
+    assert study["ci_df"] is None
+
+
+def test_spc_capability_no_spec_limits_returns_null_indices_without_raising():
+    study = spc_capability(NORMAL_DATA, None, None, force_method="normal")
+    assert study["cp"] is None
+    assert study["cpk"] is None
+
+
+def test_spc_capability_violations_none_is_stable_none_not_assessed():
+    # #191 D2: the `is None` distinction is load-bearing — omitted means "not assessed".
+    study = spc_capability(NORMAL_DATA, 8.0, 12.0, force_method="normal")
+    assert study["stable"] is None
+
+
+def test_spc_capability_violations_empty_is_stable_true_in_control():
+    study = spc_capability(NORMAL_DATA, 8.0, 12.0, force_method="normal", violations=[])
+    assert study["stable"] is True
+
+
+def test_spc_capability_violations_non_empty_is_stable_false():
+    study = spc_capability(
+        NORMAL_DATA,
+        8.0,
+        12.0,
+        force_method="normal",
+        violations=[{"index": 9, "rule": "Western Electric Rule 1"}],
+    )
+    assert study["stable"] is False
+    assert study["stability_note"]
+
+
+def test_spc_normality_test_golden_keys():
+    r = spc_normality_test(NORMAL_DATA)
+    assert set(r) >= {"w_stat", "p_value", "is_normal"}
+    assert r["is_normal"] is True
+
+
+# ---------------------------------------------------------------------------
+# Stability — each chart_type path, long-format parallel lists
+# ---------------------------------------------------------------------------
+
+
+def _long_format(subgroups: list[list[float]]) -> tuple[list[float], list[int]]:
+    values: list[float] = []
+    labels: list[int] = []
+    for index, group in enumerate(subgroups, start=1):
+        for value in group:
+            values.append(float(value))
+            labels.append(index)
+    return values, labels
+
+
+def test_spc_assess_stability_imr_in_control_has_no_signals():
+    values = [1.0, 2.0] * 5
+    r = spc_assess_stability(values, list(range(1, 11)), chart_type="I-MR")
+    assert r["sigma_hat"] > 0
+    assert r["signals"] == []
+
+
+def test_spc_assess_stability_imr_out_of_control_flags_signal():
+    values = [1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 20.0]
+    r = spc_assess_stability(values, list(range(1, 11)), chart_type="I-MR")
+    assert len(r["signals"]) >= 1
+
+
+def test_spc_assess_stability_xbar_r_path():
+    values, labels = _long_format(XBAR_R_SAMPLE)
+    r = spc_assess_stability(values, labels, chart_type="Xbar-R")
+    assert r["sigma_hat"] > 0
+    assert isinstance(r["signals"], list)
+
+
+def test_spc_assess_stability_xbar_s_path():
+    values, labels = _long_format(XBAR_S_SAMPLE)
+    r = spc_assess_stability(values, labels, chart_type="Xbar-S")
+    assert r["sigma_hat"] > 0
+    assert isinstance(r["signals"], list)
+
+
+# ---------------------------------------------------------------------------
+# Edge / error cases — every enumerated ValueError branch surfaces as ToolError
+# via the _call wrapper, matched on the exact engine message.
+# ---------------------------------------------------------------------------
+
+
+def test_spc_xbar_r_ragged_subgroups_raise_toolerror():
+    with pytest.raises(ToolError):
+        spc_xbar_r([[1.0, 2.0, 3.0], [4.0, 5.0]])
+
+
+def test_spc_xbar_r_untabulated_subgroup_size_raises_toolerror():
+    with pytest.raises(ToolError, match="subgroup size between 2 and 10"):
+        spc_xbar_r([[1], [2], [3]])
+
+
+def test_spc_xbar_s_untabulated_subgroup_size_raises_toolerror():
+    with pytest.raises(ToolError, match="subgroup size between 2 and 12"):
+        spc_xbar_s([[1], [2]])
+
+
+def test_spc_imr_too_few_values_raises_toolerror():
+    with pytest.raises(ToolError, match="at least two values"):
+        spc_imr([5])
+
+
+def test_spc_c_empty_raises_toolerror():
+    with pytest.raises(ToolError, match="at least one count"):
+        spc_c([])
+
+
+def test_spc_p_mismatched_lengths_raise_toolerror():
+    with pytest.raises(ToolError, match="matching 1D arrays"):
+        spc_p([1, 2], [100])
+
+
+def test_spc_p_non_finite_sample_size_raises_toolerror():
+    # #200 regression: a NaN size must raise, not silently produce NaN limits.
+    with pytest.raises(ToolError, match="sample sizes must be positive"):
+        spc_p([1, 2], [10.0, float("nan")])
+
+
+def test_spc_u_non_finite_sample_size_raises_toolerror():
+    with pytest.raises(ToolError, match="sample sizes must be positive"):
+        spc_u([1, 2], [10.0, float("inf")])
+
+
+def test_spc_ewma_nonpositive_sigma_raises_toolerror():
+    with pytest.raises(ToolError, match="requires sigma > 0"):
+        spc_ewma(EWMA_VALUES, MU0, 0.0)
+
+
+def test_spc_ewma_lambda_out_of_range_raises_toolerror():
+    with pytest.raises(ToolError, match=r"requires 0 < lam <= 1"):
+        spc_ewma(EWMA_VALUES, MU0, SIGMA, lam=1.5)
+
+
+def test_spc_ewma_nonpositive_l_raises_toolerror():
+    with pytest.raises(ToolError, match="requires L > 0"):
+        spc_ewma(EWMA_VALUES, MU0, SIGMA, L=0.0)
+
+
+def test_spc_cusum_nonpositive_sigma_raises_toolerror():
+    with pytest.raises(ToolError, match="requires sigma > 0"):
+        spc_cusum(EWMA_VALUES, MU0, 0.0)
+
+
+def test_spc_cusum_nonpositive_k_raises_toolerror():
+    with pytest.raises(ToolError, match="requires k > 0"):
+        spc_cusum(EWMA_VALUES, MU0, SIGMA, k=0.0)
+
+
+def test_spc_cusum_nonpositive_h_raises_toolerror():
+    with pytest.raises(ToolError, match="requires h > 0"):
+        spc_cusum(EWMA_VALUES, MU0, SIGMA, h=0.0)
+
+
+def test_spc_freeze_empty_cause_raises_toolerror():
+    with pytest.raises(ToolError, match="non-empty documented cause"):
+        spc_freeze_xbar_r(XBAR_R_SAMPLE, excluded=[{"index": 0, "cause": "   "}])
+
+
+def test_spc_freeze_out_of_range_index_raises_toolerror():
+    with pytest.raises(ToolError, match="out of range for the baseline"):
+        spc_freeze_xbar_r(XBAR_R_SAMPLE, excluded=[{"index": 999, "cause": "bad"}])
+
+
+def test_spc_freeze_duplicate_index_raises_toolerror():
+    with pytest.raises(ToolError, match="is duplicated"):
+        spc_freeze_xbar_r(
+            XBAR_R_SAMPLE,
+            excluded=[{"index": 0, "cause": "a"}, {"index": 0, "cause": "b"}],
+        )
+
+
+def test_spc_apply_chart_type_mismatch_raises_toolerror():
+    # An I-MR baseline fed into the X-bar & R Phase II tool.
+    imr_frozen = spc_freeze_imr(IMR_SAMPLE)
+    with pytest.raises(ToolError, match="expected 'xbar_r'"):
+        spc_apply_xbar_r(XBAR_R_PHASE_II_DATA, imr_frozen)
+
+
+def test_spc_apply_subgroup_size_mismatch_raises_toolerror():
+    frozen = spc_freeze_xbar_r(XBAR_R_SAMPLE)  # n=5
+    with pytest.raises(ToolError, match="computed for n=5"):
+        spc_apply_xbar_r([[1, 2, 3], [4, 5, 6]], frozen)
+
+
+def test_spc_detect_we_violations_nonpositive_sigma_raises_toolerror():
+    with pytest.raises(ToolError, match="sigma must be positive"):
+        spc_detect_we_violations([0.1, 0.2, 0.3], cl=0.0, sigma=0.0)
+
+
+def test_spc_detect_nelson_violations_nonpositive_sigma_raises_toolerror():
+    with pytest.raises(ToolError, match="sigma must be positive"):
+        spc_detect_nelson_violations([0.1, 0.2, 0.3], cl=0.0, sigma=-1.0)
+
+
+def test_spc_capability_alpha_out_of_range_raises_toolerror():
+    with pytest.raises(ToolError, match=r"alpha must be in \(0, 1\)"):
+        spc_capability(NORMAL_DATA, 8.0, 12.0, alpha=1.5)
+
+
+def test_spc_capability_too_few_points_raises_toolerror():
+    with pytest.raises(ToolError, match="at least three observations"):
+        spc_capability([1.0, 2.0], 8.0, 12.0)
+
+
+def test_spc_capability_invalid_ndim_raises_toolerror():
+    with pytest.raises(ToolError, match="1D individuals or 2D subgroups"):
+        spc_capability([[[1.0, 2.0], [3.0, 4.0]]], 8.0, 12.0)  # type: ignore[list-item]
+
+
+def test_spc_capability_constant_data_raises_toolerror():
+    with pytest.raises(ToolError, match="constant data has no capability"):
+        spc_capability([5.0] * 10, 1.0, 9.0)
+
+
+def test_spc_normality_test_too_few_points_raises_toolerror():
+    with pytest.raises(ToolError, match="at least three values"):
+        spc_normality_test([10.0, 10.1])
+
+
+def test_spc_assess_stability_ragged_subgroups_raise_toolerror():
+    values, labels = _long_format([[1.0, 2.0, 3.0], [4.0, 5.0]])
+    with pytest.raises(ToolError):
+        spc_assess_stability(values, labels, chart_type="Xbar-R")
+
+
+def test_spc_apply_malformed_frozen_raises_keyerror_not_toolerror():
+    # KNOWN, spec-sanctioned (changes.md "For the Tester"): a structurally malformed
+    # `frozen` dict raises KeyError, NOT a structured ToolError, because `_call`
+    # catches only ValueError/ValidationError. Pinned here so a future change that
+    # silently widens `_call` to swallow KeyError is a visible, reviewed decision.
+    with pytest.raises(KeyError):
+        spc_apply_xbar_r(XBAR_R_PHASE_II_DATA, {"not": "a frozen dict"})
