@@ -7,6 +7,7 @@ render, so the ingest/branch wiring is covered without a Streamlit runtime.
 
 from __future__ import annotations
 
+import inspect
 import io
 
 import pandas as pd
@@ -74,3 +75,24 @@ def test_tolerance_problem_when_usl_not_above_lsl():
     assert note is not None
     assert "USL must be greater than LSL" in note
     assert Tolerance(usl=1.0, lsl=5.0).problem() is not None
+
+
+# --- interpretation-guide subheader attribution (#237) -----------------------
+
+
+def test_criteria_subheader_splits_aiag_grr_from_platform_ndc_bands():
+    """The interpretation-guide subheader must not label the ndc sub-bands AIAG's (#237).
+
+    The block mixes AIAG-sourced %GRR bounds with platform-only ndc sub-bands under one
+    heading; a bare "AIAG Acceptance Criteria" heading attributes the ndc bands to a
+    standard that does not state them. A subheader string regresses silently, so pin it.
+    """
+    src = inspect.getsource(render_gage_study)
+    assert "Acceptance Criteria (AIAG %GRR bands + platform ndc bands)" in src, (
+        "the subheader must distinguish AIAG's %GRR bands from the platform's ndc bands "
+        "(#237); matches ASSUMPTIONS_LOG.md RULE 10's title verbatim."
+    )
+    assert "AIAG Acceptance Criteria" not in src, (
+        "do not restore the bare 'AIAG Acceptance Criteria' heading — it misattributes "
+        "the ndc sub-bands (2-4, <2) to AIAG (#237, audit A10-a)."
+    )
