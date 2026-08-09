@@ -350,7 +350,7 @@ wheels = [
 
 [[package]]
 name = "controlplan-app"
-version = "0.7.0"
+version = "0.13.0"
 source = { virtual = "apps/controlplan" }
 dependencies = [
     { name = "fpdf2" },
@@ -529,7 +529,7 @@ wheels = [
 
 [[package]]
 name = "fmea-app"
-version = "0.7.0"
+version = "0.13.0"
 source = { virtual = "apps/fmea" }
 dependencies = [
     { name = "fpdf2" },
@@ -1052,7 +1052,7 @@ wheels = [
 
 [[package]]
 name = "msa-app"
-version = "0.7.0"
+version = "0.13.0"
 source = { editable = "apps/msa" }
 dependencies = [
     { name = "fpdf2" },
@@ -1837,7 +1837,7 @@ wheels = [
 
 [[package]]
 name = "quality-core"
-version = "0.7.0"
+version = "0.13.0"
 source = { editable = "packages/quality-core" }
 dependencies = [
     { name = "defusedxml" },
@@ -1867,7 +1867,7 @@ provides-extras = ["streamlit"]
 
 [[package]]
 name = "quality-platform"
-version = "0.7.0"
+version = "0.13.0"
 source = { virtual = "." }
 dependencies = [
     { name = "controlplan-app" },
@@ -2187,7 +2187,7 @@ wheels = [
 
 [[package]]
 name = "secom-app"
-version = "0.7.0"
+version = "0.13.0"
 source = { editable = "apps/secom" }
 dependencies = [
     { name = "numpy" },
@@ -2245,7 +2245,7 @@ wheels = [
 
 [[package]]
 name = "spc-app"
-version = "0.7.0"
+version = "0.13.0"
 source = { editable = "apps/spc" }
 dependencies = [
     { name = "fpdf2" },
