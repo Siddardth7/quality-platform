@@ -1,9 +1,15 @@
-"""The quality-platform MCP server: FastMCP app, stdio transport, meta + FMEA tools.
+"""The quality-platform MCP server: FastMCP app, stdio transport, meta + FMEA + SPC tools.
 
-This module is the M1-1 foundation (#260); M1-3 (#262) added the FMEA tools. Every later
-domain tool (SPC, MSA, Control Plan, SECOM) lands on this same ``app`` object in this same
-module — the CI coverage gate targets ``mcp_app.server`` only, so a separate tools module
-would silently stop being covered.
+This module is the M1-1 foundation (#260); M1-3 (#262) added the FMEA tools and M1-4 (#263)
+the SPC group — variables/attributes/time-weighted control charts, Phase I limit freezing and
+Phase II application, the Western Electric / Nelson run-rule detectors, the capability study
+(Cp/Cpk/Pp/Ppk + CIs) and the stability gate. Every later domain tool (MSA, Control Plan,
+SECOM) lands on this same ``app`` object in this same module — the CI coverage gate targets
+``mcp_app.server`` only, so a separate tools module would silently stop being covered.
+
+The SPC tools wrap ``quality_core.spc`` directly, not ``spc_app``: audit A12 (#205) promoted
+every SPC primitive into the shared core, so nothing here crosses an app boundary and no SPC
+math is reimplemented — each tool is a thin typed wrapper over one engine function.
 
 ``mcp_app`` is the one intentional exception to the workspace's "apps never import each
 other" rule (SME sign-off, #262): it is the aggregator whose job is wrapping domain-app
@@ -19,7 +25,7 @@ stays legible when a host also has other MCP servers connected.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar, cast
+from typing import Any, Literal, TypeVar, cast
 
 import pandas as pd
 from fastmcp import FastMCP
@@ -27,6 +33,32 @@ from fastmcp.exceptions import ToolError
 from pydantic import ValidationError
 from quality_core.schema import RelationalFMEA
 from quality_core.scoring import action_priority, rpn
+from quality_core.spc import (
+    CAPABILITY_ALPHA,
+    CUSUM_DEFAULT_H,
+    CUSUM_DEFAULT_K,
+    EWMA_DEFAULT_L,
+    EWMA_DEFAULT_LAMBDA,
+    ChartType,
+    ExcludedPoint,
+    FrozenLimits,
+    assess_stability,
+    compute_c,
+    compute_capability_study,
+    compute_cusum,
+    compute_ewma,
+    compute_imr,
+    compute_p,
+    compute_u,
+    compute_xbar_r,
+    compute_xbar_s,
+    detect_nelson_violations,
+    detect_we_violations,
+    freeze_imr,
+    freeze_xbar_r,
+    freeze_xbar_s,
+    normality_test,
+)
 
 from fmea_app.rating_scales import (
     load_default_scales,
@@ -171,6 +203,365 @@ def fmea_get_scale(scale_id: str = "2019", custom_json: str | None = None) -> di
     else:
         raise ToolError(f"Unknown scale_id {scale_id!r}. Use '2019', 'fmea4', or 'custom'.")
     return scale.model_dump()
+
+
+# ---------------------------------------------------------------------------
+# SPC — control charts (quality_core.spc.control_charts)
+#
+# Every chart tool takes the engine's own native input shape (wide subgroups for
+# X-bar charts, flat individuals for I-MR/EWMA/CUSUM, parallel count/size lists for
+# the attribute charts) rather than a new JSON envelope, and returns the engine's
+# result mapping verbatim as a plain dict. Bad input raises a structured tool error.
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def spc_xbar_r(subgroups: list[list[float]]) -> dict[str, Any]:
+    """X-bar & R chart (Phase I): limits computed from the supplied data itself.
+
+    ``subgroups`` is one inner list per subgroup, all the same length, with a subgroup
+    size of 2-10 (the AIAG tabulated A2/D3/D4 range). Returns subgroup means, ranges,
+    the centre lines and both charts' limits, plus sigma_hat estimated as Rbar/d2.
+    Raises a structured tool error for ragged/empty input or an untabulated subgroup
+    size. To apply an existing frozen baseline instead, use ``spc_apply_xbar_r``.
+    """
+    return dict(_call(compute_xbar_r, subgroups))
+
+
+@app.tool
+def spc_xbar_s(subgroups: list[list[float]]) -> dict[str, Any]:
+    """X-bar & S chart (Phase I): limits computed from the supplied data itself.
+
+    Same wide-subgroup input as ``spc_xbar_r``, but the tabulated A3/B3/B4 range is
+    2-12 and sigma_hat is Sbar/c4 — preferred over X-bar & R for larger subgroups.
+    Raises a structured tool error for ragged/empty input or an untabulated subgroup
+    size. Phase II lives in ``spc_apply_xbar_s``.
+    """
+    return dict(_call(compute_xbar_s, subgroups))
+
+
+@app.tool
+def spc_imr(values: list[float]) -> dict[str, Any]:
+    """Individuals & Moving Range chart (Phase I) over a flat series of measurements.
+
+    Use when the subgroup is one unit (n=1). Needs at least two values; returns the
+    individuals and MR series with both charts' limits and sigma_hat = MRbar/d2.
+    Phase II lives in ``spc_apply_imr``.
+    """
+    return dict(_call(compute_imr, values))
+
+
+@app.tool
+def spc_p(defective_counts: list[float], sample_sizes: list[float]) -> dict[str, Any]:
+    """p-chart: proportion defective, variable sample size (limits vary per point).
+
+    ``defective_counts`` and ``sample_sizes`` are parallel lists of equal length; every
+    sample size must be finite and positive (a NaN size once produced NaN limits with no
+    error at all — #200). Raises a structured tool error otherwise.
+    """
+    return dict(_call(compute_p, defective_counts, sample_sizes))
+
+
+@app.tool
+def spc_c(defect_counts: list[float]) -> dict[str, Any]:
+    """c-chart: count of defects per inspection unit, constant sample size.
+
+    One count per inspection unit; limits are cbar +/- 3*sqrt(cbar), with the lower
+    limit clamped at zero. Raises a structured tool error on empty input.
+    """
+    return dict(_call(compute_c, defect_counts))
+
+
+@app.tool
+def spc_u(defect_counts: list[float], sample_sizes: list[float]) -> dict[str, Any]:
+    """u-chart: defects per unit with a variable sample size (limits vary per point).
+
+    Same parallel-list contract and sample-size validation as ``spc_p``; use it rather
+    than the c-chart whenever the inspected area of opportunity is not constant.
+    """
+    return dict(_call(compute_u, defect_counts, sample_sizes))
+
+
+@app.tool
+def spc_ewma(
+    values: list[float],
+    mu0: float,
+    sigma: float,
+    lam: float = EWMA_DEFAULT_LAMBDA,
+    L: float = EWMA_DEFAULT_L,
+) -> dict[str, Any]:
+    """EWMA chart: exponentially weighted moving average, for small sustained shifts.
+
+    ``mu0`` and ``sigma`` are the independent Phase I estimates — never derived from the
+    series being charted (ASSUMPTIONS_LOG RULE 12). ``lam``/``L`` default to the cited
+    NIST/Lucas & Saccucci pairing carried in ``quality_core.spc.constants``; a mismatched
+    pair is still computed but comes back with ``pairing_adequate=False`` and a
+    ``pairing_note`` naming the recommended L — the tool does not swallow that warning.
+    Raises a structured tool error for empty values, sigma<=0, lam outside (0,1] or L<=0.
+    """
+    return dict(_call(compute_ewma, values, mu0, sigma, lam, L))
+
+
+@app.tool
+def spc_cusum(
+    values: list[float],
+    mu0: float,
+    sigma: float,
+    k: float = CUSUM_DEFAULT_K,
+    h: float = CUSUM_DEFAULT_H,
+    fir: bool = False,
+) -> dict[str, Any]:
+    """Tabular CUSUM chart: cumulative sums, for detecting small sustained shifts fast.
+
+    ``mu0``/``sigma`` are Phase I estimates as for ``spc_ewma``. ``k`` (reference value)
+    and ``h`` (decision interval) default to the cited NIST values in
+    ``quality_core.spc.constants``; ``fir=True`` applies the Lucas & Crosier head start
+    (h/2) to both arms. Raises a structured tool error for empty values, sigma<=0, k<=0
+    or h<=0.
+    """
+    return dict(_call(compute_cusum, values, mu0, sigma, k, h, fir))
+
+
+# ---------------------------------------------------------------------------
+# SPC — Phase I freezing and Phase II application (quality_core.spc.phase)
+#
+# Two tool families rather than a `frozen=` flag on the chart tools (SME decision,
+# #263): ``spc_freeze_*`` establishes a baseline, ``spc_apply_*`` charts new data
+# against it. The freeze output is a plain dict that goes straight back in as the
+# ``frozen`` argument — that round trip is the whole point of the pair.
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def spc_freeze_xbar_r(
+    baseline: list[list[float]],
+    excluded: list[dict[str, Any]] | None = None,
+    phase_i_range: tuple[str, str] | None = None,
+) -> dict[str, Any]:
+    """Freeze X-bar & R limits from a Phase I baseline, for later Phase II monitoring.
+
+    ``excluded`` drops baseline subgroups with an assignable cause: a list of
+    ``{"index": int, "cause": str}`` objects. The cause is mandatory — an out-of-range,
+    duplicated or uncaused index is a structured tool error, because dropping a point
+    without a documented reason is not a defensible baseline. ``phase_i_range`` is an
+    optional (start, end) label pair recorded on the result. The returned object carries
+    the limits, sigma_hat and its method, the exclusions, and ``baseline_adequate`` /
+    ``baseline_note`` flagging a baseline below the AIAG minimum subgroup count.
+    """
+    return dict(
+        _call(
+            freeze_xbar_r,
+            baseline,
+            excluded=cast("list[ExcludedPoint]", excluded or []),
+            phase_i_range=phase_i_range,
+        )
+    )
+
+
+@app.tool
+def spc_freeze_xbar_s(
+    baseline: list[list[float]],
+    excluded: list[dict[str, Any]] | None = None,
+    phase_i_range: tuple[str, str] | None = None,
+) -> dict[str, Any]:
+    """Freeze X-bar & S limits from a Phase I baseline (sigma_hat = Sbar/c4).
+
+    Identical contract to ``spc_freeze_xbar_r`` — see it for ``excluded`` /
+    ``phase_i_range`` — but the baseline subgroup size must be in the X-bar & S
+    tabulated range of 2-12.
+    """
+    return dict(
+        _call(
+            freeze_xbar_s,
+            baseline,
+            excluded=cast("list[ExcludedPoint]", excluded or []),
+            phase_i_range=phase_i_range,
+        )
+    )
+
+
+@app.tool
+def spc_freeze_imr(
+    baseline: list[float],
+    excluded: list[dict[str, Any]] | None = None,
+    phase_i_range: tuple[str, str] | None = None,
+) -> dict[str, Any]:
+    """Freeze I-MR limits from a flat Phase I baseline of individual measurements.
+
+    Same ``excluded`` / ``phase_i_range`` contract as ``spc_freeze_xbar_r``, except that
+    an excluded index drops one individual value rather than a whole subgroup, and the
+    adequacy floor is the AIAG minimum number of individuals.
+    """
+    return dict(
+        _call(
+            freeze_imr,
+            baseline,
+            excluded=cast("list[ExcludedPoint]", excluded or []),
+            phase_i_range=phase_i_range,
+        )
+    )
+
+
+@app.tool
+def spc_apply_xbar_r(subgroups: list[list[float]], frozen: dict[str, Any]) -> dict[str, Any]:
+    """Phase II X-bar & R: chart new subgroups against frozen baseline limits.
+
+    ``frozen`` is a ``spc_freeze_xbar_r`` result passed straight back in. The limits are
+    taken from it verbatim — nothing is recomputed from the new data, which is what makes
+    a Phase II signal meaningful. Raises a structured tool error if the frozen baseline is
+    for a different chart type or a different subgroup size than the new data.
+    """
+    return dict(_call(compute_xbar_r, subgroups, cast("FrozenLimits", frozen)))
+
+
+@app.tool
+def spc_apply_xbar_s(subgroups: list[list[float]], frozen: dict[str, Any]) -> dict[str, Any]:
+    """Phase II X-bar & S: chart new subgroups against frozen baseline limits.
+
+    ``frozen`` is a ``spc_freeze_xbar_s`` result; same chart-type/subgroup-size guard as
+    ``spc_apply_xbar_r``.
+    """
+    return dict(_call(compute_xbar_s, subgroups, cast("FrozenLimits", frozen)))
+
+
+@app.tool
+def spc_apply_imr(values: list[float], frozen: dict[str, Any]) -> dict[str, Any]:
+    """Phase II I-MR: chart new individuals against frozen baseline limits.
+
+    ``frozen`` is a ``spc_freeze_imr`` result; same chart-type guard as
+    ``spc_apply_xbar_r`` (I-MR is always n=1).
+    """
+    return dict(_call(compute_imr, values, cast("FrozenLimits", frozen)))
+
+
+# ---------------------------------------------------------------------------
+# SPC — run-rule detection (quality_core.spc.rule_detection)
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def spc_detect_we_violations(
+    points: list[float], cl: float, sigma: float
+) -> list[dict[str, int | str]]:
+    """Western Electric run rules over plotted points, given their centre line and sigma.
+
+    ``cl``/``sigma`` come from a chart tool's result — and for X-bar charts ``sigma`` is
+    the sigma of the *plotted points* (sigma_hat/sqrt(n)), not sigma_hat itself. Returns
+    one ``{"index", "rule"}`` object per signal, empty when in control. Raises a
+    structured tool error for sigma<=0.
+    """
+    return _call(detect_we_violations, points, cl, sigma)
+
+
+@app.tool
+def spc_detect_nelson_violations(
+    points: list[float], cl: float, sigma: float
+) -> list[dict[str, int | str]]:
+    """Nelson run rules over plotted points — the WE zone tests plus trend, alternation,
+    stratification and mixture rules.
+
+    Same ``points``/``cl``/``sigma`` contract and same ``{"index", "rule"}`` output as
+    ``spc_detect_we_violations``; raises a structured tool error for sigma<=0.
+    """
+    return _call(detect_nelson_violations, points, cl, sigma)
+
+
+# ---------------------------------------------------------------------------
+# SPC — capability (quality_core.spc.capability)
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def spc_capability(
+    data: list[float] | list[list[float]],
+    lsl: float | None,
+    usl: float | None,
+    alpha: float = CAPABILITY_ALPHA,
+    allow_yeojohnson: bool = True,
+    force_method: Literal["auto", "normal", "boxcox", "percentile"] = "auto",
+    violations: list[dict[str, int | str]] | None = None,
+) -> dict[str, Any]:
+    """Capability study: Cp/Cpk/Pp/Ppk with confidence intervals and method selection.
+
+    ``data`` is flat individuals or wide subgroups (subgroups give a within-subgroup
+    sigma). At least one of ``lsl``/``usl`` is needed for an index; with neither, the
+    indices come back as null and nothing raises. ``force_method`` overrides the default
+    Shapiro-Wilk-driven selection between the normal-theory, Box-Cox/Yeo-Johnson transform
+    and ISO 22514-2 fitted-percentile paths (``allow_yeojohnson=False`` forces a shifted
+    Box-Cox for non-positive data instead).
+
+    Two result subtleties, both deliberate — read them before rendering anything:
+
+    - CIs are attached only to the estimator they were derived for (#193). On the normal
+      path ``cp_ci``/``cpk_ci`` are always null and ``pp_ci``/``ppk_ci``/``ppk_lower``
+      carry the chi-square/Bissell intervals (``ci_estimator="sample_sd_ddof1"``,
+      ``ci_df=n-1``); on the percentile path Pp/Ppk and their CIs are null and
+      ``cp_ci``/``cpk_ci`` are deterministic bootstrap intervals (``ci_df=null``). Every
+      field is returned verbatim, nulls included: "no CI for this estimator" and "CI not
+      computed" are different facts and a client needs ``ci_estimator``/``ci_df`` to tell
+      them apart.
+    - ``violations`` is the caller's own control-chart signal list (from
+      ``spc_detect_we_violations`` / ``spc_detect_nelson_violations`` / the ``signals`` of
+      ``spc_assess_stability``) and drives a tri-state stability gate: omit it and
+      ``stable`` is null — "not assessed", never a fabricated in-control claim; pass ``[]``
+      to state the chart was assessed and is in control. No stability check is run inside
+      this tool; the caller supplies the chart context, exactly as the engine expects.
+
+    Raises a structured tool error for alpha outside (0,1), data that is neither 1-D nor
+    2-D, fewer than three observations, or constant data.
+    """
+    return dict(
+        _call(
+            compute_capability_study,
+            data,
+            lsl,
+            usl,
+            alpha=alpha,
+            allow_yeojohnson=allow_yeojohnson,
+            force_method=force_method,
+            violations=violations,
+        )
+    )
+
+
+@app.tool
+def spc_normality_test(data: list[float]) -> dict[str, Any]:
+    """Shapiro-Wilk normality test: returns the W statistic, p-value and is_normal.
+
+    ``is_normal`` is p > 0.05 — the same gate ``spc_capability``'s "auto" method selection
+    uses. Needs at least three values; raises a structured tool error otherwise.
+    """
+    return _call(normality_test, data)
+
+
+# ---------------------------------------------------------------------------
+# SPC — stability gate (quality_core.spc.stability)
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def spc_assess_stability(
+    values: list[float],
+    subgroups: list[str | int],
+    chart_type: ChartType = "I-MR",
+    rule_set: str = "Western Electric",
+) -> dict[str, Any]:
+    """Assess whether a stream is in statistical control, for the capability gate.
+
+    Long format, unlike the chart tools: ``values`` and ``subgroups`` are parallel lists,
+    one row per measurement, which is what preserves measurement order within a subgroup
+    on the I-MR path. ``chart_type`` is "I-MR", "Xbar-R" or "Xbar-S" and is caller-supplied
+    on purpose — inferring it from the data understates sigma and flips verdicts (#191).
+    ``rule_set`` is "Western Electric" (default) or "Nelson".
+
+    Returns ``sigma_hat`` and the ``signals`` list; an empty list means in control. Feed
+    ``signals`` into ``spc_capability``'s ``violations`` to gate the indices. Raises a
+    structured tool error for ragged subgroups or a subgroup size outside the chart's
+    tabulated range.
+    """
+    frame = pd.DataFrame({"value": values, "subgroup": subgroups})
+    sigma_hat, signals = _call(assess_stability, frame, chart_type, rule_set=rule_set)
+    return {"sigma_hat": sigma_hat, "signals": signals}
 
 
 def main() -> None:
