@@ -10,6 +10,7 @@ dependencies = [
     "fmea-app",
     "spc-app",
     "msa-app",
+    "controlplan-app",
 ]
 
 [project.scripts]
@@ -24,6 +25,7 @@ quality-core = { workspace = true }
 fmea-app = { workspace = true }
 spc-app = { workspace = true }
 msa-app = { workspace = true }
+controlplan-app = { workspace = true }
 
 # Installed (editable wheel), like msa/secom rather than the `package = false`
 # Streamlit apps: a console-script entry point (`uvx --from . quality-mcp`) only

@@ -6,12 +6,12 @@ patched out: the real call blocks forever serving the stdio protocol loop.
 """
 
 import asyncio
-import io
 import math
 from datetime import date
+from pathlib import Path
+from typing import Any
 
 import numpy as np
-import openpyxl
 import pandas as pd
 import pytest
 import quality_core.spc.capability as capability
@@ -24,6 +24,9 @@ from mcp_app.server import (
     fmea_chart_pareto_png,
     fmea_export_excel,
     fmea_export_pdf,
+    controlplan_build,
+    controlplan_recommend_chart,
+    controlplan_source_index,
     fmea_get_scale,
     fmea_list_scales,
     fmea_run,
@@ -35,6 +38,7 @@ from mcp_app.server import (
     msa_export_pdf,
     msa_export_results_csv,
     msa_export_study_csv,
+    msa_gage_rr,
     spc_apply_imr,
     spc_apply_xbar_r,
     spc_apply_xbar_s,
@@ -60,6 +64,9 @@ from mcp_app.server import (
     spc_xbar_s,
     version,
 )
+
+
+from msa_app.schema import load_gage_study_csv
 from quality_core.schema import (
     Action,
     ActionStatus,
@@ -132,20 +139,10 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_capability",
         "spc_normality_test",
         "spc_assess_stability",
-        # M1-7 (#266) export / report / PNG tools
-        "export_csv",
-        "fmea_export_excel",
-        "fmea_export_pdf",
-        "fmea_chart_pareto_png",
-        "fmea_chart_heatmap_png",
-        "spc_export_control_chart_excel",
-        "spc_export_control_chart_pdf",
-        "spc_export_capability_excel",
-        "spc_export_capability_pdf",
-        "msa_export_excel",
-        "msa_export_pdf",
-        "msa_export_study_csv",
-        "msa_export_results_csv",
+        "msa_gage_rr",
+        "controlplan_build",
+        "controlplan_recommend_chart",
+        "controlplan_source_index",
     }
 
 
@@ -817,65 +814,61 @@ def test_spc_apply_malformed_frozen_raises_keyerror_not_toolerror():
 
 
 # ===========================================================================
-# Export / report / PNG tools (M1-7, #266). These prove ONLY the thin-wrapper
-# contract: valid input -> the right File/Image with the right magic bytes and
-# mime type; sanitization is inherited (not bypassed); empty input is a
-# structured ToolError; a missing report key/column surfaces per the coder's
-# documented KeyError policy. The exporters'/sanitizer's own internals have
-# their own 100%-covered suites and are not re-tested here.
+# Control Plan tools (#265). The three tools are thin passthroughs over
+# controlplan_app.connector; the connector's own arithmetic/ordering is proved
+# 100% in apps/controlplan/tests/test_connector.py. These tests pin the
+# boundary: the tools return the connector's already-verified output verbatim
+# (JSON-friendly), and bad input surfaces as a structured ToolError.
+#
+# The _ROWS / _relational_model_dict() fixture reused here is the same one
+# fmea_run_relational's golden test uses (RPN 360/126/90, ID order [3,1,2]).
+# _ROWS has one FailureMode per (Resin/Uncured) and (Edge/Void) — Resin/Uncured
+# carries two links (row 3, O=8 and row 2, O=2), so build_control_plan yields
+# exactly TWO rows (one per FailureMode), highest-risk (Resin/Uncured, High AP,
+# worst link RPN 360) first.
 # ===========================================================================
 
-# FMEA rows straight from fmea_run's own output — Failure_Mode, RPN, Risk_Tier,
-# Severity, Occurrence are all present, so the FMEA export + PNG tools get exactly
-# the shape they document. Computed once; the tools never mutate it in place.
-_FMEA_SCORED = fmea_run(_ROWS)
 
-# SPC control-chart report params — a chart tool's own result fields passed back in
-# (lifted from apps/spc/tests/test_exporter.py's fixture, the shape the builder takes).
-_CC_KW = dict(
-    chart_label="Xbar-R Chart",
-    stream="ply_thickness",
-    rule_set="Western Electric",
-    points=[10.0, 10.5, 13.9, 9.8, 10.1],
-    cl=10.0,
-    ucl=12.0,
-    lcl=8.0,
-    violations=[{"index": 2, "rule": "Rule 1: beyond 3-sigma"}],
-    metrics=[("Xbarbar", "10.0000"), ("Rbar", "1.2000")],
-)
+def _collision_model_dict() -> dict:
+    """A relational model whose two FailureModes collide on component+description.
 
-# SPC capability report params — spc_capability's / spc_normality_test's own dicts verbatim.
-_CAP_KW = dict(
-    stream_label="Ply Thickness",
-    values=[10.0, 10.1, 9.9, 10.2, 9.8, 10.05],
-    capability={
-        "cp": 1.45, "cpk": 1.21, "pp": 1.40, "ppk": 1.18,
-        "mean": 10.0, "sigma_hat": 0.05, "sigma_overall": 0.06,
-    },
-    lsl=9.7,
-    usl=10.3,
-    normality={"w_stat": 0.98, "p_value": 0.61, "is_normal": True},
-    oos_signal_count=0,
-)
+    Mirrors apps/controlplan/tests/test_connector.py::
+    test_characteristic_collision_falls_back_to_failure_mode_id in flat->relational
+    form: two functions share Component 'Bracket' and Failure_Mode 'Incomplete weld',
+    so the base characteristic collides and the second row takes the ' (F2-M1)' suffix.
+    """
+    rows = [
+        dict(ID=1, Process_Step="Weld", Component="Bracket", Function="Weld joint",
+             Failure_Mode="Incomplete weld", Effect="Joint fails", Severity=9,
+             Cause="Contamination", Occurrence=6, Current_Control="Visual", Detection=1),
+        dict(ID=2, Process_Step="Rework", Component="Bracket", Function="Rework joint",
+             Failure_Mode="Incomplete weld", Effect="Joint fails", Severity=3,
+             Cause="Operator error", Occurrence=3, Current_Control="Visual", Detection=3),
+    ]
+    return dataframe_to_relational(pd.DataFrame(rows)).model_dump()
 
-# MSA study rows + compute_gage_rr's result dict verbatim (from apps/msa/tests/test_exporter.py).
-_MSA_STUDY = [
-    {"part": "P01", "appraiser": "A", "trial": 1, "measurement": 10.05},
-    {"part": "P01", "appraiser": "A", "trial": 2, "measurement": 10.02},
-    {"part": "P02", "appraiser": "B", "trial": 1, "measurement": 9.98},
-    {"part": "P02", "appraiser": "B", "trial": 2, "measurement": 10.01},
-]
-_MSA_RESULTS = {
-    "ev": 0.03, "av": 0.02, "grr": 0.036, "pv": 0.5, "tv": 0.501,
-    "pev_study": 5.99, "pav_study": 3.99, "pgrr_study": 7.19, "ppv_study": 99.80,
-    "pev_tolerance": 10.0, "pav_tolerance": 8.0, "pgrr_tolerance": 12.0,
-    "ppv_tolerance": 150.0, "ndc": 6, "verdict": "Accept", "mean": 10.0,
-    "n_parts": 2, "n_appraisers": 2, "n_trials": 2, "is_balanced": True,
-    "method": "average_and_range",
-    "method_note": "Average-and-Range method: the part x appraiser interaction is NOT estimated.",
-}
 
-_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+# ---------------------------------------------------------------------------
+# controlplan_build — golden / empty / invalid
+# ---------------------------------------------------------------------------
+
+
+def test_controlplan_build_golden_rows():
+    rows = controlplan_build(_relational_model_dict())
+    # One row per FailureMode: (Resin/Uncured) and (Edge/Void) -> 2 rows.
+    assert len(rows) == 2
+    # Highest-AP/RPN row first: Resin/Uncured is High AP (worst link RPN 360),
+    # Edge/Void is Low AP (RPN 126).
+    assert [r["characteristic"] for r in rows] == ["Resin — Uncured", "Edge — Void"]
+    # Every row flags its sample plan as a connector placeholder (F-10, #196)...
+    assert all(r["sample_plan_is_placeholder"] is True for r in rows)
+    # ...and recommended_chart is always null from build (no data-type/n input).
+    assert all(r["recommended_chart"] is None for r in rows)
+    # measurement_method comes from the worst link's control; characteristic populated.
+    assert [r["measurement_method"] for r in rows] == ["Oven", "Visual"]
+    assert all(r["characteristic"] for r in rows)
+
+
 
 
 def _resource_mime(file_result) -> str:
@@ -1039,46 +1032,314 @@ def test_msa_export_excel_escapes_formula_injection_in_study_cell():
 # ---------------------------------------------------------------------------
 
 
+def test_controlplan_build_empty_fmea_returns_empty_list():
+    assert controlplan_build({"functions": []}) == []
+
+
+def test_controlplan_build_invalid_model_raises_toolerror():
+    with pytest.raises(ToolError, match="validation error"):
+        controlplan_build({"functions": [{"id": "f1"}]})
+
+
+# ---------------------------------------------------------------------------
+# controlplan_recommend_chart — rule table (oracle: test_connector.py) + errors
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.parametrize(
-    "tool",
+    ("data_type", "n", "kwargs", "expected"),
     [
-        export_csv,
-        fmea_export_excel,
-        fmea_export_pdf,
-        fmea_chart_pareto_png,
-        fmea_chart_heatmap_png,
-        msa_export_study_csv,
+        ("variable", 1, {}, "I-MR"),
+        ("variable", 9, {}, "Xbar-R"),
+        ("variable", 10, {}, "Xbar-S"),
+        ("variable", 12, {}, "Xbar-S"),  # ceiling boundary — last valid n
+        ("attribute", 5, {}, "p"),
+        ("attribute", 5, {"defect_based": True, "constant_sample": True}, "c"),
+        ("attribute", 5, {"defect_based": True, "constant_sample": False}, "u"),
     ],
 )
-def test_single_list_export_tool_rejects_empty_input(tool):
-    with pytest.raises(ToolError, match="at least one row"):
-        tool([])
+def test_controlplan_recommend_chart_rule_table(data_type, n, kwargs, expected):
+    assert controlplan_recommend_chart(data_type, n, **kwargs) == {
+        "recommended_chart": expected
+    }
 
 
-def test_msa_export_excel_rejects_empty_study():
-    with pytest.raises(ToolError, match="at least one row"):
-        msa_export_excel([], _MSA_RESULTS)
+def test_controlplan_recommend_chart_subgroup_size_zero_raises_toolerror():
+    with pytest.raises(ToolError, match="subgroup_size"):
+        controlplan_recommend_chart("variable", 0)
 
 
-def test_msa_export_pdf_rejects_empty_study():
-    with pytest.raises(ToolError, match="at least one row"):
-        msa_export_pdf([], _MSA_RESULTS)
+def test_controlplan_recommend_chart_above_ceiling_raises_toolerror():
+    # n=13 is one over the X-bar/S constants ceiling (12) -> structured error.
+    with pytest.raises(ToolError, match="exceeds the largest supported"):
+        controlplan_recommend_chart("variable", 13)
+
+
+def test_controlplan_recommend_chart_attribute_has_no_ceiling():
+    # Negative guard: the variable-data F-07 ceiling must not leak into attributes.
+    assert controlplan_recommend_chart(
+        "attribute", 500, defect_based=True, constant_sample=False
+    ) == {"recommended_chart": "u"}
 
 
 # ---------------------------------------------------------------------------
-# Missing report key / column -> uncaught KeyError (coder's documented policy,
-# changes.md decision 1). Pinned so widening _call to swallow it is a visible,
-# reviewed change, not a silent one.
+# controlplan_source_index — golden round-trip / empty / invalid / collision
 # ---------------------------------------------------------------------------
 
 
-def test_fmea_chart_pareto_png_missing_required_column_raises_keyerror():
-    # Rows without Risk_Tier -> the visualizer's _check_columns KeyError, NOT ToolError.
-    with pytest.raises(KeyError):
-        fmea_chart_pareto_png([{"Failure_Mode": "M1", "RPN": 100}])
+def test_controlplan_source_index_golden_round_trip():
+    model = _relational_model_dict()
+    rows = controlplan_build(model)
+    index = controlplan_source_index(model)
+    # Key set is exactly build's characteristic set (shared traversal).
+    assert set(index) == {r["characteristic"] for r in rows}
+    # cause_id round-trips to each row's source_cause_id.
+    for row in rows:
+        assert index[row["characteristic"]]["cause_id"] == row["source_cause_id"]
+    # Value shape for the worst-risk cause.
+    entry = index["Resin — Uncured"]
+    assert set(entry) == {
+        "failure_mode_id",
+        "cause_id",
+        "cause_description",
+        "occurrence",
+        "component",
+    }
+    # Worst link (O=8, "Low temperature"), not the O=2 link, per _worst_link.
+    assert entry["occurrence"] == 8
+    assert entry["cause_description"] == "Low temperature"
+    assert entry["component"] == "Resin"
 
 
-def test_msa_export_results_csv_missing_metric_key_raises_keyerror():
-    # A results dict missing the metrics the flat sheet prints -> KeyError, not ToolError.
-    with pytest.raises(KeyError):
-        msa_export_results_csv({"verdict": "Accept"})
+def test_controlplan_source_index_empty_fmea_returns_empty_dict():
+    assert controlplan_source_index({"functions": []}) == {}
+
+
+def test_controlplan_source_index_invalid_model_raises_toolerror():
+    with pytest.raises(ToolError, match="validation error"):
+        controlplan_source_index({"functions": [{"id": "f1"}]})
+
+
+def test_controlplan_characteristic_collision_round_trips_through_suffix():
+    model = _collision_model_dict()
+    rows = controlplan_build(model)
+    index = controlplan_source_index(model)
+    characteristics = [r["characteristic"] for r in rows]
+    # The collision resolves via the ' (F2-M1)' suffix path...
+    assert characteristics == [
+        "Bracket — Incomplete weld",
+        "Bracket — Incomplete weld (F2-M1)",
+    ]
+    # ...and source_index keys still match build's characteristics one-for-one.
+    assert set(index) == set(characteristics)
+    for row in rows:
+        assert index[row["characteristic"]]["cause_id"] == row["source_cause_id"]
+
+
+# ===========================================================================
+# MSA — Gage R&R (#264). Golden numbers/tolerances are lifted verbatim from
+# apps/msa/tests/test_gage_rr_engine.py; the AIAG reference study is loaded
+# into list[dict] form (the tool's native input). The MCP layer adds no
+# arithmetic, so the boundary must return the already-verified engine numbers.
+# ===========================================================================
+
+_AIAG_REFERENCE_STUDY_CSV = (
+    Path(__file__).resolve().parents[2] / "msa" / "data" / "aiag_reference_study.csv"
+)
+
+
+def _aiag_study() -> list[dict[str, Any]]:
+    """The canonical AIAG 10x3x3 study as the long/tidy list[dict] the tool takes."""
+    return load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV)).to_dict("records")
+
+
+# 6 parts x 3 appraisers x 3 trials with one (P3, appraiser C) cell offset by a
+# fixed +1.2 — a genuine part x appraiser interaction. Mirrors
+# test_gage_rr_engine.py:1262 (_INDUCED_INTERACTION_DATA), rebuilt as list[dict].
+_INDUCED_INTERACTION_STUDY: list[dict[str, Any]] = [
+    {
+        "part": f"P{p}",
+        "appraiser": a,
+        "trial": t,
+        "measurement": (
+            float(p)
+            + (0.01 if t == 2 else 0.0)
+            + (0.02 if t == 3 else 0.0)
+            + (1.2 if (p == 3 and a == "C") else 0.0)
+        ),
+    }
+    for p in range(1, 7)
+    for a in ["A", "B", "C"]
+    for t in [1, 2, 3]
+]
+
+_STUDY_KEYS = ("pev_study", "pav_study", "pgrr_study", "ppv_study")
+_TOLERANCE_KEYS = ("pev_tolerance", "pav_tolerance", "pgrr_tolerance", "ppv_tolerance")
+
+
+# ---------------------------------------------------------------------------
+# Golden — Average-and-Range (default method) against the AIAG published form
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_average_and_range_golden():
+    r = msa_gage_rr(_aiag_study(), tolerance=4.42)
+    # Manual-published components (test_gage_rr_engine.py:425-430), rel=1e-2.
+    assert r["ev"] == pytest.approx(0.20188, rel=1e-2)
+    assert r["av"] == pytest.approx(0.22963, rel=1e-2)
+    assert r["grr"] == pytest.approx(0.30576, rel=1e-2)
+    assert r["ndc"] == 5
+    assert r["verdict"] == "Reject"
+    # The tolerance basis reaching the verdict is the #190 fix — pin the number.
+    assert r["pgrr_tolerance"] == pytest.approx(41.5067, rel=1e-2)
+    # Default method echoed on the payload.
+    assert r["method"] == "average_and_range"
+    # Study-basis percentages, AIAG Figure III-B 16 (rel=1e-3).
+    assert r["pev_study"] == pytest.approx(17.62, rel=1e-3)
+    assert r["pav_study"] == pytest.approx(20.04, rel=1e-3)
+    assert r["pgrr_study"] == pytest.approx(26.68, rel=1e-3)
+    assert r["ppv_study"] == pytest.approx(96.38, rel=1e-3)
+    assert r["tv"] == pytest.approx(1.14610, rel=1e-3)
+    # Average-and-Range cannot estimate the interaction.
+    assert r["interaction"] is None
+
+
+# ---------------------------------------------------------------------------
+# Golden — ANOVA against AIAG Table A 4 / A 5
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_anova_golden():
+    r = msa_gage_rr(_aiag_study(), method="anova", tolerance=4.42)
+    # sigma components, manual 6 dp (test_gage_rr_engine.py:1208-1213), rel=2e-4.
+    assert r["ev"] == pytest.approx(0.199933, rel=2e-4)
+    assert r["av"] == pytest.approx(0.226838, rel=2e-4)
+    assert r["grr"] == pytest.approx(0.302373, rel=2e-4)
+    assert r["pv"] == pytest.approx(1.042327, rel=2e-4)
+    assert r["tv"] == pytest.approx(1.085, abs=1e-3)
+    # F(interaction)=0.434 < F_crit -> pooled to exactly 0, not significant.
+    assert r["interaction_f"] == pytest.approx(0.434, abs=1e-3)
+    assert r["interaction_significant"] is False
+    assert r["interaction"] == 0.0
+    assert r["ndc"] == 4
+    assert r["method"] == "anova"
+
+
+# ---------------------------------------------------------------------------
+# No-tolerance branch — the four *_tolerance keys null, the four *_study float
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_no_tolerance_nulls_tolerance_basis_keeps_study_basis():
+    r = msa_gage_rr(_aiag_study())
+    for key in _TOLERANCE_KEYS:
+        assert r[key] is None, key
+    for key in _STUDY_KEYS:
+        assert isinstance(r[key], float), key
+    # The default method still ran.
+    assert r["method"] == "average_and_range"
+
+
+# ---------------------------------------------------------------------------
+# Default method — omitting method= runs Average-and-Range
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_default_method_is_average_and_range():
+    assert msa_gage_rr(_aiag_study())["method"] == "average_and_range"
+
+
+# ---------------------------------------------------------------------------
+# Interaction-significant branch (ANOVA) — induced interaction diverges upward
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_anova_induced_interaction_reports_higher_pgrr():
+    anova = msa_gage_rr(_INDUCED_INTERACTION_STUDY, method="anova")
+    avg_range = msa_gage_rr(_INDUCED_INTERACTION_STUDY, method="average_and_range")
+    # A real interaction — otherwise the divergence claim is vacuous.
+    assert anova["interaction_significant"] is True
+    assert anova["interaction"] > 0.0
+    # ANOVA carries INT^2 into GRR; Average-and-Range cannot see it, so understates.
+    assert anova["pgrr_study"] > avg_range["pgrr_study"]
+    assert avg_range["interaction"] is None
+
+
+# ---------------------------------------------------------------------------
+# Error paths — every enumerated ValueError branch surfaces as ToolError
+# ---------------------------------------------------------------------------
+
+_VALID_ROW = {"part": "P1", "appraiser": "A", "trial": 1, "measurement": 1.0}
+
+
+def _balanced(parts, appraisers, trials, *, offset=0.0):
+    return [
+        {
+            "part": f"P{p}",
+            "appraiser": a,
+            "trial": t,
+            "measurement": float(p) + (0.02 if a == appraisers[-1] else 0.0) + offset * t,
+        }
+        for p in range(1, parts + 1)
+        for a in appraisers
+        for t in range(1, trials + 1)
+    ]
+
+
+def test_msa_gage_rr_empty_study_raises_toolerror():
+    with pytest.raises(ToolError, match="at least one measurement"):
+        msa_gage_rr([])
+
+
+def test_msa_gage_rr_missing_required_key_raises_toolerror():
+    # changes.md: pd.DataFrame(list_of_dicts) with a missing column surfaces as a
+    # ValueError ("Missing required columns"), caught by _call — NOT a raw KeyError.
+    # Pinned so a regression to an uncaught KeyError is visible.
+    with pytest.raises(ToolError, match="Missing required columns"):
+        msa_gage_rr([{"part": "P1"}])
+
+
+def test_msa_gage_rr_fewer_than_two_parts_raises_toolerror():
+    with pytest.raises(ToolError, match="at least 2 parts"):
+        msa_gage_rr(_balanced(1, ["A", "B"], 2))
+
+
+def test_msa_gage_rr_fewer_than_two_appraisers_raises_toolerror():
+    with pytest.raises(ToolError, match="at least 2 appraisers"):
+        msa_gage_rr(_balanced(2, ["A"], 2))
+
+
+def test_msa_gage_rr_fewer_than_two_trials_raises_toolerror():
+    with pytest.raises(ToolError, match="at least 2 trials"):
+        msa_gage_rr(_balanced(2, ["A", "B"], 1))
+
+
+def test_msa_gage_rr_unbalanced_cells_raise_toolerror():
+    study = _balanced(2, ["A", "B"], 2)
+    study.append({"part": "P1", "appraiser": "A", "trial": 3, "measurement": 1.5})
+    with pytest.raises(ToolError, match="unbalanced"):
+        msa_gage_rr(study)
+
+
+def test_msa_gage_rr_nan_measurement_raises_toolerror():
+    study = _balanced(2, ["A", "B"], 2)
+    study[0]["measurement"] = float("nan")
+    with pytest.raises(ToolError, match="NaN"):
+        msa_gage_rr(study)
+
+
+def test_msa_gage_rr_inf_measurement_raises_toolerror():
+    study = _balanced(2, ["A", "B"], 2)
+    study[0]["measurement"] = float("inf")
+    with pytest.raises(ToolError, match="infinite"):
+        msa_gage_rr(study)
+
+
+def test_msa_gage_rr_nonpositive_tolerance_raises_toolerror():
+    with pytest.raises(ToolError, match="positive finite"):
+        msa_gage_rr(_balanced(2, ["A", "B"], 2), tolerance=0.0)
+
+
+def test_msa_gage_rr_unknown_method_raises_toolerror():
+    with pytest.raises(ToolError, match="Unknown method: 'bogus'"):
+        msa_gage_rr(_balanced(2, ["A", "B"], 2), method="bogus")  # type: ignore[arg-type]
