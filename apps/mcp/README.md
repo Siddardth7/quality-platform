@@ -2,7 +2,8 @@
 
 The quality-platform MCP server (#260, M1-1). It is a FastMCP app served over
 stdio. Two meta tools describe the server process itself — `health` and
-`version` — and the FMEA engine is exposed (#262, M1-3):
+`version` — the FMEA (#262, M1-3) and SPC (#263, M1-4) engines are exposed, and
+M1-7 (#266) adds the export/report tools:
 
 - `fmea_score(severity, occurrence, detection)` — RPN + AIAG-VDA Action Priority
   for one S/O/D triple.
@@ -13,9 +14,25 @@ stdio. Two meta tools describe the server process itself — `health` and
 - `fmea_list_scales()` — the built-in rating-scale options.
 - `fmea_get_scale(scale_id, custom_json=None)` — a scale's full S/O/D rating text
   (2019 default, FMEA-4 legacy, or a custom JSON scale).
+- the `spc_*` tools — control charts, Phase I/II, Western Electric / Nelson rules,
+  capability and stability (see the tool list in `mcp_app/server.py`).
 
-The SPC, MSA, Control Plan, and SECOM tools arrive in later M1 issues on the same
-`app` object in `mcp_app/server.py`.
+**Export/report tools (#266)** — every one returns a FastMCP `File`/`Image`
+(no base64 hand-rolling), and every CSV/Excel path routes through the
+formula-injection sanitizer in `quality_core.io.export` (a cell starting with
+`= + - @` can never execute):
+
+- `export_csv(table)` — any tabular result → injection-safe CSV.
+- `fmea_export_excel(rows)` / `fmea_export_pdf(rows)` — FMEA report artifacts.
+- `fmea_chart_pareto_png(rows)` / `fmea_chart_heatmap_png(rows)` — FMEA chart PNGs.
+- `spc_export_control_chart_excel|pdf(...)`, `spc_export_capability_excel|pdf(...)`
+  — SPC report artifacts from a chart/capability result.
+- `msa_export_excel|pdf(...)`, `msa_export_study_csv(study)`,
+  `msa_export_results_csv(results)` — Gage R&R report artifacts.
+
+The MSA and Control Plan compute tools, and SECOM, arrive on this same `app`
+object in `mcp_app/server.py`. (SPC-chart PNGs are deferred to a future issue —
+they need a headless image renderer beyond the existing exporters.)
 
 ```bash
 uv run python -m mcp_app.server    # from the workspace root

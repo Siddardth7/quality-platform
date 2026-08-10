@@ -6,10 +6,12 @@ patched out: the real call blocks forever serving the stdio protocol loop.
 """
 
 import asyncio
+import io
 import math
 from datetime import date
 
 import numpy as np
+import openpyxl
 import pandas as pd
 import pytest
 import quality_core.spc.capability as capability
@@ -17,6 +19,11 @@ from fastmcp.exceptions import ToolError
 from mcp_app import __version__
 from mcp_app.server import (
     app,
+    export_csv,
+    fmea_chart_heatmap_png,
+    fmea_chart_pareto_png,
+    fmea_export_excel,
+    fmea_export_pdf,
     fmea_get_scale,
     fmea_list_scales,
     fmea_run,
@@ -24,6 +31,10 @@ from mcp_app.server import (
     fmea_score,
     health,
     main,
+    msa_export_excel,
+    msa_export_pdf,
+    msa_export_results_csv,
+    msa_export_study_csv,
     spc_apply_imr,
     spc_apply_xbar_r,
     spc_apply_xbar_s,
@@ -34,6 +45,10 @@ from mcp_app.server import (
     spc_detect_nelson_violations,
     spc_detect_we_violations,
     spc_ewma,
+    spc_export_capability_excel,
+    spc_export_capability_pdf,
+    spc_export_control_chart_excel,
+    spc_export_control_chart_pdf,
     spc_freeze_imr,
     spc_freeze_xbar_r,
     spc_freeze_xbar_s,
@@ -117,6 +132,20 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_capability",
         "spc_normality_test",
         "spc_assess_stability",
+        # M1-7 (#266) export / report / PNG tools
+        "export_csv",
+        "fmea_export_excel",
+        "fmea_export_pdf",
+        "fmea_chart_pareto_png",
+        "fmea_chart_heatmap_png",
+        "spc_export_control_chart_excel",
+        "spc_export_control_chart_pdf",
+        "spc_export_capability_excel",
+        "spc_export_capability_pdf",
+        "msa_export_excel",
+        "msa_export_pdf",
+        "msa_export_study_csv",
+        "msa_export_results_csv",
     }
 
 
@@ -785,3 +814,271 @@ def test_spc_apply_malformed_frozen_raises_keyerror_not_toolerror():
     # silently widens `_call` to swallow KeyError is a visible, reviewed decision.
     with pytest.raises(KeyError):
         spc_apply_xbar_r(XBAR_R_PHASE_II_DATA, {"not": "a frozen dict"})
+
+
+# ===========================================================================
+# Export / report / PNG tools (M1-7, #266). These prove ONLY the thin-wrapper
+# contract: valid input -> the right File/Image with the right magic bytes and
+# mime type; sanitization is inherited (not bypassed); empty input is a
+# structured ToolError; a missing report key/column surfaces per the coder's
+# documented KeyError policy. The exporters'/sanitizer's own internals have
+# their own 100%-covered suites and are not re-tested here.
+# ===========================================================================
+
+# FMEA rows straight from fmea_run's own output — Failure_Mode, RPN, Risk_Tier,
+# Severity, Occurrence are all present, so the FMEA export + PNG tools get exactly
+# the shape they document. Computed once; the tools never mutate it in place.
+_FMEA_SCORED = fmea_run(_ROWS)
+
+# SPC control-chart report params — a chart tool's own result fields passed back in
+# (lifted from apps/spc/tests/test_exporter.py's fixture, the shape the builder takes).
+_CC_KW = dict(
+    chart_label="Xbar-R Chart",
+    stream="ply_thickness",
+    rule_set="Western Electric",
+    points=[10.0, 10.5, 13.9, 9.8, 10.1],
+    cl=10.0,
+    ucl=12.0,
+    lcl=8.0,
+    violations=[{"index": 2, "rule": "Rule 1: beyond 3-sigma"}],
+    metrics=[("Xbarbar", "10.0000"), ("Rbar", "1.2000")],
+)
+
+# SPC capability report params — spc_capability's / spc_normality_test's own dicts verbatim.
+_CAP_KW = dict(
+    stream_label="Ply Thickness",
+    values=[10.0, 10.1, 9.9, 10.2, 9.8, 10.05],
+    capability={
+        "cp": 1.45, "cpk": 1.21, "pp": 1.40, "ppk": 1.18,
+        "mean": 10.0, "sigma_hat": 0.05, "sigma_overall": 0.06,
+    },
+    lsl=9.7,
+    usl=10.3,
+    normality={"w_stat": 0.98, "p_value": 0.61, "is_normal": True},
+    oos_signal_count=0,
+)
+
+# MSA study rows + compute_gage_rr's result dict verbatim (from apps/msa/tests/test_exporter.py).
+_MSA_STUDY = [
+    {"part": "P01", "appraiser": "A", "trial": 1, "measurement": 10.05},
+    {"part": "P01", "appraiser": "A", "trial": 2, "measurement": 10.02},
+    {"part": "P02", "appraiser": "B", "trial": 1, "measurement": 9.98},
+    {"part": "P02", "appraiser": "B", "trial": 2, "measurement": 10.01},
+]
+_MSA_RESULTS = {
+    "ev": 0.03, "av": 0.02, "grr": 0.036, "pv": 0.5, "tv": 0.501,
+    "pev_study": 5.99, "pav_study": 3.99, "pgrr_study": 7.19, "ppv_study": 99.80,
+    "pev_tolerance": 10.0, "pav_tolerance": 8.0, "pgrr_tolerance": 12.0,
+    "ppv_tolerance": 150.0, "ndc": 6, "verdict": "Accept", "mean": 10.0,
+    "n_parts": 2, "n_appraisers": 2, "n_trials": 2, "is_balanced": True,
+    "method": "average_and_range",
+    "method_note": "Average-and-Range method: the part x appraiser interaction is NOT estimated.",
+}
+
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def _resource_mime(file_result) -> str:
+    return file_result.to_resource_content().resource.mimeType
+
+
+# ---------------------------------------------------------------------------
+# Happy paths — right File/Image, right magic bytes, right mime type
+# ---------------------------------------------------------------------------
+
+
+def test_export_csv_happy_path_returns_csv_file():
+    result = export_csv(_FMEA_SCORED)
+    text = result.data.decode("utf-8")
+    header = text.splitlines()[0]
+    # header carries the FMEA columns, and the highest-RPN failure mode is in the body.
+    assert "Failure_Mode" in header and "RPN" in header
+    assert "Uncured" in text
+    assert _resource_mime(result) == "application/csv"
+
+
+def test_fmea_export_excel_happy_path_is_xlsx():
+    result = fmea_export_excel(_FMEA_SCORED)
+    assert result.data[:2] == b"PK"  # zip/OOXML magic
+    assert _resource_mime(result) == "application/xlsx"
+
+
+def test_fmea_export_pdf_happy_path_is_pdf():
+    result = fmea_export_pdf(_FMEA_SCORED)
+    assert result.data[:4] == b"%PDF"
+    assert _resource_mime(result) == "application/pdf"
+
+
+def test_fmea_chart_pareto_png_happy_path_is_png():
+    result = fmea_chart_pareto_png(_FMEA_SCORED)
+    assert result.data[:8] == _PNG_MAGIC
+    assert result.to_image_content().mimeType == "image/png"
+
+
+def test_fmea_chart_heatmap_png_happy_path_is_png():
+    result = fmea_chart_heatmap_png(_FMEA_SCORED)
+    assert result.data[:8] == _PNG_MAGIC
+    assert result.to_image_content().mimeType == "image/png"
+
+
+def test_spc_export_control_chart_excel_happy_path_is_xlsx():
+    result = spc_export_control_chart_excel(**_CC_KW)
+    assert result.data[:2] == b"PK"
+    assert _resource_mime(result) == "application/xlsx"
+
+
+def test_spc_export_control_chart_pdf_happy_path_is_pdf():
+    result = spc_export_control_chart_pdf(**_CC_KW)
+    assert result.data[:4] == b"%PDF"
+    assert _resource_mime(result) == "application/pdf"
+
+
+def test_spc_export_control_chart_excel_with_secondary_series_renders_it():
+    # Both secondary_label AND secondary_points supplied -> the report's optional
+    # second column is rendered (the True arm of _control_chart_report's guard).
+    wb = openpyxl.load_workbook(
+        io.BytesIO(
+            spc_export_control_chart_excel(
+                **_CC_KW, secondary_label="C-", secondary_points=[0.0, 0.1, 0.2, 0.0, 0.0]
+            ).data
+        )
+    )
+    # The per-point sheet gains a column named after the secondary label.
+    header = [c.value for c in next(wb.worksheets[0].iter_rows(max_row=1))]
+    assert "C-" in header
+
+
+def test_spc_export_control_chart_excel_half_a_secondary_pair_is_ignored():
+    # Only the label given (points None) -> guard's second operand is False; no second
+    # column. Proves the "both or neither" branch, distinct from the default (label None).
+    wb = openpyxl.load_workbook(
+        io.BytesIO(spc_export_control_chart_excel(**_CC_KW, secondary_label="C-").data)
+    )
+    header = [c.value for c in next(wb.worksheets[0].iter_rows(max_row=1))]
+    assert "C-" not in header
+
+
+def test_spc_export_capability_excel_happy_path_is_xlsx():
+    result = spc_export_capability_excel(**_CAP_KW)
+    assert result.data[:2] == b"PK"
+    assert _resource_mime(result) == "application/xlsx"
+
+
+def test_spc_export_capability_pdf_happy_path_is_pdf():
+    result = spc_export_capability_pdf(**_CAP_KW)
+    assert result.data[:4] == b"%PDF"
+    assert _resource_mime(result) == "application/pdf"
+
+
+def test_msa_export_excel_happy_path_is_xlsx():
+    result = msa_export_excel(_MSA_STUDY, _MSA_RESULTS, usl=10.5, lsl=9.5)
+    assert result.data[:2] == b"PK"
+    assert _resource_mime(result) == "application/xlsx"
+
+
+def test_msa_export_pdf_happy_path_is_pdf():
+    result = msa_export_pdf(_MSA_STUDY, _MSA_RESULTS)
+    assert result.data[:4] == b"%PDF"
+    assert _resource_mime(result) == "application/pdf"
+
+
+def test_msa_export_study_csv_happy_path_returns_csv():
+    result = msa_export_study_csv(_MSA_STUDY)
+    text = result.data.decode("utf-8")
+    assert text.splitlines()[0] == "part,appraiser,trial,measurement"
+    assert "P01" in text
+    assert _resource_mime(result) == "application/csv"
+
+
+def test_msa_export_results_csv_happy_path_returns_csv():
+    result = msa_export_results_csv(_MSA_RESULTS)
+    text = result.data.decode("utf-8")
+    assert "Verdict" in text.splitlines()[0]
+    assert "Accept" in text
+    assert _resource_mime(result) == "application/csv"
+
+
+# ---------------------------------------------------------------------------
+# Sanitization enforcement — the issue's explicit acceptance criterion.
+# The negative control that proves these load-bearing lives in test-results.md
+# (server.py mutated to bypass core_export_csv; both tests below then fail).
+# ---------------------------------------------------------------------------
+
+
+def test_export_csv_escapes_formula_injection_and_leaves_numbers_alone():
+    result = export_csv(
+        [{"note": "=cmd|'/bin/calc'", "plus": "+SUM(A1)", "minus": "-1+1",
+          "at": "@import", "num": "-3.0000"}]
+    )
+    text = result.data.decode("utf-8")
+    # Every formula-leading cell comes back apostrophe-escaped.
+    assert "'=cmd|'/bin/calc'" in text
+    assert "'+SUM(A1)" in text
+    assert "'-1+1" in text
+    assert "'@import" in text
+    # ...and no bare formula lead survives (strip the escaped occurrences first).
+    stripped = text.replace("'=", "").replace("'+", "").replace("'@", "").replace("'-", "")
+    for lead in ("=cmd", "+SUM", "@import"):
+        assert lead not in stripped
+    # A numeric literal must NOT be escaped (proves it doesn't over-escape).
+    assert "-3.0000" in text
+    assert "'-3.0000" not in text
+
+
+def test_msa_export_excel_escapes_formula_injection_in_study_cell():
+    # One Excel-producing tool must also escape (issue: CSV AND at least one XLSX tool).
+    study = [{"part": "=cmd|'/bin/calc'", "appraiser": "A", "trial": 1, "measurement": 10.0}]
+    wb = openpyxl.load_workbook(io.BytesIO(msa_export_excel(study, _MSA_RESULTS).data))
+    cell = str(wb["Study Data"].cell(row=2, column=1).value)
+    assert cell.startswith("'=")
+    assert not cell.startswith("=cmd")  # never an unescaped leading '='
+
+
+# ---------------------------------------------------------------------------
+# Error paths — empty input -> structured ToolError before the exporter runs.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "tool",
+    [
+        export_csv,
+        fmea_export_excel,
+        fmea_export_pdf,
+        fmea_chart_pareto_png,
+        fmea_chart_heatmap_png,
+        msa_export_study_csv,
+    ],
+)
+def test_single_list_export_tool_rejects_empty_input(tool):
+    with pytest.raises(ToolError, match="at least one row"):
+        tool([])
+
+
+def test_msa_export_excel_rejects_empty_study():
+    with pytest.raises(ToolError, match="at least one row"):
+        msa_export_excel([], _MSA_RESULTS)
+
+
+def test_msa_export_pdf_rejects_empty_study():
+    with pytest.raises(ToolError, match="at least one row"):
+        msa_export_pdf([], _MSA_RESULTS)
+
+
+# ---------------------------------------------------------------------------
+# Missing report key / column -> uncaught KeyError (coder's documented policy,
+# changes.md decision 1). Pinned so widening _call to swallow it is a visible,
+# reviewed change, not a silent one.
+# ---------------------------------------------------------------------------
+
+
+def test_fmea_chart_pareto_png_missing_required_column_raises_keyerror():
+    # Rows without Risk_Tier -> the visualizer's _check_columns KeyError, NOT ToolError.
+    with pytest.raises(KeyError):
+        fmea_chart_pareto_png([{"Failure_Mode": "M1", "RPN": 100}])
+
+
+def test_msa_export_results_csv_missing_metric_key_raises_keyerror():
+    # A results dict missing the metrics the flat sheet prints -> KeyError, not ToolError.
+    with pytest.raises(KeyError):
+        msa_export_results_csv({"verdict": "Accept"})
