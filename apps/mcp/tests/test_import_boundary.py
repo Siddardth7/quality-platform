@@ -44,11 +44,11 @@ def _run(code: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_mcp_app_dependencies_are_installed_distributions() -> None:
-    """mcp_app, fmea_app and quality_core must all resolve as installed distributions."""
+    """mcp_app, fmea_app, msa_app and quality_core resolve as installed distributions."""
     result = _run(
         "import importlib.util; import mcp_app.server; "
         "assert all(importlib.util.find_spec(m) for m in "
-        "('mcp_app', 'fmea_app', 'quality_core')); print('IMPORT OK')"
+        "('mcp_app', 'fmea_app', 'msa_app', 'quality_core')); print('IMPORT OK')"
     )
     assert result.returncode == 0, (
         f"mcp_app cannot resolve its engine dependencies:\n"
@@ -70,6 +70,23 @@ def test_mcp_app_actually_imports_the_fmea_engine() -> None:
     )
     assert result.returncode == 0, (
         f"mcp_app no longer imports the FMEA engine:\n"
+        f"stdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+
+def test_mcp_app_actually_imports_the_msa_engine() -> None:
+    """The MSA Gage R&R tool wraps the real engine: msa_app.gage_rr_engine is loaded.
+
+    Sibling to the FMEA check (not a rename): if msa_gage_rr were ever rewritten to
+    reimplement the AIAG math locally, this file's aggregator premise would fail loudly.
+    """
+    result = _run(
+        "import sys, mcp_app.server; "
+        "assert 'msa_app.gage_rr_engine' in sys.modules, sorted(sys.modules); "
+        "print('MSA ENGINE IMPORTED')"
+    )
+    assert result.returncode == 0, (
+        f"mcp_app no longer imports the MSA engine:\n"
         f"stdout={result.stdout}\nstderr={result.stderr}"
     )
 
