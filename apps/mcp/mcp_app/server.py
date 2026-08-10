@@ -1,13 +1,13 @@
-"""quality-platform MCP server: FastMCP app, stdio transport, meta + FMEA + SPC + Control Plan.
+"""quality-platform MCP server: FastMCP app, stdio, meta + FMEA + SPC + MSA + Control Plan.
 
-This module is the M1-1 foundation (#260); M1-3 (#262) added the FMEA tools and M1-4 (#263)
+This module is the M1-1 foundation (#260); M1-3 (#262) added the FMEA tools, M1-4 (#263)
 the SPC group — variables/attributes/time-weighted control charts, Phase I limit freezing and
 Phase II application, the Western Electric / Nelson run-rule detectors, the capability study
-(Cp/Cpk/Pp/Ppk + CIs) and the stability gate — and M1-6 (#265) the Control Plan group: the
-FMEA -> Control Plan connector, the AIAG chart-selection rule table and the characteristic ->
-source-cause index. Every later domain tool (MSA, SECOM) lands on this same ``app`` object in
-this same module — the CI coverage gate targets ``mcp_app.server`` only, so a separate tools
-module would silently stop being covered.
+(Cp/Cpk/Pp/Ppk + CIs) and the stability gate; M1-5 (#264) added the MSA Gage R&R tool, and
+M1-6 (#265) the Control Plan group: the FMEA -> Control Plan connector, the AIAG
+chart-selection rule table and the characteristic -> source-cause index. Every later domain
+tool (SECOM) lands on this same ``app`` object in this same module — the CI coverage gate
+targets ``mcp_app.server`` only, so a separate tools module would silently stop being covered.
 
 The SPC tools wrap ``quality_core.spc`` directly, not ``spc_app``: audit A12 (#205) promoted
 every SPC primitive into the shared core, so nothing here crosses an app boundary and no SPC
@@ -34,6 +34,7 @@ from controlplan_app.connector import build_control_plan, recommend_chart, sourc
 from controlplan_app.schema import SPCChart
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from msa_app.gage_rr_engine import compute_gage_rr
 from pydantic import ValidationError
 from quality_core.schema import RelationalFMEA
 from quality_core.scoring import action_priority, rpn
@@ -641,6 +642,52 @@ def controlplan_source_index(fmea_model: dict[str, Any]) -> dict[str, dict[str, 
     """
     parsed = _call(RelationalFMEA.model_validate, fmea_model)
     return _call(source_index, parsed)
+
+
+# ---------------------------------------------------------------------------
+# MSA — Gage R&R (msa_app.gage_rr_engine)
+# ---------------------------------------------------------------------------
+# Unlike the SPC tools, the Gage R&R math lives in an app, not in ``quality_core`` — so this
+# wraps ``msa_app`` directly, the same aggregator exception the FMEA import takes (#262). The
+# engine already returns a stable, fully-populated dict (M1-2), so the tool is a verbatim
+# passthrough: no reshaping, no defaults invented here, nulls preserved.
+
+
+@app.tool
+def msa_gage_rr(
+    study: list[dict[str, Any]],
+    method: Literal["average_and_range", "anova"] = "average_and_range",
+    tolerance: float | None = None,
+) -> dict[str, Any]:
+    """Gage R&R: Average-and-Range or ANOVA, both AIAG %-bases, ndc, verdict.
+
+    ``study`` is long/tidy form: one row per measurement, each with ``part``,
+    ``appraiser``, ``trial``, ``measurement`` keys (parts x appraisers x trials,
+    crossed design; must be balanced — every (part, appraiser) cell needs the same
+    trial count, checked before either method runs). ``method="anova"`` additionally
+    estimates and tests the part x appraiser interaction (AIAG MSA 4th Ed., Ch. III
+    Sec. B / Appendix A); ``interaction`` / ``interaction_f`` /
+    ``interaction_significant`` are null under ``"average_and_range"``, which cannot
+    estimate that interaction (its %GRR is biased low when the interaction is
+    non-zero — see the returned ``method_note``).
+
+    ``tolerance`` (USL - LSL) is optional. Omitted: only the study-variation basis
+    (``p{ev,av,grr,pv}_study``) is populated and the four ``p{ev,av,grr,pv}_tolerance``
+    keys are null. Supplied: both AIAG bases are populated — the tolerance basis scales
+    each component by 6 (AIAG's tolerance/6-in-the-denominator convention, not 5.15).
+
+    ``verdict`` ("Accept"/"Marginal"/"Reject") is driven by ``ndc`` and the WORSE
+    (higher) of the study- and tolerance-basis %GRR when both are available; the
+    %GRR 10/30 bands are AIAG's (Table II-D 1), the ndc>=5 accept floor is AIAG's, the
+    ndc 2-4/"<2" sub-bands are this platform's own design, not AIAG's (see
+    ``method_note`` and MSA ``ASSUMPTIONS_LOG.md`` RULE 10).
+
+    Raises a structured tool error (not a stack trace) for: empty study, fewer than 2
+    parts/appraisers, fewer than 2 trials per (part, appraiser) cell, an unbalanced
+    design, non-numeric/NaN/inf measurements, a non-positive/non-finite tolerance, or
+    an unknown ``method``.
+    """
+    return dict(_call(compute_gage_rr, study, tolerance=tolerance, method=method))
 
 
 def main() -> None:

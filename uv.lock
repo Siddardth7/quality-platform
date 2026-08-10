@@ -1607,6 +1607,7 @@ dependencies = [
     { name = "controlplan-app" },
     { name = "fastmcp" },
     { name = "fmea-app" },
+    { name = "msa-app" },
     { name = "quality-core" },
 ]
 
@@ -1615,6 +1616,7 @@ requires-dist = [
     { name = "controlplan-app", editable = "apps/controlplan" },
     { name = "fastmcp", specifier = "==3.4.6" },
     { name = "fmea-app", editable = "apps/fmea" },
+    { name = "msa-app", editable = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
 ]
 
