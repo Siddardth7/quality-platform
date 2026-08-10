@@ -8,6 +8,8 @@ patched out: the real call blocks forever serving the stdio protocol loop.
 import asyncio
 import math
 from datetime import date
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -24,6 +26,7 @@ from mcp_app.server import (
     fmea_score,
     health,
     main,
+    msa_gage_rr,
     spc_apply_imr,
     spc_apply_xbar_r,
     spc_apply_xbar_s,
@@ -45,6 +48,7 @@ from mcp_app.server import (
     spc_xbar_s,
     version,
 )
+from msa_app.schema import load_gage_study_csv
 from quality_core.schema import (
     Action,
     ActionStatus,
@@ -117,6 +121,7 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_capability",
         "spc_normality_test",
         "spc_assess_stability",
+        "msa_gage_rr",
     }
 
 
@@ -785,3 +790,212 @@ def test_spc_apply_malformed_frozen_raises_keyerror_not_toolerror():
     # silently widens `_call` to swallow KeyError is a visible, reviewed decision.
     with pytest.raises(KeyError):
         spc_apply_xbar_r(XBAR_R_PHASE_II_DATA, {"not": "a frozen dict"})
+
+
+# ===========================================================================
+# MSA — Gage R&R (#264). Golden numbers/tolerances are lifted verbatim from
+# apps/msa/tests/test_gage_rr_engine.py; the AIAG reference study is loaded
+# into list[dict] form (the tool's native input). The MCP layer adds no
+# arithmetic, so the boundary must return the already-verified engine numbers.
+# ===========================================================================
+
+_AIAG_REFERENCE_STUDY_CSV = (
+    Path(__file__).resolve().parents[2] / "msa" / "data" / "aiag_reference_study.csv"
+)
+
+
+def _aiag_study() -> list[dict[str, Any]]:
+    """The canonical AIAG 10x3x3 study as the long/tidy list[dict] the tool takes."""
+    return load_gage_study_csv(str(_AIAG_REFERENCE_STUDY_CSV)).to_dict("records")
+
+
+# 6 parts x 3 appraisers x 3 trials with one (P3, appraiser C) cell offset by a
+# fixed +1.2 — a genuine part x appraiser interaction. Mirrors
+# test_gage_rr_engine.py:1262 (_INDUCED_INTERACTION_DATA), rebuilt as list[dict].
+_INDUCED_INTERACTION_STUDY: list[dict[str, Any]] = [
+    {
+        "part": f"P{p}",
+        "appraiser": a,
+        "trial": t,
+        "measurement": (
+            float(p)
+            + (0.01 if t == 2 else 0.0)
+            + (0.02 if t == 3 else 0.0)
+            + (1.2 if (p == 3 and a == "C") else 0.0)
+        ),
+    }
+    for p in range(1, 7)
+    for a in ["A", "B", "C"]
+    for t in [1, 2, 3]
+]
+
+_STUDY_KEYS = ("pev_study", "pav_study", "pgrr_study", "ppv_study")
+_TOLERANCE_KEYS = ("pev_tolerance", "pav_tolerance", "pgrr_tolerance", "ppv_tolerance")
+
+
+# ---------------------------------------------------------------------------
+# Golden — Average-and-Range (default method) against the AIAG published form
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_average_and_range_golden():
+    r = msa_gage_rr(_aiag_study(), tolerance=4.42)
+    # Manual-published components (test_gage_rr_engine.py:425-430), rel=1e-2.
+    assert r["ev"] == pytest.approx(0.20188, rel=1e-2)
+    assert r["av"] == pytest.approx(0.22963, rel=1e-2)
+    assert r["grr"] == pytest.approx(0.30576, rel=1e-2)
+    assert r["ndc"] == 5
+    assert r["verdict"] == "Reject"
+    # The tolerance basis reaching the verdict is the #190 fix — pin the number.
+    assert r["pgrr_tolerance"] == pytest.approx(41.5067, rel=1e-2)
+    # Default method echoed on the payload.
+    assert r["method"] == "average_and_range"
+    # Study-basis percentages, AIAG Figure III-B 16 (rel=1e-3).
+    assert r["pev_study"] == pytest.approx(17.62, rel=1e-3)
+    assert r["pav_study"] == pytest.approx(20.04, rel=1e-3)
+    assert r["pgrr_study"] == pytest.approx(26.68, rel=1e-3)
+    assert r["ppv_study"] == pytest.approx(96.38, rel=1e-3)
+    assert r["tv"] == pytest.approx(1.14610, rel=1e-3)
+    # Average-and-Range cannot estimate the interaction.
+    assert r["interaction"] is None
+
+
+# ---------------------------------------------------------------------------
+# Golden — ANOVA against AIAG Table A 4 / A 5
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_anova_golden():
+    r = msa_gage_rr(_aiag_study(), method="anova", tolerance=4.42)
+    # sigma components, manual 6 dp (test_gage_rr_engine.py:1208-1213), rel=2e-4.
+    assert r["ev"] == pytest.approx(0.199933, rel=2e-4)
+    assert r["av"] == pytest.approx(0.226838, rel=2e-4)
+    assert r["grr"] == pytest.approx(0.302373, rel=2e-4)
+    assert r["pv"] == pytest.approx(1.042327, rel=2e-4)
+    assert r["tv"] == pytest.approx(1.085, abs=1e-3)
+    # F(interaction)=0.434 < F_crit -> pooled to exactly 0, not significant.
+    assert r["interaction_f"] == pytest.approx(0.434, abs=1e-3)
+    assert r["interaction_significant"] is False
+    assert r["interaction"] == 0.0
+    assert r["ndc"] == 4
+    assert r["method"] == "anova"
+
+
+# ---------------------------------------------------------------------------
+# No-tolerance branch — the four *_tolerance keys null, the four *_study float
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_no_tolerance_nulls_tolerance_basis_keeps_study_basis():
+    r = msa_gage_rr(_aiag_study())
+    for key in _TOLERANCE_KEYS:
+        assert r[key] is None, key
+    for key in _STUDY_KEYS:
+        assert isinstance(r[key], float), key
+    # The default method still ran.
+    assert r["method"] == "average_and_range"
+
+
+# ---------------------------------------------------------------------------
+# Default method — omitting method= runs Average-and-Range
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_default_method_is_average_and_range():
+    assert msa_gage_rr(_aiag_study())["method"] == "average_and_range"
+
+
+# ---------------------------------------------------------------------------
+# Interaction-significant branch (ANOVA) — induced interaction diverges upward
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gage_rr_anova_induced_interaction_reports_higher_pgrr():
+    anova = msa_gage_rr(_INDUCED_INTERACTION_STUDY, method="anova")
+    avg_range = msa_gage_rr(_INDUCED_INTERACTION_STUDY, method="average_and_range")
+    # A real interaction — otherwise the divergence claim is vacuous.
+    assert anova["interaction_significant"] is True
+    assert anova["interaction"] > 0.0
+    # ANOVA carries INT^2 into GRR; Average-and-Range cannot see it, so understates.
+    assert anova["pgrr_study"] > avg_range["pgrr_study"]
+    assert avg_range["interaction"] is None
+
+
+# ---------------------------------------------------------------------------
+# Error paths — every enumerated ValueError branch surfaces as ToolError
+# ---------------------------------------------------------------------------
+
+_VALID_ROW = {"part": "P1", "appraiser": "A", "trial": 1, "measurement": 1.0}
+
+
+def _balanced(parts, appraisers, trials, *, offset=0.0):
+    return [
+        {
+            "part": f"P{p}",
+            "appraiser": a,
+            "trial": t,
+            "measurement": float(p) + (0.02 if a == appraisers[-1] else 0.0) + offset * t,
+        }
+        for p in range(1, parts + 1)
+        for a in appraisers
+        for t in range(1, trials + 1)
+    ]
+
+
+def test_msa_gage_rr_empty_study_raises_toolerror():
+    with pytest.raises(ToolError, match="at least one measurement"):
+        msa_gage_rr([])
+
+
+def test_msa_gage_rr_missing_required_key_raises_toolerror():
+    # changes.md: pd.DataFrame(list_of_dicts) with a missing column surfaces as a
+    # ValueError ("Missing required columns"), caught by _call — NOT a raw KeyError.
+    # Pinned so a regression to an uncaught KeyError is visible.
+    with pytest.raises(ToolError, match="Missing required columns"):
+        msa_gage_rr([{"part": "P1"}])
+
+
+def test_msa_gage_rr_fewer_than_two_parts_raises_toolerror():
+    with pytest.raises(ToolError, match="at least 2 parts"):
+        msa_gage_rr(_balanced(1, ["A", "B"], 2))
+
+
+def test_msa_gage_rr_fewer_than_two_appraisers_raises_toolerror():
+    with pytest.raises(ToolError, match="at least 2 appraisers"):
+        msa_gage_rr(_balanced(2, ["A"], 2))
+
+
+def test_msa_gage_rr_fewer_than_two_trials_raises_toolerror():
+    with pytest.raises(ToolError, match="at least 2 trials"):
+        msa_gage_rr(_balanced(2, ["A", "B"], 1))
+
+
+def test_msa_gage_rr_unbalanced_cells_raise_toolerror():
+    study = _balanced(2, ["A", "B"], 2)
+    study.append({"part": "P1", "appraiser": "A", "trial": 3, "measurement": 1.5})
+    with pytest.raises(ToolError, match="unbalanced"):
+        msa_gage_rr(study)
+
+
+def test_msa_gage_rr_nan_measurement_raises_toolerror():
+    study = _balanced(2, ["A", "B"], 2)
+    study[0]["measurement"] = float("nan")
+    with pytest.raises(ToolError, match="NaN"):
+        msa_gage_rr(study)
+
+
+def test_msa_gage_rr_inf_measurement_raises_toolerror():
+    study = _balanced(2, ["A", "B"], 2)
+    study[0]["measurement"] = float("inf")
+    with pytest.raises(ToolError, match="infinite"):
+        msa_gage_rr(study)
+
+
+def test_msa_gage_rr_nonpositive_tolerance_raises_toolerror():
+    with pytest.raises(ToolError, match="positive finite"):
+        msa_gage_rr(_balanced(2, ["A", "B"], 2), tolerance=0.0)
+
+
+def test_msa_gage_rr_unknown_method_raises_toolerror():
+    with pytest.raises(ToolError, match="Unknown method: 'bogus'"):
+        msa_gage_rr(_balanced(2, ["A", "B"], 2), method="bogus")  # type: ignore[arg-type]

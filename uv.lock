@@ -1606,6 +1606,7 @@ source = { editable = "apps/mcp" }
 dependencies = [
     { name = "fastmcp" },
     { name = "fmea-app" },
+    { name = "msa-app" },
     { name = "quality-core" },
 ]
 
@@ -1613,6 +1614,7 @@ dependencies = [
 requires-dist = [
     { name = "fastmcp", specifier = "==3.4.6" },
     { name = "fmea-app", editable = "apps/fmea" },
+    { name = "msa-app", editable = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
 ]
 
