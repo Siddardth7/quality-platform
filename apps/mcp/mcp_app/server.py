@@ -931,7 +931,9 @@ def msa_export_results_csv(results: dict[str, Any]) -> File:
     """
     report = GageStudyReport(study=pd.DataFrame(), results=results, usl=None, lsl=None)
     return File(data=msa_export_results_csv_bytes(report), format="csv", name="gage_rr_results")
-=======
+
+
+# ---------------------------------------------------------------------------
 # Control Plan — FMEA connector, chart selection, source index
 # (controlplan_app.connector)
 #
@@ -1050,7 +1052,6 @@ def msa_gage_rr(
     an unknown ``method``.
     """
     return dict(_call(compute_gage_rr, study, tolerance=tolerance, method=method))
->>>>>>> origin/test
 
 
 def main() -> None:

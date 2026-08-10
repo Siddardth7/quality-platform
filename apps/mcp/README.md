@@ -15,7 +15,8 @@ stdio. Two meta tools describe the server process itself — `health` and
   (2019 default, FMEA-4 legacy, or a custom JSON scale).
 - the `spc_*` tools — control charts, Phase I/II, Western Electric / Nelson rules,
   capability and stability (see the tool list in `mcp_app/server.py`).
-\n**Export/report tools (#266)** — every one returns a FastMCP `File`/`Image` (no base64 hand-rolling), and every CSV/Excel path routes through the formula-injection sanitizer in `quality_core.io.export` (a cell starting with `= + - @` can never execute):
+
+**Export/report tools (#266)** — every one returns a FastMCP `File`/`Image` (no base64 hand-rolling), and every CSV/Excel path routes through the formula-injection sanitizer in `quality_core.io.export` (a cell starting with `= + - @` can never execute):
 
 - `export_csv(table)` — any tabular result → injection-safe CSV.
 - `fmea_export_excel(rows)` / `fmea_export_pdf(rows)` — FMEA report artifacts.

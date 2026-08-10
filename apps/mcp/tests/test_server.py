@@ -6,12 +6,14 @@ patched out: the real call blocks forever serving the stdio protocol loop.
 """
 
 import asyncio
+import io
 import math
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import openpyxl
 import pandas as pd
 import pytest
 import quality_core.spc.capability as capability
@@ -19,14 +21,14 @@ from fastmcp.exceptions import ToolError
 from mcp_app import __version__
 from mcp_app.server import (
     app,
+    controlplan_build,
+    controlplan_recommend_chart,
+    controlplan_source_index,
     export_csv,
     fmea_chart_heatmap_png,
     fmea_chart_pareto_png,
     fmea_export_excel,
     fmea_export_pdf,
-    controlplan_build,
-    controlplan_recommend_chart,
-    controlplan_source_index,
     fmea_get_scale,
     fmea_list_scales,
     fmea_run,
@@ -64,8 +66,6 @@ from mcp_app.server import (
     spc_xbar_s,
     version,
 )
-
-
 from msa_app.schema import load_gage_study_csv
 from quality_core.schema import (
     Action,
@@ -143,6 +143,19 @@ def test_exactly_the_expected_tools_are_registered():
         "controlplan_build",
         "controlplan_recommend_chart",
         "controlplan_source_index",
+        "export_csv",
+        "fmea_export_excel",
+        "fmea_export_pdf",
+        "fmea_chart_pareto_png",
+        "fmea_chart_heatmap_png",
+        "spc_export_control_chart_excel",
+        "spc_export_control_chart_pdf",
+        "spc_export_capability_excel",
+        "spc_export_capability_pdf",
+        "msa_export_excel",
+        "msa_export_pdf",
+        "msa_export_study_csv",
+        "msa_export_results_csv",
     }
 
 
@@ -869,6 +882,66 @@ def test_controlplan_build_golden_rows():
     assert all(r["characteristic"] for r in rows)
 
 
+# ===========================================================================
+# Export / report / PNG tools (M1-7, #266). These prove ONLY the thin-wrapper
+# contract: valid input -> the right File/Image with the right magic bytes and
+# mime type; sanitization is inherited (not bypassed); empty input is a
+# structured ToolError; a missing report key/column surfaces per the coder's
+# documented KeyError policy. The exporters'/sanitizer's own internals have
+# their own 100%-covered suites and are not re-tested here.
+# ===========================================================================
+
+# FMEA rows straight from fmea_run's own output — Failure_Mode, RPN, Risk_Tier,
+# Severity, Occurrence are all present, so the FMEA export + PNG tools get exactly
+# the shape they document. Computed once; the tools never mutate it in place.
+_FMEA_SCORED = fmea_run(_ROWS)
+
+# SPC control-chart report params — a chart tool's own result fields passed back in
+# (lifted from apps/spc/tests/test_exporter.py's fixture, the shape the builder takes).
+_CC_KW = dict(
+    chart_label="Xbar-R Chart",
+    stream="ply_thickness",
+    rule_set="Western Electric",
+    points=[10.0, 10.5, 13.9, 9.8, 10.1],
+    cl=10.0,
+    ucl=12.0,
+    lcl=8.0,
+    violations=[{"index": 2, "rule": "Rule 1: beyond 3-sigma"}],
+    metrics=[("Xbarbar", "10.0000"), ("Rbar", "1.2000")],
+)
+
+# SPC capability report params — spc_capability's / spc_normality_test's own dicts verbatim.
+_CAP_KW = dict(
+    stream_label="Ply Thickness",
+    values=[10.0, 10.1, 9.9, 10.2, 9.8, 10.05],
+    capability={
+        "cp": 1.45, "cpk": 1.21, "pp": 1.40, "ppk": 1.18,
+        "mean": 10.0, "sigma_hat": 0.05, "sigma_overall": 0.06,
+    },
+    lsl=9.7,
+    usl=10.3,
+    normality={"w_stat": 0.98, "p_value": 0.61, "is_normal": True},
+    oos_signal_count=0,
+)
+
+# MSA study rows + compute_gage_rr's result dict verbatim (from apps/msa/tests/test_exporter.py).
+_MSA_STUDY = [
+    {"part": "P01", "appraiser": "A", "trial": 1, "measurement": 10.05},
+    {"part": "P01", "appraiser": "A", "trial": 2, "measurement": 10.02},
+    {"part": "P02", "appraiser": "B", "trial": 1, "measurement": 9.98},
+    {"part": "P02", "appraiser": "B", "trial": 2, "measurement": 10.01},
+]
+_MSA_RESULTS = {
+    "ev": 0.03, "av": 0.02, "grr": 0.036, "pv": 0.5, "tv": 0.501,
+    "pev_study": 5.99, "pav_study": 3.99, "pgrr_study": 7.19, "ppv_study": 99.80,
+    "pev_tolerance": 10.0, "pav_tolerance": 8.0, "pgrr_tolerance": 12.0,
+    "ppv_tolerance": 150.0, "ndc": 6, "verdict": "Accept", "mean": 10.0,
+    "n_parts": 2, "n_appraisers": 2, "n_trials": 2, "is_balanced": True,
+    "method": "average_and_range",
+    "method_note": "Average-and-Range method: the part x appraiser interaction is NOT estimated.",
+}
+
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
 def _resource_mime(file_result) -> str:
@@ -1029,6 +1102,37 @@ def test_msa_export_excel_escapes_formula_injection_in_study_cell():
 
 # ---------------------------------------------------------------------------
 # Error paths — empty input -> structured ToolError before the exporter runs.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "tool",
+    [
+        export_csv,
+        fmea_export_excel,
+        fmea_export_pdf,
+        fmea_chart_pareto_png,
+        fmea_chart_heatmap_png,
+        msa_export_study_csv,
+    ],
+)
+def test_single_list_export_tool_rejects_empty_input(tool):
+    with pytest.raises(ToolError, match="at least one row"):
+        tool([])
+
+
+def test_msa_export_excel_rejects_empty_study():
+    with pytest.raises(ToolError, match="at least one row"):
+        msa_export_excel([], _MSA_RESULTS)
+
+
+def test_msa_export_pdf_rejects_empty_study():
+    with pytest.raises(ToolError, match="at least one row"):
+        msa_export_pdf([], _MSA_RESULTS)
+
+
+# ---------------------------------------------------------------------------
+# controlplan_build — empty model + invalid model
 # ---------------------------------------------------------------------------
 
 
