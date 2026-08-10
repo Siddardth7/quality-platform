@@ -8,6 +8,7 @@ dependencies = [
     "quality-core",
     "fastmcp==3.4.6",
     "fmea-app",
+    "controlplan-app",
 ]
 
 [project.scripts]
@@ -20,6 +21,7 @@ quality-mcp = "mcp_app.server:main"
 [tool.uv.sources]
 quality-core = { workspace = true }
 fmea-app = { workspace = true }
+controlplan-app = { workspace = true }
 
 # Installed (editable wheel), like msa/secom rather than the `package = false`
 # Streamlit apps: a console-script entry point (`uvx --from . quality-mcp`) only

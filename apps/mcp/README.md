@@ -2,7 +2,8 @@
 
 The quality-platform MCP server (#260, M1-1). It is a FastMCP app served over
 stdio. Two meta tools describe the server process itself — `health` and
-`version` — and the FMEA engine is exposed (#262, M1-3):
+`version` — and the FMEA (#262, M1-3), SPC (#263, M1-4) and Control Plan (#265,
+M1-6) engines are exposed:
 
 - `fmea_score(severity, occurrence, detection)` — RPN + AIAG-VDA Action Priority
   for one S/O/D triple.
@@ -13,8 +14,16 @@ stdio. Two meta tools describe the server process itself — `health` and
 - `fmea_list_scales()` — the built-in rating-scale options.
 - `fmea_get_scale(scale_id, custom_json=None)` — a scale's full S/O/D rating text
   (2019 default, FMEA-4 legacy, or a custom JSON scale).
+- the `spc_*` tools — control charts, Phase I/II, Western Electric / Nelson rules,
+  capability and stability (see the tool list in `mcp_app/server.py`).
+- `controlplan_build(fmea_model)` — derive a Control Plan (one row per failure
+  mode, highest-risk first) from a relational FMEA.
+- `controlplan_recommend_chart(data_type, subgroup_size, ...)` — the AIAG SPC
+  chart-selection rule table (bounded per #196).
+- `controlplan_source_index(fmea_model)` — trace every Control Plan row back to its
+  source FMEA failure mode and cause.
 
-The SPC, MSA, Control Plan, and SECOM tools arrive in later M1 issues on the same
+The MSA and SECOM tools arrive in later M1 issues on the same
 `app` object in `mcp_app/server.py`.
 
 ```bash

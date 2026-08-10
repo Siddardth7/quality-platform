@@ -1,11 +1,13 @@
-"""The quality-platform MCP server: FastMCP app, stdio transport, meta + FMEA + SPC tools.
+"""quality-platform MCP server: FastMCP app, stdio transport, meta + FMEA + SPC + Control Plan.
 
 This module is the M1-1 foundation (#260); M1-3 (#262) added the FMEA tools and M1-4 (#263)
 the SPC group — variables/attributes/time-weighted control charts, Phase I limit freezing and
 Phase II application, the Western Electric / Nelson run-rule detectors, the capability study
-(Cp/Cpk/Pp/Ppk + CIs) and the stability gate. Every later domain tool (MSA, Control Plan,
-SECOM) lands on this same ``app`` object in this same module — the CI coverage gate targets
-``mcp_app.server`` only, so a separate tools module would silently stop being covered.
+(Cp/Cpk/Pp/Ppk + CIs) and the stability gate — and M1-6 (#265) the Control Plan group: the
+FMEA -> Control Plan connector, the AIAG chart-selection rule table and the characteristic ->
+source-cause index. Every later domain tool (MSA, SECOM) lands on this same ``app`` object in
+this same module — the CI coverage gate targets ``mcp_app.server`` only, so a separate tools
+module would silently stop being covered.
 
 The SPC tools wrap ``quality_core.spc`` directly, not ``spc_app``: audit A12 (#205) promoted
 every SPC primitive into the shared core, so nothing here crosses an app boundary and no SPC
@@ -28,6 +30,8 @@ from collections.abc import Callable
 from typing import Any, Literal, TypeVar, cast
 
 import pandas as pd
+from controlplan_app.connector import build_control_plan, recommend_chart, source_index
+from controlplan_app.schema import SPCChart
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import ValidationError
@@ -562,6 +566,81 @@ def spc_assess_stability(
     frame = pd.DataFrame({"value": values, "subgroup": subgroups})
     sigma_hat, signals = _call(assess_stability, frame, chart_type, rule_set=rule_set)
     return {"sigma_hat": sigma_hat, "signals": signals}
+
+
+# ---------------------------------------------------------------------------
+# Control Plan — FMEA connector, chart selection, source index
+# (controlplan_app.connector)
+#
+# All three are thin passthroughs over the existing connector: no Control Plan
+# logic is reimplemented here, and ``controlplan_build``/``controlplan_source_index``
+# take the same ``quality_core.schema.RelationalFMEA`` object ``fmea_run_relational``
+# accepts rather than introducing a second FMEA contract.
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def controlplan_build(fmea_model: dict[str, Any]) -> list[dict[str, Any]]:
+    """Derive a Control Plan from a relational FMEA: one row per FailureMode, highest-risk first.
+
+    ``fmea_model`` is the same RelationalFMEA JSON object ``fmea_run_relational`` accepts — the
+    connector consumes ``quality_core.schema.RelationalFMEA`` directly, no separate schema. Each
+    returned row's ``measurement_method``/``reaction_plan``/``source_cause_id`` are derived from the
+    failure mode's worst-risk link (by Action Priority, then RPN); ``sample_size``, ``frequency`` and
+    ``reaction_plan`` have no FMEA-model equivalent, so every row carries
+    ``sample_plan_is_placeholder=True`` (F-10, #196) marking those three fields as connector defaults
+    rather than engineered values. ``recommended_chart`` is always null here — the relational FMEA
+    carries no data-type/subgroup-size input; use ``controlplan_recommend_chart`` once a
+    characteristic is classified. Raises a structured tool error if the model fails its own
+    validation (duplicate IDs, unknown link references).
+    """
+    parsed = _call(RelationalFMEA.model_validate, fmea_model)
+    dataset = _call(build_control_plan, parsed)
+    return cast("list[dict[str, Any]]", dataset.model_dump()["rows"])
+
+
+@app.tool
+def controlplan_recommend_chart(
+    data_type: Literal["variable", "attribute"],
+    subgroup_size: int,
+    defect_based: bool = False,
+    constant_sample: bool = True,
+) -> dict[str, str]:
+    """Recommend a control-chart type from data type + subgroup size (AIAG SPC rule table).
+
+    Variable data: n=1 -> I-MR, 2-9 -> Xbar-R, 10-12 -> Xbar-S; above 12 there is no computable
+    chart and this raises a structured tool error rather than naming one the SPC engine can't
+    compute (F-07, #196 — the bound tracks ``quality_core.spc.constants.XBAR_S_CONSTANTS``).
+    Attribute data: ``defect_based=False`` -> "p" (defectives; ``np`` folds into "p", never
+    returned); ``defect_based=True`` -> "c" (constant sample) or "u" (variable sample); no upper
+    bound on attribute sample size. This is a standalone rule-table lookup — it does not carry a
+    reaction plan, sample plan, or the F-10 placeholder flag; those live on the rows
+    ``controlplan_build`` returns.
+    """
+    chart: SPCChart = _call(
+        recommend_chart,
+        data_type,
+        subgroup_size,
+        defect_based=defect_based,
+        constant_sample=constant_sample,
+    )
+    return {"recommended_chart": chart}
+
+
+@app.tool
+def controlplan_source_index(fmea_model: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Map each Control Plan characteristic back to its source FMEA failure mode and cause.
+
+    ``fmea_model`` is the same RelationalFMEA contract as ``controlplan_build``. Keys are exactly
+    the ``characteristic`` strings ``controlplan_build`` produces for the same model (shared
+    traversal, so the two can't diverge); each value is
+    ``{failure_mode_id, cause_id, cause_description, occurrence, component}`` for the same
+    worst-risk cause ``controlplan_build`` used. ``cause_id`` matches that row's
+    ``source_cause_id`` exactly — the round-trip property this tool exists for. Raises a
+    structured tool error on an invalid model, same as ``controlplan_build``.
+    """
+    parsed = _call(RelationalFMEA.model_validate, fmea_model)
+    return _call(source_index, parsed)
 
 
 def main() -> None:

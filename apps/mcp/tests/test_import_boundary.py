@@ -44,11 +44,11 @@ def _run(code: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_mcp_app_dependencies_are_installed_distributions() -> None:
-    """mcp_app, fmea_app and quality_core must all resolve as installed distributions."""
+    """mcp_app, fmea_app, controlplan_app and quality_core resolve as installed dists."""
     result = _run(
         "import importlib.util; import mcp_app.server; "
         "assert all(importlib.util.find_spec(m) for m in "
-        "('mcp_app', 'fmea_app', 'quality_core')); print('IMPORT OK')"
+        "('mcp_app', 'fmea_app', 'controlplan_app', 'quality_core')); print('IMPORT OK')"
     )
     assert result.returncode == 0, (
         f"mcp_app cannot resolve its engine dependencies:\n"
@@ -70,6 +70,23 @@ def test_mcp_app_actually_imports_the_fmea_engine() -> None:
     )
     assert result.returncode == 0, (
         f"mcp_app no longer imports the FMEA engine:\n"
+        f"stdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+
+def test_mcp_app_actually_imports_the_controlplan_engine() -> None:
+    """The Control Plan tools (#265) wrap the real connector, not a local reimpl.
+
+    Sibling to the FMEA check: if controlplan_build/source_index/recommend_chart were
+    ever quietly rewritten to reimplement the connector, this would fail rather than rot.
+    """
+    result = _run(
+        "import sys, mcp_app.server; "
+        "assert 'controlplan_app.connector' in sys.modules, sorted(sys.modules); "
+        "print('CONTROLPLAN ENGINE IMPORTED')"
+    )
+    assert result.returncode == 0, (
+        f"mcp_app no longer imports the Control Plan engine:\n"
         f"stdout={result.stdout}\nstderr={result.stderr}"
     )
 

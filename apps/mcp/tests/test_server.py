@@ -17,6 +17,9 @@ from fastmcp.exceptions import ToolError
 from mcp_app import __version__
 from mcp_app.server import (
     app,
+    controlplan_build,
+    controlplan_recommend_chart,
+    controlplan_source_index,
     fmea_get_scale,
     fmea_list_scales,
     fmea_run,
@@ -117,6 +120,9 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_capability",
         "spc_normality_test",
         "spc_assess_stability",
+        "controlplan_build",
+        "controlplan_recommend_chart",
+        "controlplan_source_index",
     }
 
 
@@ -785,3 +791,163 @@ def test_spc_apply_malformed_frozen_raises_keyerror_not_toolerror():
     # silently widens `_call` to swallow KeyError is a visible, reviewed decision.
     with pytest.raises(KeyError):
         spc_apply_xbar_r(XBAR_R_PHASE_II_DATA, {"not": "a frozen dict"})
+
+
+# ===========================================================================
+# Control Plan tools (#265). The three tools are thin passthroughs over
+# controlplan_app.connector; the connector's own arithmetic/ordering is proved
+# 100% in apps/controlplan/tests/test_connector.py. These tests pin the
+# boundary: the tools return the connector's already-verified output verbatim
+# (JSON-friendly), and bad input surfaces as a structured ToolError.
+#
+# The _ROWS / _relational_model_dict() fixture reused here is the same one
+# fmea_run_relational's golden test uses (RPN 360/126/90, ID order [3,1,2]).
+# _ROWS has one FailureMode per (Resin/Uncured) and (Edge/Void) — Resin/Uncured
+# carries two links (row 3, O=8 and row 2, O=2), so build_control_plan yields
+# exactly TWO rows (one per FailureMode), highest-risk (Resin/Uncured, High AP,
+# worst link RPN 360) first.
+# ===========================================================================
+
+
+def _collision_model_dict() -> dict:
+    """A relational model whose two FailureModes collide on component+description.
+
+    Mirrors apps/controlplan/tests/test_connector.py::
+    test_characteristic_collision_falls_back_to_failure_mode_id in flat->relational
+    form: two functions share Component 'Bracket' and Failure_Mode 'Incomplete weld',
+    so the base characteristic collides and the second row takes the ' (F2-M1)' suffix.
+    """
+    rows = [
+        dict(ID=1, Process_Step="Weld", Component="Bracket", Function="Weld joint",
+             Failure_Mode="Incomplete weld", Effect="Joint fails", Severity=9,
+             Cause="Contamination", Occurrence=6, Current_Control="Visual", Detection=1),
+        dict(ID=2, Process_Step="Rework", Component="Bracket", Function="Rework joint",
+             Failure_Mode="Incomplete weld", Effect="Joint fails", Severity=3,
+             Cause="Operator error", Occurrence=3, Current_Control="Visual", Detection=3),
+    ]
+    return dataframe_to_relational(pd.DataFrame(rows)).model_dump()
+
+
+# ---------------------------------------------------------------------------
+# controlplan_build — golden / empty / invalid
+# ---------------------------------------------------------------------------
+
+
+def test_controlplan_build_golden_rows():
+    rows = controlplan_build(_relational_model_dict())
+    # One row per FailureMode: (Resin/Uncured) and (Edge/Void) -> 2 rows.
+    assert len(rows) == 2
+    # Highest-AP/RPN row first: Resin/Uncured is High AP (worst link RPN 360),
+    # Edge/Void is Low AP (RPN 126).
+    assert [r["characteristic"] for r in rows] == ["Resin — Uncured", "Edge — Void"]
+    # Every row flags its sample plan as a connector placeholder (F-10, #196)...
+    assert all(r["sample_plan_is_placeholder"] is True for r in rows)
+    # ...and recommended_chart is always null from build (no data-type/n input).
+    assert all(r["recommended_chart"] is None for r in rows)
+    # measurement_method comes from the worst link's control; characteristic populated.
+    assert [r["measurement_method"] for r in rows] == ["Oven", "Visual"]
+    assert all(r["characteristic"] for r in rows)
+
+
+def test_controlplan_build_empty_fmea_returns_empty_list():
+    assert controlplan_build({"functions": []}) == []
+
+
+def test_controlplan_build_invalid_model_raises_toolerror():
+    with pytest.raises(ToolError, match="validation error"):
+        controlplan_build({"functions": [{"id": "f1"}]})
+
+
+# ---------------------------------------------------------------------------
+# controlplan_recommend_chart — rule table (oracle: test_connector.py) + errors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("data_type", "n", "kwargs", "expected"),
+    [
+        ("variable", 1, {}, "I-MR"),
+        ("variable", 9, {}, "Xbar-R"),
+        ("variable", 10, {}, "Xbar-S"),
+        ("variable", 12, {}, "Xbar-S"),  # ceiling boundary — last valid n
+        ("attribute", 5, {}, "p"),
+        ("attribute", 5, {"defect_based": True, "constant_sample": True}, "c"),
+        ("attribute", 5, {"defect_based": True, "constant_sample": False}, "u"),
+    ],
+)
+def test_controlplan_recommend_chart_rule_table(data_type, n, kwargs, expected):
+    assert controlplan_recommend_chart(data_type, n, **kwargs) == {
+        "recommended_chart": expected
+    }
+
+
+def test_controlplan_recommend_chart_subgroup_size_zero_raises_toolerror():
+    with pytest.raises(ToolError, match="subgroup_size"):
+        controlplan_recommend_chart("variable", 0)
+
+
+def test_controlplan_recommend_chart_above_ceiling_raises_toolerror():
+    # n=13 is one over the X-bar/S constants ceiling (12) -> structured error.
+    with pytest.raises(ToolError, match="exceeds the largest supported"):
+        controlplan_recommend_chart("variable", 13)
+
+
+def test_controlplan_recommend_chart_attribute_has_no_ceiling():
+    # Negative guard: the variable-data F-07 ceiling must not leak into attributes.
+    assert controlplan_recommend_chart(
+        "attribute", 500, defect_based=True, constant_sample=False
+    ) == {"recommended_chart": "u"}
+
+
+# ---------------------------------------------------------------------------
+# controlplan_source_index — golden round-trip / empty / invalid / collision
+# ---------------------------------------------------------------------------
+
+
+def test_controlplan_source_index_golden_round_trip():
+    model = _relational_model_dict()
+    rows = controlplan_build(model)
+    index = controlplan_source_index(model)
+    # Key set is exactly build's characteristic set (shared traversal).
+    assert set(index) == {r["characteristic"] for r in rows}
+    # cause_id round-trips to each row's source_cause_id.
+    for row in rows:
+        assert index[row["characteristic"]]["cause_id"] == row["source_cause_id"]
+    # Value shape for the worst-risk cause.
+    entry = index["Resin — Uncured"]
+    assert set(entry) == {
+        "failure_mode_id",
+        "cause_id",
+        "cause_description",
+        "occurrence",
+        "component",
+    }
+    # Worst link (O=8, "Low temperature"), not the O=2 link, per _worst_link.
+    assert entry["occurrence"] == 8
+    assert entry["cause_description"] == "Low temperature"
+    assert entry["component"] == "Resin"
+
+
+def test_controlplan_source_index_empty_fmea_returns_empty_dict():
+    assert controlplan_source_index({"functions": []}) == {}
+
+
+def test_controlplan_source_index_invalid_model_raises_toolerror():
+    with pytest.raises(ToolError, match="validation error"):
+        controlplan_source_index({"functions": [{"id": "f1"}]})
+
+
+def test_controlplan_characteristic_collision_round_trips_through_suffix():
+    model = _collision_model_dict()
+    rows = controlplan_build(model)
+    index = controlplan_source_index(model)
+    characteristics = [r["characteristic"] for r in rows]
+    # The collision resolves via the ' (F2-M1)' suffix path...
+    assert characteristics == [
+        "Bracket — Incomplete weld",
+        "Bracket — Incomplete weld (F2-M1)",
+    ]
+    # ...and source_index keys still match build's characteristics one-for-one.
+    assert set(index) == set(characteristics)
+    for row in rows:
+        assert index[row["characteristic"]]["cause_id"] == row["source_cause_id"]
