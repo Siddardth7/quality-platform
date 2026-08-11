@@ -80,6 +80,7 @@ from fmea_app.rating_scales import (
 from fmea_app.rpn_engine import run_pipeline, run_pipeline_relational
 from fmea_app.visualizer import pareto_chart, risk_heatmap
 from mcp_app import __version__
+from mcp_app.transport import run_server
 from spc_app.exporter import (
     CapabilityReport,
     ControlChartReport,
@@ -1057,10 +1058,11 @@ def msa_gage_rr(
 def main() -> None:
     """Console-script entry point (``quality-mcp``).
 
-    stdio is FastMCP's default transport — what Claude Desktop / Cursor / Claude Code
-    launch (#260 scope: stdio only, HTTP is M1-8).
+    The transport is environment-selected (``MCP_TRANSPORT``); stdio remains the default —
+    what Claude Desktop / Cursor / Claude Code launch — and ``http`` opts into the
+    authenticated Streamable HTTP transport (#267, M1-8). See ``mcp_app.transport``.
     """
-    app.run()
+    run_server(app)
 
 
 # pragma: no cover — the module-as-script path can't be exercised from a test without
