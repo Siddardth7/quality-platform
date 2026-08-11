@@ -39,5 +39,37 @@ cd apps/mcp && uvx --from . quality-mcp   # via the console entry point
 `uvx --from .` must run from `apps/mcp` — the workspace root is a coordinator
 (`package = false`) and has no distribution to build.
 
-Coverage for `mcp_app.server` is gated at 100% line+branch in CI — see the gate
-table in the root `CLAUDE.md`.
+## Transport (#267, M1-8)
+
+stdio is the default and is unauthenticated — a local host launching `quality-mcp`
+with no environment set behaves exactly as before. `MCP_TRANSPORT=http` opts into
+FastMCP's Streamable HTTP transport, which is **always** authenticated with a shared
+secret bearer token:
+
+```bash
+MCP_TRANSPORT=http MCP_AUTH_TOKEN="$(openssl rand -hex 32)" uv run python -m mcp_app.server
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MCP_TRANSPORT` | `stdio` | `stdio` or `http`; any other value is a startup error |
+| `MCP_HOST` | `127.0.0.1` | bind address — loopback only unless you opt into `0.0.0.0` |
+| `MCP_PORT` | `8000` | bind port |
+| `MCP_AUTH_TOKEN` | *(none)* | shared secret, **required** in `http` mode |
+
+HTTP mode fails closed: with no `MCP_AUTH_TOKEN` the server refuses to start rather
+than binding an open port, and there is no way to serve HTTP unauthenticated. Clients
+send `Authorization: Bearer <token>`; a missing, malformed or wrong token gets a 401.
+The token is compared in constant time and is never logged.
+
+### Connecting a remote host
+
+*Stub — full instructions land in M6, when hosting/deployment is decided.* Today the
+endpoint is `http://<host>:<port>/mcp` and any MCP client that supports Streamable
+HTTP with a bearer token can connect. The default loopback bind means "remote" means
+"another process on this machine" until M6 adds a real deployment (TLS termination,
+process supervision, secret management) — do not expose this port publicly with the
+single shared token as the only control. Per-client tokens / OAuth are deferred to M6.
+
+Coverage for `mcp_app.server` and `mcp_app.transport` is gated at 100% line+branch in
+CI — see the gate table in the root `CLAUDE.md`.
