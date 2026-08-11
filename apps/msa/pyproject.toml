@@ -2,6 +2,7 @@
 name = "msa-app"
 version = "0.13.0"
 description = "Measurement System Analysis — Streamlit app (gage-study ingest; Gage R&R math lands later)."
+authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

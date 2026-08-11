@@ -193,3 +193,19 @@ jobs:
           --cov=secom_app.doe_screening
           --cov-report=term-missing
           --cov-fail-under=100
+
+      # MCP coverage gate: the FastMCP server scaffold (#260) — health/version meta tools
+      # and the stdio entry point — is new testable surface and must stay fully covered
+      # from day one so every later M1 tool lands on an already-green foundation. No
+      # pages/ exclusion is needed (there is no UI); mcp_app.server carries the logic
+      # (the __init__ version constant is covered on import), mirroring the MSA/SECOM gates.
+      # mcp_app.transport (#267) is gated separately from server.py on purpose: it is the
+      # HTTP trust boundary, and a future refactor of server.py must not be able to drop
+      # the auth module's coverage silently.
+      - name: MCP coverage gate
+        run: >
+          uv run pytest apps/mcp
+          --cov=mcp_app.server
+          --cov=mcp_app.transport
+          --cov-report=term-missing
+          --cov-fail-under=100
