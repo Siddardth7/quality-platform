@@ -3,11 +3,7 @@
 This module is the M1-1 foundation (#260); M1-3 (#262) added the FMEA tools, M1-4 (#263)
 the SPC group — variables/attributes/time-weighted control charts, Phase I limit freezing and
 Phase II application, the Western Electric / Nelson run-rule detectors, the capability study
-(Cp/Cpk/Pp/Ppk + CIs) and the stability gate; M1-5 (#264) added the MSA Gage R&R tool, and
-M1-6 (#265) the Control Plan group: the FMEA -> Control Plan connector, the AIAG
-chart-selection rule table and the characteristic -> source-cause index. Every later domain
-tool (SECOM) lands on this same ``app`` object in this same module — the CI coverage gate
-targets ``mcp_app.server`` only, so a separate tools module would silently stop being covered.
+(Cp/Cpk/Pp/Ppk + CIs) and the stability gate. M1-5 (#264) added the MSA Gage R&R tool, M1-6 (#265) added the Control Plan group (the FMEA -> Control Plan connector, the AIAG chart-selection rule table and the characteristic -> source-cause index), and M1-7 (#266) added the export tools: CSV/Excel/PDF artifacts from the FMEA, SPC and MSA report builders plus the two FMEA chart PNGs, each a thin wrapper over an existing exporter so the formula-injection sanitizer in ``quality_core.io.export`` is never bypassed. Every later domain tool (SECOM) lands on this same ``app`` object in this same module — the CI coverage gate targets ``mcp_app.server`` only, so a separate tools module would silently stop being covered.
 
 The SPC tools wrap ``quality_core.spc`` directly, not ``spc_app``: audit A12 (#205) promoted
 every SPC primitive into the shared core, so nothing here crosses an app boundary and no SPC
@@ -26,6 +22,7 @@ stays legible when a host also has other MCP servers connected.
 
 from __future__ import annotations
 
+import io
 from collections.abc import Callable
 from typing import Any, Literal, TypeVar, cast
 
@@ -34,8 +31,16 @@ from controlplan_app.connector import build_control_plan, recommend_chart, sourc
 from controlplan_app.schema import SPCChart
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.utilities.types import File, Image
+from matplotlib import pyplot as plt
+from msa_app.exporter import GageStudyReport
+from msa_app.exporter import export_csv as msa_export_study_csv_bytes
+from msa_app.exporter import export_excel as msa_export_excel_bytes
+from msa_app.exporter import export_pdf as msa_export_pdf_bytes
+from msa_app.exporter import export_results_csv as msa_export_results_csv_bytes
 from msa_app.gage_rr_engine import compute_gage_rr
 from pydantic import ValidationError
+from quality_core.io.export import export_csv as core_export_csv
 from quality_core.schema import RelationalFMEA
 from quality_core.scoring import action_priority, rpn
 from quality_core.spc import (
@@ -65,13 +70,24 @@ from quality_core.spc import (
     normality_test,
 )
 
+from fmea_app.exporter import export_excel as fmea_export_excel_bytes
+from fmea_app.exporter import export_pdf as fmea_export_pdf_bytes
 from fmea_app.rating_scales import (
     load_default_scales,
     load_legacy_fmea4_scales,
     load_scales_from_json,
 )
 from fmea_app.rpn_engine import run_pipeline, run_pipeline_relational
+from fmea_app.visualizer import pareto_chart, risk_heatmap
 from mcp_app import __version__
+from spc_app.exporter import (
+    CapabilityReport,
+    ControlChartReport,
+    build_capability_report_excel,
+    build_capability_report_pdf,
+    build_control_chart_report_excel,
+    build_control_chart_report_pdf,
+)
 
 app = FastMCP("quality-platform")
 
@@ -567,6 +583,354 @@ def spc_assess_stability(
     frame = pd.DataFrame({"value": values, "subgroup": subgroups})
     sigma_hat, signals = _call(assess_stability, frame, chart_type, rule_set=rule_set)
     return {"sigma_hat": sigma_hat, "signals": signals}
+
+
+# ---------------------------------------------------------------------------
+# Export / report tools (M1-7, #266)
+#
+# Return convention (spec Q1, SME sign-off): every artifact tool returns a
+# ``fastmcp.utilities.types.File`` — or ``Image`` for a PNG — and nothing else. FastMCP's
+# own tool-result converter turns those into MCP ``EmbeddedResource``/``ImageContent``
+# (base64 inside), so there is no hand-rolled base64 envelope here, no resource
+# registration, no served-transport requirement and no project-directory contract. When a
+# future project/session-directory surface (M3) wants written paths instead, only the
+# return statements change — no exporter and no sanitizer is involved in that swap.
+#
+# Every tool is a thin wrapper over an already-shipped, already-100%-covered report
+# builder: ``quality_core.io.export`` for plain CSV, ``fmea_app``/``spc_app``/``msa_app``'s
+# ``exporter`` modules for the styled artifacts. Formula-injection escaping therefore comes
+# from ``quality_core.io.export.sanitize_for_export`` inside those builders and is never
+# reimplemented — and never bypassed with a direct ``DataFrame.to_csv()`` call. No new
+# report layout is introduced: the frozen ``ControlChartReport``/``CapabilityReport``/
+# ``GageStudyReport`` dataclasses are assembled inline from tool parameters.
+#
+# Error policy (spec "Interfaces"): bad-input ``ValueError``/``ValidationError`` becomes a
+# structured ``ToolError`` through ``_call``, as everywhere else in this module; a missing
+# *mapping* key in a caller-supplied result dict (e.g. ``results["cp"]``) raises ``KeyError``
+# and is deliberately left uncaught, matching how ``spc_capability`` already lets a
+# malformed ``violations`` shape fail loudly rather than be silently swallowed. Each tool
+# below says so where it applies.
+# ---------------------------------------------------------------------------
+
+
+def _figure_png(fig: plt.Figure) -> Image:
+    """Render a matplotlib figure to a PNG ``Image``, closing the figure.
+
+    ``dpi=150``/``bbox_inches="tight"`` mirror the settings ``fmea_app.visualizer`` already
+    uses for its own on-disk PNGs, so a chart returned here is byte-comparable with the one
+    embedded in the FMEA PDF. Closing is mandatory: the visualizer only closes the figure on
+    its ``output_path`` branch, and a leaked figure is a slow memory leak in a long-running
+    server process.
+    """
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return Image(data=buf.getvalue(), format="png")
+
+
+@app.tool
+def export_csv(table: list[dict[str, Any]]) -> File:
+    """Export any tabular result (FMEA rows, SPC points, ...) to formula-safe CSV.
+
+    ``table`` is a list of row dicts — e.g. ``fmea_run``'s output straight back in. Every
+    string cell whose first non-whitespace character is ``=``, ``+``, ``-`` or ``@`` (or a
+    leading Tab/CR) is escaped with a leading apostrophe so no spreadsheet evaluates it as a
+    formula, while numeric literals such as ``"-3.0000"`` are left alone; that is
+    ``quality_core.io.export.sanitize_for_export``'s contract, applied here rather than
+    restated. Raises a structured tool error for an empty ``table``.
+    """
+    if not table:
+        raise ToolError("table must have at least one row.")
+    return File(data=core_export_csv(pd.DataFrame(table)), format="csv", name="export")
+
+
+@app.tool
+def fmea_export_excel(rows: list[dict[str, Any]]) -> File:
+    """FMEA scored rows -> styled .xlsx: ranked sheet colour-coded by Risk_Tier + metadata.
+
+    ``rows`` is ``fmea_run`` / ``fmea_run_relational``'s own output. Columns the export
+    layout doesn't know about are dropped and missing ones degrade gracefully, so a partial
+    frame still exports. Raises a structured tool error for empty ``rows``.
+    """
+    if not rows:
+        raise ToolError("rows must have at least one row.")
+    return File(
+        data=fmea_export_excel_bytes(pd.DataFrame(rows)), format="xlsx", name="fmea_report"
+    )
+
+
+@app.tool
+def fmea_export_pdf(rows: list[dict[str, Any]]) -> File:
+    """FMEA scored rows -> 3-page A4 PDF (summary, ranked table, action page).
+
+    Same ``rows`` contract and same empty-input tool error as ``fmea_export_excel``.
+    """
+    if not rows:
+        raise ToolError("rows must have at least one row.")
+    return File(data=fmea_export_pdf_bytes(pd.DataFrame(rows)), format="pdf", name="fmea_report")
+
+
+@app.tool
+def fmea_chart_pareto_png(rows: list[dict[str, Any]]) -> Image:
+    """Pareto chart PNG: failure modes ranked by RPN, coloured by Risk_Tier, 80% line.
+
+    ``rows`` needs Failure_Mode, RPN and Risk_Tier — ``fmea_run``'s output has all three.
+    The visualizer's existing Top-N + "Others" aggregation and figure-width cap apply
+    unchanged, which is why nothing here calls matplotlib against the frame directly. A
+    missing required column raises the visualizer's own ``KeyError`` naming it (see the
+    error-policy note above); empty ``rows`` is a structured tool error.
+    """
+    if not rows:
+        raise ToolError("rows must have at least one row.")
+    return _figure_png(pareto_chart(pd.DataFrame(rows)))
+
+
+@app.tool
+def fmea_chart_heatmap_png(rows: list[dict[str, Any]]) -> Image:
+    """Severity x Occurrence risk heatmap PNG (10x10, cells coloured by dominant Risk_Tier).
+
+    ``rows`` needs Severity, Occurrence and Risk_Tier; same missing-column and empty-input
+    behaviour as ``fmea_chart_pareto_png``.
+    """
+    if not rows:
+        raise ToolError("rows must have at least one row.")
+    return _figure_png(risk_heatmap(pd.DataFrame(rows)))
+
+
+def _control_chart_report(
+    chart_label: str,
+    stream: str,
+    rule_set: str,
+    points: list[float],
+    cl: float,
+    ucl: float | list[float],
+    lcl: float | list[float],
+    violations: list[dict[str, Any]],
+    metrics: list[tuple[str, str]],
+    secondary_label: str | None,
+    secondary_points: list[float] | None,
+) -> ControlChartReport:
+    """Assemble the frozen ``ControlChartReport`` the SPC report builders take.
+
+    The optional second series only becomes a report field when both its label and its
+    values are supplied — half a pair is treated as "not supplied", matching the exporter's
+    ``None`` default that keeps every existing report byte-identical.
+    """
+    secondary = (
+        (secondary_label, secondary_points)
+        if secondary_label is not None and secondary_points is not None
+        else None
+    )
+    return ControlChartReport(
+        chart_label=chart_label,
+        stream=stream,
+        rule_set=rule_set,
+        points=points,
+        cl=cl,
+        ucl=ucl,
+        lcl=lcl,
+        violations=violations,
+        metrics=metrics,
+        secondary_points=secondary,
+    )
+
+
+@app.tool
+def spc_export_control_chart_excel(
+    chart_label: str,
+    stream: str,
+    rule_set: str,
+    points: list[float],
+    cl: float,
+    ucl: float | list[float],
+    lcl: float | list[float],
+    violations: list[dict[str, Any]],
+    metrics: list[tuple[str, str]],
+    secondary_label: str | None = None,
+    secondary_points: list[float] | None = None,
+) -> File:
+    """Control-chart report -> .xlsx: a per-point sheet with signals highlighted + summary.
+
+    ``points``/``cl``/``ucl``/``lcl`` are a chart tool's own result fields passed back in
+    (e.g. ``spc_xbar_r``'s xbar_values/cl/ucl/lcl), ``violations`` is a detector tool's
+    ``{"index", "rule"}`` list, and ``metrics`` is the (label, value) pairs to print in the
+    summary. ``ucl``/``lcl`` accept a per-point list for the p- and u-charts. Nothing is
+    recomputed here — the caller owns the chart, this tool only renders it.
+    ``secondary_label`` + ``secondary_points`` render an optional second series (e.g.
+    CUSUM's lower arm) and are used only when both are given.
+    """
+    report = _control_chart_report(
+        chart_label,
+        stream,
+        rule_set,
+        points,
+        cl,
+        ucl,
+        lcl,
+        violations,
+        metrics,
+        secondary_label,
+        secondary_points,
+    )
+    return File(
+        data=build_control_chart_report_excel(report), format="xlsx", name="control_chart_report"
+    )
+
+
+@app.tool
+def spc_export_control_chart_pdf(
+    chart_label: str,
+    stream: str,
+    rule_set: str,
+    points: list[float],
+    cl: float,
+    ucl: float | list[float],
+    lcl: float | list[float],
+    violations: list[dict[str, Any]],
+    metrics: list[tuple[str, str]],
+    secondary_label: str | None = None,
+    secondary_points: list[float] | None = None,
+) -> File:
+    """Control-chart report -> PDF; identical parameters to
+    ``spc_export_control_chart_excel``."""
+    report = _control_chart_report(
+        chart_label,
+        stream,
+        rule_set,
+        points,
+        cl,
+        ucl,
+        lcl,
+        violations,
+        metrics,
+        secondary_label,
+        secondary_points,
+    )
+    return File(
+        data=build_control_chart_report_pdf(report), format="pdf", name="control_chart_report"
+    )
+
+
+@app.tool
+def spc_export_capability_excel(
+    stream_label: str,
+    values: list[float],
+    capability: dict[str, Any],
+    lsl: float | None,
+    usl: float | None,
+    normality: dict[str, Any],
+    oos_signal_count: int,
+) -> File:
+    """Capability report -> .xlsx (indices + CIs, normality, spec limits, the raw values).
+
+    ``capability`` is ``spc_capability``'s result dict verbatim and ``normality`` is
+    ``spc_normality_test``'s; ``lsl``/``usl`` may each independently be null, as in
+    ``spc_capability``. ``oos_signal_count`` is the number of control-chart signals that
+    gated this study — ``0`` states "assessed, in control" and is a real, reachable value,
+    not a stand-in for "not assessed". A key the layout needs but the supplied
+    ``capability``/``normality`` dict lacks raises ``KeyError`` (see the error-policy note
+    above) rather than silently rendering a blank field.
+    """
+    report = CapabilityReport(
+        stream_label=stream_label,
+        values=values,
+        capability=capability,
+        lsl=lsl,
+        usl=usl,
+        normality=normality,
+        oos_signal_count=oos_signal_count,
+    )
+    return File(
+        data=build_capability_report_excel(report), format="xlsx", name="capability_report"
+    )
+
+
+@app.tool
+def spc_export_capability_pdf(
+    stream_label: str,
+    values: list[float],
+    capability: dict[str, Any],
+    lsl: float | None,
+    usl: float | None,
+    normality: dict[str, Any],
+    oos_signal_count: int,
+) -> File:
+    """Capability report -> PDF; identical parameters to ``spc_export_capability_excel``."""
+    report = CapabilityReport(
+        stream_label=stream_label,
+        values=values,
+        capability=capability,
+        lsl=lsl,
+        usl=usl,
+        normality=normality,
+        oos_signal_count=oos_signal_count,
+    )
+    return File(data=build_capability_report_pdf(report), format="pdf", name="capability_report")
+
+
+@app.tool
+def msa_export_excel(
+    study: list[dict[str, Any]],
+    results: dict[str, Any],
+    usl: float | None = None,
+    lsl: float | None = None,
+) -> File:
+    """Gage R&R study + results -> .xlsx (results/metadata summary sheet + study sheet).
+
+    ``study`` is the validated study rows (part/appraiser/trial/measurement) and ``results``
+    is ``compute_gage_rr``'s result dict verbatim; ``usl``/``lsl`` add the tolerance-basis
+    rows and may each be null. Study cells are formula-injection escaped by the exporter.
+    Empty ``study`` is a structured tool error; a ``results`` dict missing a metric the
+    report prints raises ``KeyError`` (see the error-policy note above).
+    """
+    if not study:
+        raise ToolError("study must have at least one row.")
+    report = GageStudyReport(study=pd.DataFrame(study), results=results, usl=usl, lsl=lsl)
+    return File(data=msa_export_excel_bytes(report), format="xlsx", name="gage_rr_report")
+
+
+@app.tool
+def msa_export_pdf(
+    study: list[dict[str, Any]],
+    results: dict[str, Any],
+    usl: float | None = None,
+    lsl: float | None = None,
+) -> File:
+    """Gage R&R report -> PDF (%GRR/ndc/verdict strip + metric detail table).
+
+    Identical parameters and identical error behaviour to ``msa_export_excel``.
+    """
+    if not study:
+        raise ToolError("study must have at least one row.")
+    report = GageStudyReport(study=pd.DataFrame(study), results=results, usl=usl, lsl=lsl)
+    return File(data=msa_export_pdf_bytes(report), format="pdf", name="gage_rr_report")
+
+
+@app.tool
+def msa_export_study_csv(study: list[dict[str, Any]]) -> File:
+    """Gage R&R study rows -> round-trippable, formula-injection-safe CSV.
+
+    ``study`` needs the four study columns (part/appraiser/trial/measurement); a missing one
+    raises ``KeyError``. Empty ``study`` is a structured tool error.
+    """
+    if not study:
+        raise ToolError("study must have at least one row.")
+    report = GageStudyReport(study=pd.DataFrame(study), results={}, usl=None, lsl=None)
+    return File(data=msa_export_study_csv_bytes(report), format="csv", name="gage_rr_study")
+
+
+@app.tool
+def msa_export_results_csv(results: dict[str, Any]) -> File:
+    """Flat one-row Gage R&R results table -> CSV (EV/AV/GRR/PV/TV, the %-bases, ndc,
+    verdict).
+
+    ``results`` is ``compute_gage_rr``'s result dict verbatim; a missing metric key raises
+    ``KeyError`` (see the error-policy note above). The values are engine-computed numbers
+    and fixed verdict strings rather than user input, so — matching the SPC exporter's own
+    convention — this sheet is not routed through the injection sanitizer.
+    """
+    report = GageStudyReport(study=pd.DataFrame(), results=results, usl=None, lsl=None)
+    return File(data=msa_export_results_csv_bytes(report), format="csv", name="gage_rr_results")
 
 
 # ---------------------------------------------------------------------------

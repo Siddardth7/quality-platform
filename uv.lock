@@ -1609,6 +1609,7 @@ dependencies = [
     { name = "fmea-app" },
     { name = "msa-app" },
     { name = "quality-core" },
+    { name = "spc-app" },
 ]
 
 [package.metadata]
@@ -1618,6 +1619,7 @@ requires-dist = [
     { name = "fmea-app", editable = "apps/fmea" },
     { name = "msa-app", editable = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
+    { name = "spc-app", editable = "apps/spc" },
 ]
 
 [[package]]

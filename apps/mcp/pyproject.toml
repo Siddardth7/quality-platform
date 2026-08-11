@@ -8,6 +8,7 @@ dependencies = [
     "quality-core",
     "fastmcp==3.4.6",
     "fmea-app",
+    "spc-app",
     "msa-app",
     "controlplan-app",
 ]
@@ -22,6 +23,7 @@ quality-mcp = "mcp_app.server:main"
 [tool.uv.sources]
 quality-core = { workspace = true }
 fmea-app = { workspace = true }
+spc-app = { workspace = true }
 msa-app = { workspace = true }
 controlplan-app = { workspace = true }
 
