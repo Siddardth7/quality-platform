@@ -6,6 +6,23 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- **Agent Skills layer foundation: `skills/` + `skill-lint` (#270, M2-1).** A root-level
+  `skills/` directory (sibling to `apps/` and `packages/`, which is what `npx skills add
+  Siddardth7/quality-platform` resolves against), governed by `skills/CONVENTIONS.md`: the
+  frontmatter contract, the description house style, the progressive-disclosure rule, the
+  install path, and the invariant this layer exists to hold — **engine decides, skill
+  orchestrates.** A skill calls MCP tools; it never imports or reimplements
+  `quality_core`/`<app>_app` math. `scripts/skill_lint.py` enforces the mechanical half
+  (stdlib-only frontmatter parser, `name`-matches-folder, description limits, a formula
+  denylist over the SKILL.md body, and an engine-import denylist over `scripts/*.py`) and runs
+  as its own `Skill lint` step in the CI `gate` job — a plain script that exits non-zero,
+  mirroring the README drift check, not a new coverage surface. `skills/example-skill/` is the
+  copy-from template and a real working example: it scores one FMEA S/O/D triple through the
+  `fmea_score` MCP tool over stdio, with the wire-level detail kept in
+  `references/mcp-tool-contract.md`. No engine or app behaviour changes.
+
 ## [0.14.0] - 2026-08-12 — M1 · MCP core server
 
 The portable compute backbone: the verified quality engines (FMEA, SPC, MSA, Control Plan)

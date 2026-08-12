@@ -152,5 +152,6 @@ Bump together at release.
 | `docs/ENGINEERING_SYSTEM_PLAYBOOK.md` | the working system — issues, review loop, CI, releases |
 | `docs/DEFINITION_OF_DONE.md` | the contract (#43) — read before claiming done |
 | `docs/AGENT_TEAM_FRAMEWORK.md` | five-role agent pipeline spec (note the stale base-branch line) |
+| `skills/CONVENTIONS.md` | Agent Skills authoring conventions + repo layout (#270) |
 | `CONTRIBUTING.md`, `ROADMAP.md`, `CHANGELOG.md` | contribution rules, plan, history |
 | `apps/<app>/docs/ASSUMPTIONS_LOG.md` | every constant/threshold with its citation |
