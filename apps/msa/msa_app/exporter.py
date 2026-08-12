@@ -57,7 +57,10 @@ _WHITE_RGB = (255, 255, 255)
 
 # Verdict -> plain-English interpretation. Single source of truth: both the page
 # (results display) and this exporter pull from here, so the sentence never
-# drifts from the AIAG thresholds in gage_rr_engine.py / ASSUMPTIONS_LOG.md.
+# drifts from gage_rr_engine.py / ASSUMPTIONS_LOG.md. The %GRR bounds quoted below
+# are AIAG's (Table II-D 1); the ndc sub-bounds (2-4, <2) are a platform design
+# choice built on AIAG's single `ndc >= 5` rule, not an AIAG band — see
+# ASSUMPTIONS_LOG.md RULE 9/RULE 10 (#237).
 VERDICT_SENTENCES: dict[str, str] = {
     "Accept": (
         "Accept — ndc >= 5 and %GRR < 10%. Measurement system is adequate for the "
@@ -76,7 +79,11 @@ _VERDICT_FALLBACK = "Unrecognized verdict — review the study inputs."
 
 
 def verdict_sentence(verdict: str) -> str:
-    """The plain-English interpretation for a verdict (falls back for unknown values)."""
+    """The plain-English interpretation for a verdict (falls back for unknown values).
+
+    The %GRR bounds are AIAG's (Table II-D 1); the ndc sub-bounds are a platform
+    design choice, not AIAG's — see ASSUMPTIONS_LOG.md RULE 9 (#237).
+    """
     return VERDICT_SENTENCES.get(verdict, _VERDICT_FALLBACK)
 
 
