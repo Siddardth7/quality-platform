@@ -9,6 +9,7 @@ quality-core.
 
 from __future__ import annotations
 
+import inspect
 import io
 import re
 import zlib
@@ -553,3 +554,37 @@ def test_export_pdf_detail_table_carries_all_eight_percentage_labels():
     text = _pdf_text(export_pdf(_report()))
     for label in _STUDY_LABELS + _TOLERANCE_LABELS:
         assert label in text, label
+
+
+# --- ndc-band attribution (#237) ---------------------------------------------
+
+
+def test_verdict_sentence_docstring_does_not_reattribute_ndc_bands_to_aiag():
+    """`verdict_sentence`'s docstring must not call the ndc sub-bands AIAG's (#237).
+
+    Mirrors test_citations.py::test_verdict_docstring_does_not_reattribute_the_ndc_bands_to_aiag:
+    a docstring regresses silently, so pin the distinguishing language.
+    """
+    doc = verdict_sentence.__doc__ or ""
+    assert "platform" in doc and "not AIAG's" in doc, (
+        "the docstring must state that the ndc sub-bounds are a platform design choice, "
+        "not AIAG's (#237)."
+    )
+
+
+def test_verdict_sentences_module_comment_does_not_claim_aiag_thresholds():
+    """The module comment above VERDICT_SENTENCES must not blanket-claim 'AIAG thresholds' (#237).
+
+    The old comment said the sentences never drift from 'the AIAG thresholds', implying the
+    ndc sub-bounds (2-4, <2) are AIAG's. A `#` comment isn't reachable via `__doc__`, so pin
+    it via source. Injecting a fresh distinguishing phrase, not just removing the old one.
+    """
+    src = inspect.getsource(exporter)
+    assert "the AIAG thresholds in gage_rr_engine.py" not in src, (
+        "do not restore the blanket 'AIAG thresholds' claim — it misattributes the ndc "
+        "sub-bounds to AIAG (#237, audit A10-a)."
+    )
+    assert "the ndc sub-bounds (2-4, <2) are a platform design" in src, (
+        "the comment must keep distinguishing AIAG's %GRR bounds from the platform's ndc "
+        "sub-bounds (#237)."
+    )
