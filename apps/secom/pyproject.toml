@@ -1,6 +1,6 @@
 [project]
 name = "secom-app"
-version = "0.13.0"
+version = "0.14.0"
 description = "SECOM semiconductor manufacturing dataset — honest ingest + signal-selection screen (W09-1)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"

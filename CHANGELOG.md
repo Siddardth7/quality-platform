@@ -6,6 +6,13 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-08-12 — M1 · MCP core server
+
+The portable compute backbone: the verified quality engines (FMEA, SPC, MSA, Control Plan)
+are now published as clean, versioned, reusable packages and exposed as an MCP server over
+stdio **and** Streamable HTTP, held to the same 100%-coverage bar as every other surface.
+Nine issues (#260–#268).
+
 ### Added
 
 - **The engines are now a published, documented API surface (#261, M1-2).** Six packages —
