@@ -540,8 +540,8 @@ wheels = [
 
 [[package]]
 name = "controlplan-app"
-version = "0.13.0"
-source = { virtual = "apps/controlplan" }
+version = "0.14.0"
+source = { editable = "apps/controlplan" }
 dependencies = [
     { name = "fpdf2" },
     { name = "openpyxl" },
@@ -896,8 +896,8 @@ wheels = [
 
 [[package]]
 name = "fmea-app"
-version = "0.13.0"
-source = { virtual = "apps/fmea" }
+version = "0.14.0"
+source = { editable = "apps/fmea" }
 dependencies = [
     { name = "fpdf2" },
     { name = "matplotlib" },
@@ -1601,17 +1601,25 @@ wheels = [
 
 [[package]]
 name = "mcp-app"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "apps/mcp" }
 dependencies = [
+    { name = "controlplan-app" },
     { name = "fastmcp" },
+    { name = "fmea-app" },
+    { name = "msa-app" },
     { name = "quality-core" },
+    { name = "spc-app" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "controlplan-app", editable = "apps/controlplan" },
     { name = "fastmcp", specifier = "==3.4.6" },
+    { name = "fmea-app", editable = "apps/fmea" },
+    { name = "msa-app", editable = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
+    { name = "spc-app", editable = "apps/spc" },
 ]
 
 [[package]]
@@ -1634,7 +1642,7 @@ wheels = [
 
 [[package]]
 name = "msa-app"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "apps/msa" }
 dependencies = [
     { name = "fpdf2" },
@@ -2632,7 +2640,7 @@ wheels = [
 
 [[package]]
 name = "quality-core"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/quality-core" }
 dependencies = [
     { name = "defusedxml" },
@@ -2662,7 +2670,7 @@ provides-extras = ["streamlit"]
 
 [[package]]
 name = "quality-platform"
-version = "0.13.0"
+version = "0.14.0"
 source = { virtual = "." }
 dependencies = [
     { name = "controlplan-app" },
@@ -2687,8 +2695,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "controlplan-app", virtual = "apps/controlplan" },
-    { name = "fmea-app", virtual = "apps/fmea" },
+    { name = "controlplan-app", editable = "apps/controlplan" },
+    { name = "fmea-app", editable = "apps/fmea" },
     { name = "mcp-app", editable = "apps/mcp" },
     { name = "msa-app", editable = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
@@ -2997,7 +3005,7 @@ wheels = [
 
 [[package]]
 name = "secom-app"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "apps/secom" }
 dependencies = [
     { name = "numpy" },
@@ -3068,7 +3076,7 @@ wheels = [
 
 [[package]]
 name = "spc-app"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "apps/spc" }
 dependencies = [
     { name = "fpdf2" },
