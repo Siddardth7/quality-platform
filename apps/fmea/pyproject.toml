@@ -1,6 +1,6 @@
 [project]
 name = "fmea-app"
-version = "0.13.0"
+version = "0.14.0"
 description = "FMEA Risk Analyzer — Streamlit app (RPN / AIAG-VDA Action Priority)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"

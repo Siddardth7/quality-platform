@@ -1,6 +1,6 @@
 [project]
 name = "quality-core"
-version = "0.13.0"
+version = "0.14.0"
 description = "Shared core for the Quality Platform: schema, IO, theme, and domain primitives."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
