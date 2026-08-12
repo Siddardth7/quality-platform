@@ -24,6 +24,20 @@ from quality_core.schema import RelationalFMEA, flat_to_relational, relational_t
 
 from fmea_app.schema import FMEADataset, FMEARow
 
+#: Stable public surface (#261). ``validate_input`` is included beyond the issue's
+#: literal list: a caller using ``calculate_rpn``/``flag_critical``/``rank_by_rpn``
+#: directly (not via ``run_pipeline``) needs it to get the same validation.
+__all__ = [
+    "validate_input",
+    "calculate_rpn",
+    "flag_critical",
+    "rank_by_rpn",
+    "run_pipeline",
+    "relational_to_dataframe",
+    "run_pipeline_relational",
+    "dataframe_to_relational",
+]
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
