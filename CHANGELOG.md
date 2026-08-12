@@ -8,6 +8,19 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **FMEA Agent Skill: `skills/fmea/` (#271, M2-2).** The first shipped skill on the #270
+  foundation. Its `SKILL.md` routes an FMEA request to the right MCP tool by the shape of the
+  input — `fmea_score` for one Severity/Occurrence/Detection triple, `fmea_run` for a flat
+  11-column table, `fmea_run_relational` for a linked failure-mode model, and
+  `fmea_list_scales`/`fmea_get_scale` for rating-scale text — and states explicitly that scale
+  selection is presentation-only and never re-scores anything (`ASSUMPTIONS_LOG.md` RULE 6).
+  Level-3 detail lives in `references/mcp-tool-contract.md` (request/response shapes for all
+  five tools, the error contract, transport) and `references/fmea-method-notes.md` (2019
+  AIAG-VDA Action Priority versus the FMEA-4 Risk Priority Number, cited to RULE 1 and RULE 7,
+  including the handbook's own recommendation against an RPN-only threshold).
+  `scripts/call_fmea_score.py` is the runnable single-triple call, `fastmcp` + stdlib only.
+  The skill carries no formula and no computation: engine decides, skill orchestrates. No
+  engine, app or MCP behaviour changes.
 - **Agent Skills layer foundation: `skills/` + `skill-lint` (#270, M2-1).** A root-level
   `skills/` directory (sibling to `apps/` and `packages/`, which is what `npx skills add
   Siddardth7/quality-platform` resolves against), governed by `skills/CONVENTIONS.md`: the
