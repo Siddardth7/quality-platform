@@ -20,6 +20,18 @@ non-decreasing in S, O, and D by construction.
 """
 from __future__ import annotations
 
+#: Stable public surface (#261) — the two scorers plus the vocabulary their return
+#: values are expressed in. ``AP_ORDER``/``_AP_GRID`` stay internal lookup structures.
+__all__ = [
+    "rpn",
+    "action_priority",
+    "HIGH",
+    "MEDIUM",
+    "LOW",
+    "BASIS_RPN",
+    "BASIS_AP",
+]
+
 # ---------------------------------------------------------------------------
 # AP levels + shared vocabulary
 # ---------------------------------------------------------------------------
