@@ -57,6 +57,12 @@ jobs:
       - name: README test-count drift check
         run: uv run python scripts/check_readme_test_count.py
 
+      # #270 (M2-1): validate every Agent Skill under skills/ against skills/CONVENTIONS.md —
+      # frontmatter contract, name/folder match, and the "engine decides, skill orchestrates"
+      # import denylist. A plain script step like the drift check above, not a --cov surface.
+      - name: Skill lint
+        run: uv run python scripts/skill_lint.py
+
       - name: Ruff
         run: uv run ruff check .
 
