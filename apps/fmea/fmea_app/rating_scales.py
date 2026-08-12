@@ -40,6 +40,19 @@ import pydantic
 from quality_core.io import DEFAULT_MAX_UPLOAD_BYTES
 from quality_core.io.validate import clean_pydantic_message
 
+#: Stable public surface (#261) — mirrors the "Public API" block in the docstring
+#: above, plus the two bundled-scale paths and the factor tuple callers display by.
+__all__ = [
+    "RatingScaleSet",
+    "load_default_scales",
+    "load_legacy_fmea4_scales",
+    "load_scales_from_mapping",
+    "load_scales_from_json",
+    "FACTORS",
+    "DEFAULT_SCALES_PATH",
+    "LEGACY_FMEA4_SCALES_PATH",
+]
+
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 #: The bundled AIAG & VDA 2019 PFMEA default scale, kept as data (not constants).
