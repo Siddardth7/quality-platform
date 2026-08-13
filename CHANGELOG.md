@@ -8,6 +8,26 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **SPC Agent Skill: `skills/spc/` (#272, M2-3).** The second shipped skill on the #270
+  foundation, and the one with the largest tool family behind it. Its `SKILL.md` routes a
+  control-chart or capability request by the shape of the data — `spc_xbar_r`/`spc_xbar_s`/
+  `spc_imr` for variables, `spc_p`/`spc_c`/`spc_u` for attributes, `spc_ewma`/`spc_cusum` for a
+  small sustained shift, `spc_freeze_*` then `spc_apply_*` for Phase I/II monitoring,
+  `spc_detect_we_violations` or `spc_detect_nelson_violations` for run rules, and
+  `spc_assess_stability` then `spc_capability` (with `spc_normality_test`) for a capability
+  study — while keeping the body lean: the chart-selection matrix and the EWMA/CUSUM parameter
+  detail live in the references, not inline. `references/mcp-tool-contract.md` carries the
+  request/response shape of every SPC tool, the error contract and transport;
+  `references/spc-method-notes.md` carries the chart-selection matrix (RULES 1-4), Phase I/II
+  freezing and its soft baseline gate (RULE 11), the EWMA/CUSUM Phase I estimate requirement
+  (RULES 12-13), the capability preconditions with the tri-state stability gate (RULE 7), the
+  method-selection and confidence-interval rules (RULES 9, 14) and the Cpk interpretation tiers
+  (RULE 6), each cited to `apps/spc/docs/ASSUMPTIONS_LOG.md` — including RULE 8's own
+  third-party-reproduction caveat on the Western Electric and Nelson rule text, and RULE 15's
+  hard prohibition on running either detector over an EWMA or CUSUM chart.
+  `scripts/call_spc_capability.py` is the runnable capability call, `fastmcp` + stdlib only.
+  The skill carries no formula and no computation: engine decides, skill orchestrates. No
+  engine, app or MCP behaviour changes.
 - **FMEA Agent Skill: `skills/fmea/` (#271, M2-2).** The first shipped skill on the #270
   foundation. Its `SKILL.md` routes an FMEA request to the right MCP tool by the shape of the
   input — `fmea_score` for one Severity/Occurrence/Detection triple, `fmea_run` for a flat
