@@ -8,6 +8,34 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Project-file schema: `quality_core.project` (#276, M3-1).** The M3 data contract — what a
+  Quality Platform project looks like on disk — defined once so every M3 arrow (#277+) reads and
+  writes the same shape instead of inventing one under deadline. `project/schema.py` holds the
+  pydantic models for `project.yaml` (`ProjectMeta`: project identity plus the characteristic
+  registry with units, tolerances and a new `tolerance_source` provenance field) and for the five
+  artifact files (`fmea/fmea.json`, `control-plan/plan.json`, `spc/results/<characteristic>.json`,
+  `msa/gage-rr.json`, `feedback/spc-to-fmea.json`). `project/io.py` holds the file graph
+  (`ProjectPaths` / `discover_project`, pure path arithmetic — no filesystem access) and one
+  generic load/write pair (`load_artifact` / `write_artifact`, plus `load_optional_artifact` for
+  the arrow-that-hasn't-run-yet case), raising `ProjectError` — a subclass of
+  `quality_core.io.IngestError` — with a user-safe message that names the file and the problem.
+  Two SME-resolved design calls are baked in: **files hold current state, git is the history**
+  (stable slug `project_id`, `generated_at`/`generated_by` on every artifact, re-runs overwrite in
+  place, one SPC result file per characteristic — no run-id, no history array), and **one envelope
+  for all five artifacts**, so `fmea.json` wraps `RelationalFMEA` under
+  `{schema_version, generated_at, generated_by, fmea}` rather than being a bare dump, keeping the
+  domain model free of file-format fields. Import direction is respected: only `fmea.json` reuses a
+  live type (`RelationalFMEA`, which quality-core owns); the Control Plan, SPC, Gage R&R and
+  feedback models are independent mirrors of the app shapes, because `quality_core` must never
+  import an app (CI audit A11, #202). Versioning is an explicit `schema_version: int` checked on
+  load and rejected loud on mismatch — no JSON Schema files and no new validation dependency.
+  Ships with a round-tripping fixture project (`packages/quality-core/tests/fixtures/project/`),
+  the file-graph doc `docs/PROJECT_FILE_CONTRACT.md`, a new
+  `packages/quality-core/docs/ASSUMPTIONS_LOG.md` recording the six design decisions, an `API.md`
+  STABLE SYMBOLS block, and a CI **Core project coverage gate** at 100% line+branch. `pyyaml`
+  becomes a hard quality-core dependency (`project.yaml` is the one hand-edited file in a project);
+  it is pure-python, already in the lock, and not on the Streamlit chain the core dependency
+  contract forbids. No engine, app or MCP behaviour changes.
 - **Control Plan Agent Skill: `skills/control-plan/` (#274, M2-5).** The fourth shipped skill
   on the #270 foundation, and the first whose input is another skill's output: `fmea_model` is
   the *same* `RelationalFMEA` object the `fmea` skill's `fmea_run_relational` takes, so the

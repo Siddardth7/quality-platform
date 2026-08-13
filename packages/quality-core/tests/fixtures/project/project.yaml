@@ -1,0 +1,11 @@
+schema_version: 1
+project_id: example-project
+name: Example Project
+created_at: '2026-08-13T12:00:00Z'
+characteristics:
+- name: Example Characteristic
+  unit: mm
+  lsl: 9.5
+  usl: 10.5
+  target: 10.0
+  tolerance_source: control_plan

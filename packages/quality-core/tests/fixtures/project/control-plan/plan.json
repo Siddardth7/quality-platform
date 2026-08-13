@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T12:00:00Z",
+  "generated_by": "controlplan_app==0.14.0",
+  "rows": [
+    {
+      "characteristic": "Example Characteristic",
+      "lsl": 9.5,
+      "usl": 10.5,
+      "target": 10.0,
+      "measurement_method": "Bore gauge",
+      "sample_size": 5,
+      "frequency": "per shift",
+      "recommended_chart": "Xbar-R",
+      "reaction_plan": "Quarantine the lot and notify the process engineer.",
+      "source_cause_id": "F1-M1-C1",
+      "sample_plan_is_placeholder": true
+    }
+  ]
+}

@@ -96,6 +96,17 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=100
 
+      # Core project coverage gate: quality_core.project holds the M3 on-disk data contract
+      # (project.yaml + per-artifact JSON schemas + the load/write boundary shared by MCP
+      # tools and, indirectly, skills) that every M3 arrow issue (#277+) reads and writes.
+      # Foundation surface — held at 100% from day one, same discipline as io/schema/scoring/spc.
+      - name: Core project coverage gate
+        run: >
+          uv run pytest packages/quality-core
+          --cov=quality_core.project
+          --cov-report=term-missing
+          --cov-fail-under=100
+
       # Core scoring coverage gate: quality_core.scoring holds the shared scalar
       # risk scorers (RPN + the AIAG-VDA Action Priority table, promoted W05-3a),
       # used by FMEA and the future action-effectiveness model. A standards table

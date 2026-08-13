@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T12:00:00Z",
+  "generated_by": "fmea_app==0.14.0",
+  "fmea": {
+    "functions": [
+      {
+        "id": "F1",
+        "process_step": "Final machining",
+        "component": "Bracket",
+        "description": "Hold the bore within print tolerance",
+        "failure_modes": [
+          {
+            "id": "F1-M1",
+            "description": "Bore oversize",
+            "effects": [
+              {
+                "id": "F1-M1-E1",
+                "description": "Loose fit at assembly",
+                "severity": 7
+              }
+            ],
+            "causes": [
+              {
+                "id": "F1-M1-C1",
+                "description": "Tool wear",
+                "occurrence": 4
+              }
+            ],
+            "controls": [
+              {
+                "id": "F1-M1-CT1",
+                "description": "Operator gauge check each shift",
+                "detection": 5
+              }
+            ],
+            "links": [
+              {
+                "row_id": 1,
+                "effect_id": "F1-M1-E1",
+                "cause_id": "F1-M1-C1",
+                "control_id": "F1-M1-CT1",
+                "action": null
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

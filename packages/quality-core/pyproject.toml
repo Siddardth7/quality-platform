@@ -18,6 +18,9 @@ dependencies = [
     "numpy>=2.4.4",       # quality_core.spc.control_charts: array math for the chart statistics
     "scipy>=1.17.1",      # quality_core.spc.capability: Shapiro-Wilk, Box-Cox/Yeo-Johnson,
                           # chi2/norm CIs, stats.bootstrap, distribution fits
+    "pyyaml>=6.0.3",      # quality_core.project.io: project.yaml is the one hand-edited
+                          # file in a project directory, so it is YAML, not JSON (#276).
+                          # Pure-python parser, no UI chain (audit A11, #202).
 ]
 
 [project.optional-dependencies]

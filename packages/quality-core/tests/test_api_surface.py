@@ -26,6 +26,7 @@ MODULES = [
     "quality_core.scoring",
     "quality_core.spc",
     "quality_core.io",
+    "quality_core.project",
 ]
 
 
