@@ -74,6 +74,21 @@ All notable changes to the Quality Platform are documented here. The format foll
   becomes a hard quality-core dependency (`project.yaml` is the one hand-edited file in a project);
   it is pure-python, already in the lock, and not on the Streamlit chain the core dependency
   contract forbids. No engine, app or MCP behaviour changes.
+- **Skill host-compatibility matrix: `skills/COMPATIBILITY.md` (#275, M2-6).** Closes the M2
+  Agent Skills layer by turning "works everywhere" from a claim into a checked matrix — each
+  shipped skill (`control-plan`, `fmea`, `spc`, `msa`) × each CLI host (Claude Code, Codex CLI,
+  Cursor, Gemini CLI) — with a per-host runbook and *linked* evidence rather than assertions.
+  The **Claude Code** column is verified live: every skill's shipped `scripts/*.py` makes a
+  real MCP tool call (the `quality-platform` FastMCP server launched over stdio,
+  `python -m mcp_app.server`), and the four transcripts are committed to
+  `skills/compat-evidence/claude-code-column.txt` (control-plan's row is byte-identical to its
+  SKILL.md worked example). The other three hosts are marked `PENDING`, not green — deliberately,
+  because they cannot be driven authentically from the build environment and a fabricated cell
+  would be worse than none; the runbook says exactly how to turn each PENDING green. Documents
+  the real install quirk that `npx skills add <repo>` pulls the repo's *default branch*, so a
+  host run before promotion must install from `test` or a local checkout. No engine or test
+  changes — a verification artifact; the Claude Code `PASS` covers the real tool call, with
+  host-native npx auto-activation flagged as a separate clean-room check still worth doing.
 - **Control Plan Agent Skill: `skills/control-plan/` (#274, M2-5).** The fourth shipped skill
   on the #270 foundation, and the first whose input is another skill's output: `fmea_model` is
   the *same* `RelationalFMEA` object the `fmea` skill's `fmea_run_relational` takes, so the

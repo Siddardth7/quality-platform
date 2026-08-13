@@ -85,6 +85,12 @@ valid `SKILL.md`. There is no manifest, no `package.json`, no marketplace entry 
 directory *is* the wiring, which is why `skills/` lives at the repo root next to `apps/` and
 `packages/` rather than inside the `apps/mcp` workspace package.
 
+Which hosts this has actually been installed and invoked on — the skill × host matrix, the
+per-host runbook, and the linked evidence — lives in [`COMPATIBILITY.md`](COMPATIBILITY.md)
+(M2-6, #275). Note the caveat recorded there: `npx skills add <repo>` pulls the repo's
+*default branch*, so a host run before promotion must install from the `test` branch or a
+local checkout.
+
 ## 6. `skill-lint`
 
 ```bash
