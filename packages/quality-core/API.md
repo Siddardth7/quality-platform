@@ -1,8 +1,10 @@
 # `quality-core` — stable API
 
-The shared, UI-free core. Three published module surfaces: `quality_core.scoring`
+The shared, UI-free core. Four published module surfaces: `quality_core.scoring`
 (scalar risk scoring), `quality_core.spc` (control charts, capability, rules, phase),
-`quality_core.io` (validated ingest + export primitives).
+`quality_core.io` (validated ingest + export primitives), `quality_core.project` (the M3
+project-file contract: `project.yaml` + the five artifact files, and their load/write
+boundary).
 
 Import from the submodule, not the top level — `from quality_core.spc import compute_xbar_r`,
 `from quality_core.io import load_table`, `from quality_core.scoring import rpn`. The
@@ -235,6 +237,79 @@ load_table_from_path
 
 ---
 
+### `quality_core.project`
+
+```
+<!-- STABLE SYMBOLS: quality_core.project -->
+SCHEMA_VERSION
+ArtifactEnvelope
+ToleranceSource
+ProjectCharacteristic
+ProjectMeta
+FMEAArtifact
+ControlPlanArtifactRow
+ControlPlanArtifact
+ControlChartViolation
+ChartMetric
+SecondarySeries
+ControlChartPayload
+NormalityPayload
+CapabilityPayload
+SPCResultArtifact
+MSAGageRRArtifact
+SPCToFMEAFeedbackArtifact
+PROJECT_YAML
+FMEA_JSON
+CONTROL_PLAN_JSON
+SPC_RESULTS_DIR
+GAGE_RR_JSON
+FEEDBACK_JSON
+ProjectError
+ProjectPaths
+discover_project
+spc_result_path
+spc_result_paths
+load_artifact
+load_optional_artifact
+load_project_meta
+write_artifact
+write_project_meta
+<!-- END STABLE SYMBOLS -->
+```
+
+| Symbol | Kind | Purpose | Source |
+|---|---|---|---|
+| `SCHEMA_VERSION` | constant | Current version of every project file shape; a file declaring another is rejected. | `packages/quality-core/src/quality_core/project/schema.py:52` |
+| `ArtifactEnvelope` | class (model) | Header every artifact shares: `schema_version` / `generated_at` / `generated_by`. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `ToleranceSource` | constant (Literal alias) | Where a characteristic's tolerance came from: `fmea` / `control_plan` / `manual`. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `ProjectCharacteristic` | class (model) | One monitored characteristic: unit, tolerance, provenance. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `ProjectMeta` | class (model) | `project.yaml` — project identity + characteristic registry. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `FMEAArtifact` | class (model) | `fmea/fmea.json` — a `RelationalFMEA` under the shared envelope. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `ControlPlanArtifactRow` | class (model) | One Control Plan row; mirrors `controlplan_app.schema.ControlPlanRow`. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `ControlPlanArtifact` | class (model) | `control-plan/plan.json` — rows, unique by characteristic. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `ControlChartViolation` | class (model) | One rule hit: point index + rule label. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `ChartMetric` | class (model) | One `(label, value)` chart metric, in its JSON form. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SecondarySeries` | class (model) | Optional second per-point series (e.g. the CUSUM lower arm). | `packages/quality-core/src/quality_core/project/schema.py` |
+| `ControlChartPayload` | class (model) | Control-chart result; mirrors `spc_app.exporter.ControlChartReport`. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `NormalityPayload` | class (model) | Shapiro-Wilk result carried by a capability result. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `CapabilityPayload` | class (model) | Capability result; mirrors `spc_app.exporter.CapabilityReport`. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SPCResultArtifact` | class (model) | `spc/results/<characteristic>.json` — one file per characteristic, control-chart *or* capability. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `MSAGageRRArtifact` | class (model) | `msa/gage-rr.json`; mirrors `compute_gage_rr`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SPCToFMEAFeedbackArtifact` | class (model) | `feedback/spc-to-fmea.json`; mirrors `build_occurrence_feedback`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `PROJECT_YAML`, `FMEA_JSON`, `CONTROL_PLAN_JSON`, `SPC_RESULTS_DIR`, `GAGE_RR_JSON`, `FEEDBACK_JSON` | constants | The relative file graph, one constant per node. | `packages/quality-core/src/quality_core/project/io.py` |
+| `ProjectError` | exception | User-facing project-file failure; subclass of `IngestError`. | `packages/quality-core/src/quality_core/project/io.py` |
+| `ProjectPaths` | dataclass | Canonical paths inside one project directory. | `packages/quality-core/src/quality_core/project/io.py` |
+| `discover_project` | function | Build `ProjectPaths` for a root (pure path arithmetic; no filesystem access). | `packages/quality-core/src/quality_core/project/io.py` |
+| `spc_result_path` | function | Path of the SPC result file for one characteristic (slugified name). | `packages/quality-core/src/quality_core/project/io.py` |
+| `spc_result_paths` | function | Every SPC result file present, sorted. | `packages/quality-core/src/quality_core/project/io.py` |
+| `load_artifact` | function | Load + validate one JSON artifact into its model. | `packages/quality-core/src/quality_core/project/io.py` |
+| `load_optional_artifact` | function | Same, but `None` when the file does not exist yet. | `packages/quality-core/src/quality_core/project/io.py` |
+| `load_project_meta` | function | Load + validate `project.yaml`. | `packages/quality-core/src/quality_core/project/io.py` |
+| `write_artifact` | function | Write one artifact as JSON, creating parent directories (overwrites in place). | `packages/quality-core/src/quality_core/project/io.py` |
+| `write_project_meta` | function | Write `project.yaml` in declaration order. | `packages/quality-core/src/quality_core/project/io.py` |
+
+---
+
 ## 2. Signatures
 
 ### `quality_core.scoring`
@@ -295,6 +370,19 @@ load_table(source: Source, schema: TableSchema, *, filename: str | None = None, 
 load_table_from_path(path: PathSource, schema: TableSchema, *, max_bytes: int | None = DEFAULT_MAX_UPLOAD_BYTES, max_rows: int | None = DEFAULT_MAX_ROWS, max_columns: int | None = DEFAULT_MAX_COLUMNS) -> pd.DataFrame
 ```
 
+### `quality_core.project`
+
+```python
+discover_project(root: str | os.PathLike[str]) -> ProjectPaths
+spc_result_path(paths: ProjectPaths, characteristic: str) -> Path
+spc_result_paths(paths: ProjectPaths) -> list[Path]
+load_artifact(path: Path, model: type[_T]) -> _T          # _T bound to pydantic.BaseModel
+load_optional_artifact(path: Path, model: type[_T]) -> _T | None
+load_project_meta(paths: ProjectPaths) -> ProjectMeta
+write_artifact(path: Path, artifact: pydantic.BaseModel) -> None
+write_project_meta(paths: ProjectPaths, meta: ProjectMeta) -> None
+```
+
 ---
 
 ## 3. I/O types
@@ -310,6 +398,8 @@ All types below are **owned by `quality-core`** and defined here.
 | `ChartType` | `Literal["Xbar-R", "Xbar-S", "I-MR"]` (`spc/stability.py:30`) | `quality-core` | argument of `assess_stability` |
 | `TableSchema` | dataclass (`io/validate.py:96`) | `quality-core` | argument of `validate_table` / `load_table*` |
 | `IngestError` | exception (`io/validate.py:87`) | `quality-core` | raised by every ingest entry point |
+| `ProjectPaths` | dataclass (`project/io.py`) | `quality-core` | the project file graph; argument of `load_project_meta` / `spc_result_path*` |
+| `ProjectError` | exception (`project/io.py`, subclass of `IngestError`) | `quality-core` | raised by every project-file entry point |
 
 `Source` / `PathSource` in the signatures above are internal type aliases for the accepted
 upload/path inputs (`str | bytes | os.PathLike | BinaryIO`-shaped); they are not exported
