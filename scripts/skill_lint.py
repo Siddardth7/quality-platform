@@ -8,7 +8,8 @@ Checks, per skill folder (`skills/<name>/`):
   the folder name — a mismatch makes the skill fail to *load* in a host, so lint catches it first.
 - `description` is present, non-empty, <=1024 chars, and contains no `<`/`>` (prompt-injection
   footgun; frontmatter is loaded verbatim at discovery).
-- No math in the SKILL.md body: no `RPN =`-style formula assignment, and no ```python block
+- No math in the SKILL.md body: no `RPN =`-style formula assignment (the denylisted symbols are
+  `RPN`, `AP`, `Cp`, `Cpk`, `Pp`, `Ppk`, `GRR`, `EV`, `AV`, `PV`, `ndc`), and no ```python block
   carrying `import numpy|pandas|scipy` or `def compute`. Engine decides, skill orchestrates.
 - No `scripts/*.py` under the skill imports an engine package directly (`quality_core`,
   `fmea_app`, `spc_app`, `msa_app`, `controlplan_app`, `secom_app`, `mcp_app`) — a skill talks
@@ -35,8 +36,11 @@ MAX_DESCRIPTION_LENGTH = 1024
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 # Keyed on an `=` assignment, not a bare mention: a skill may legitimately say "reports the
-# RPN and Action Priority" — it may not say "RPN = severity * occurrence * detection".
-FORMULA_PATTERN = re.compile(r"\b(RPN|AP|Cpk|Cp|Ppk|Pp)\s*=")
+# RPN and Action Priority" — it may not say "RPN = severity * occurrence * detection". The MSA
+# tokens (GRR/EV/AV/PV/ndc) were added with the msa skill (#273); the leading `\b` keeps
+# `%GRR =` caught (the boundary sits between `%` and `G`), and the match is case-sensitive, so
+# a skill may still write `ndc` prose but not `ndc = 1.41 * PV / GRR`.
+FORMULA_PATTERN = re.compile(r"\b(RPN|AP|Cpk|Cp|Ppk|Pp|GRR|EV|AV|PV|ndc)\s*=")
 
 CODE_SMELLS = ("import numpy", "import pandas", "import scipy", "def compute")
 

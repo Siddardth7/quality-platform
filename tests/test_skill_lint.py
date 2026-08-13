@@ -170,6 +170,17 @@ def test_lint_skill_formula_assignment_fails(tmp_path: pathlib.Path) -> None:
     assert any("formula in SKILL.md body" in v for v in violations)
 
 
+def test_lint_skill_msa_formula_assignment_fails(tmp_path: pathlib.Path) -> None:
+    """The denylist covers MSA's metric tokens too (#273), including the `%GRR =` form."""
+    text = (
+        "---\nname: example-skill\ndescription: valid.\n---\n\n"
+        "%GRR = sqrt(EV**2 + AV**2)\n"
+    )
+    skill = _write_skill(tmp_path / "example-skill", text=text)
+    violations = lint_skill(skill)
+    assert any("formula in SKILL.md body" in v for v in violations)
+
+
 def test_lint_skill_prose_mention_passes(tmp_path: pathlib.Path) -> None:
     """A bare prose mention of a metric name must NOT false-positive."""
     text = (

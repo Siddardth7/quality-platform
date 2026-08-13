@@ -8,6 +8,27 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **MSA Agent Skill: `skills/msa/` (#273, M2-4).** The third shipped skill on the #270
+  foundation, and the one with the smallest tool surface behind it: MSA is a single tool,
+  `msa_gage_rr`, so the `SKILL.md` carries no routing table and spends its body on the problem
+  that actually decides whether the answer means anything — **study intake**. Its checklist
+  states, before any tool call, what a valid crossed study needs: a balanced parts × appraisers
+  × trials design (`apps/msa/docs/ASSUMPTIONS_LOG.md` RULE 11, a platform inference rather than
+  an AIAG statement), the 2/2/2 computability floor against AIAG's 10 × 3 × 3 optimum (RULE 12),
+  the long/tidy row shape (which is *not* the SPC chart tools' wide subgroups), when a tolerance
+  is worth asking for, when ANOVA is worth preferring over Average-and-Range, and what a
+  degenerate zero-variation study returns (RULE 13). `references/mcp-tool-contract.md` carries
+  the `msa_gage_rr` signature, the long/tidy request shape, the full return-key list, the error
+  contract and transport; `references/msa-method-notes.md` carries Average-and-Range versus
+  ANOVA (RULES 1, 17), the AIAG %GRR bands on both bases (RULES 7, 8), the ndc threshold with
+  its platform-only sub-bands called out as such (RULE 9), the verdict matrix and AIAG's own
+  caution that the guidelines are not threshold criteria (RULE 10), and the clamping edge cases
+  (RULES 13, 14) — every quotation copied verbatim from the log, not re-quoted from the manual.
+  `scripts/call_msa_gage_rr.py` is the runnable study call, `fastmcp` + stdlib only. `skill-lint`
+  was hardened in the same change: its SKILL.md formula denylist now covers the MSA metric
+  tokens (`GRR`, `EV`, `AV`, `PV`, `ndc`) alongside the FMEA and SPC ones, so the "no
+  computation" rule is load-bearing for this skill too. The skill carries no formula and no
+  computation: engine decides, skill orchestrates. No engine, app or MCP behaviour changes.
 - **SPC Agent Skill: `skills/spc/` (#272, M2-3).** The second shipped skill on the #270
   foundation, and the one with the largest tool family behind it. Its `SKILL.md` routes a
   control-chart or capability request by the shape of the data — `spc_xbar_r`/`spc_xbar_s`/
