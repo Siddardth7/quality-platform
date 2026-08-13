@@ -8,6 +8,33 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Control Plan Agent Skill: `skills/control-plan/` (#274, M2-5).** The fourth shipped skill
+  on the #270 foundation, and the first whose input is another skill's output: `fmea_model` is
+  the *same* `RelationalFMEA` object the `fmea` skill's `fmea_run_relational` takes, so the
+  skill **links** to `skills/fmea/references/mcp-tool-contract.md` for the field set rather
+  than redefining it — one contract, one place, no fork. `SKILL.md` routes the three Control
+  Plan tools (`controlplan_build` for the plan, `controlplan_recommend_chart` for a chart type
+  once a characteristic is classified, `controlplan_source_index` for the trace back to the
+  FMEA cause) and spends its body on the two things a derived plan is easiest to misread on:
+  the `sample_plan_is_placeholder` flag — true on every `controlplan_build` row, marking
+  `sample_size`/`frequency`/`reaction_plan` as connector defaults needing engineering judgment
+  rather than AIAG-derived values (F-10, #196, `apps/controlplan/docs/ASSUMPTIONS_LOG.md`
+  RULE 2) — and the always-null `recommended_chart`, which is a deliberate Q3 decision (the
+  FMEA carries no data type or subgroup size), not a gap for the skill to fill in.
+  `references/mcp-tool-contract.md` carries all three signatures, the eleven-key row table with
+  its two provenance fields, the chart rule table, the `characteristic`-key parity guarantee
+  between `controlplan_build` and `controlplan_source_index`, the error contract and transport;
+  `references/controlplan-method-notes.md` carries the AIAG SPC Reference Manual 4th Ed. (2005)
+  chart-table provenance with RULE 1's open Xbar-R/Xbar-S (n = 9 vs 10) third-party-sourcing
+  flag quoted verbatim, RULE 2's "Not a published standard" line for the placeholder fields,
+  RULE 1's upper-bound paragraph on why `n > 12` raises instead of naming an uncomputable chart
+  (F-07, #196), and the SME-locked granularity/naming decisions. `scripts/call_controlplan_build.py`
+  is the runnable build call, `fastmcp` + stdlib only. `skill-lint`'s SKILL.md formula denylist
+  was **checked and needs no extension** for this skill: the only metric tokens in the Control
+  Plan surface are `RPN` and `AP` (already denylisted, and named only in prose here), and the
+  chart names this domain returns are rule-table lookup results, not computed values with their
+  own algebra. The skill carries no formula and no computation: engine decides, skill
+  orchestrates. No engine, app or MCP behaviour changes.
 - **MSA Agent Skill: `skills/msa/` (#273, M2-4).** The third shipped skill on the #270
   foundation, and the one with the smallest tool surface behind it: MSA is a single tool,
   `msa_gage_rr`, so the `SKILL.md` carries no routing table and spends its body on the problem
