@@ -373,8 +373,8 @@ class MSAGageRRArtifact(ArtifactEnvelope):
 # ===========================================================================
 
 
-class SPCToFMEAFeedbackArtifact(ArtifactEnvelope):
-    """`feedback/spc-to-fmea.json` — mirrors
+class SPCToFMEAFeedbackRow(StrictModel):
+    """One out-of-control characteristic's feedback — mirrors
     `spc_app.fmea_feedback.build_occurrence_feedback`'s return dict (no import).
 
     The `source_*` / `component` / `current_occurrence` fields are `None` when the
@@ -396,3 +396,23 @@ class SPCToFMEAFeedbackArtifact(ArtifactEnvelope):
     suggested_occurrence: Annotated[int, pydantic.Field(ge=1, le=10)]
     component: Label | None = None
     capa_prompt: Text
+
+
+class SPCToFMEAFeedbackArtifact(ArtifactEnvelope):
+    """`feedback/spc-to-fmea.json` — one row per out-of-control characteristic.
+
+    A single run can find several characteristics out of control at once, and there
+    is one feedback file per project (not one per characteristic), so the rows live
+    in a list exactly like `ControlPlanArtifact` / `SPCConfigArtifact`. An empty
+    `rows` list is a valid (if uninformative) file; the SPC->FMEA arrow deletes the
+    file outright when nothing is out of control, since files hold current state only.
+    """
+
+    rows: list[SPCToFMEAFeedbackRow]
+
+    @pydantic.model_validator(mode="after")
+    def check_unique_characteristics(self) -> "SPCToFMEAFeedbackArtifact":
+        dupes = find_duplicates(row.characteristic for row in self.rows)
+        if dupes:
+            raise ValueError(f"duplicate characteristic rows found: {dupes}")
+        return self

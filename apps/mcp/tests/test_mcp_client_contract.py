@@ -124,6 +124,14 @@ shutil.copytree(_FIXTURE_PROJECT / "fmea", _CP_PROJECT_ROOT / "fmea")
 _SPC_PROJECT_ROOT = Path(tempfile.mkdtemp())
 shutil.copytree(_FIXTURE_PROJECT / "control-plan", _SPC_PROJECT_ROOT / "control-plan")
 
+# A third throwaway project dir, for the spc_fmea_feedback_from_project round trip (M3-4,
+# #279): that arrow reads spc/results/*.json, control-plan/plan.json and fmea/fmea.json, and
+# writes feedback/spc-to-fmea.json plus a candidate Action back into fmea/fmea.json — so it
+# gets its own copy rather than mutating either root above.
+_FEEDBACK_PROJECT_ROOT = Path(tempfile.mkdtemp())
+for _subtree in ("fmea", "control-plan", "spc"):
+    shutil.copytree(_FIXTURE_PROJECT / _subtree, _FEEDBACK_PROJECT_ROOT / _subtree)
+
 _FMEA_FLAT_ROWS = [
     dict(ID=1, Process_Step="A", Component="C1", Function="F1",
          Failure_Mode="M1", Effect="E1", Severity=9,
@@ -449,6 +457,23 @@ _ROUND_TRIPS: list[tuple[str, dict[str, Any], Any]] = [
                     "lsl": 9.5,
                     "usl": 10.5,
                     "sample_size": 5,
+                }
+            ],
+        },
+    ),
+    (
+        "spc_fmea_feedback_from_project",
+        {"project_root": str(_FEEDBACK_PROJECT_ROOT)},
+        {
+            "schema_version": 1,
+            "rows": [
+                {
+                    "characteristic": "Example Characteristic",
+                    "ooc": True,
+                    "violating_points": 1,
+                    "source_cause_id": "F1::F1-M1::F1-M1-C1",
+                    "current_occurrence": 4,
+                    "suggested_occurrence": 9,
                 }
             ],
         },

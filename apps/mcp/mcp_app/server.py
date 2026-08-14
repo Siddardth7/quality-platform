@@ -90,6 +90,7 @@ from spc_app.exporter import (
     build_control_chart_report_excel,
     build_control_chart_report_pdf,
 )
+from spc_app.fmea_feedback_arrow import build_feedback_file
 from spc_app.project_arrow import build_spc_config_file
 
 app = FastMCP("quality-platform")
@@ -615,6 +616,26 @@ def spc_config_from_project(project_root: str) -> dict[str, Any]:
     """
     artifact = _call(build_spc_config_file, project_root)
     return cast("dict[str, Any]", artifact.model_dump(mode="json"))
+
+
+@app.tool
+def spc_fmea_feedback_from_project(project_root: str) -> dict[str, Any] | None:
+    """Derive candidate FMEA occurrence feedback from a project's SPC results and write
+    ``feedback/spc-to-fmea.json`` plus the matching ``Action`` candidates on ``fmea/fmea.json``.
+
+    The SPC → FMEA arrow (M3-4, #279), closing the loop: every
+    ``<project_root>/spc/results/*.json`` control chart is checked for rule violations, joined
+    back to its FMEA cause through ``control-plan/plan.json``'s ``source_cause_id``, and turned
+    into one feedback row per out-of-control characteristic (violating points, rules,
+    out-of-control rate, current and candidate Occurrence, CAPA prompt). The candidate lands on
+    ``fmea/fmea.json`` as an ``Open`` ``Action`` with ``o_after`` set — the cause's own
+    ``occurrence`` is never overwritten, so the proposal always awaits a human. Returns ``null``
+    when nothing is out of control (any stale feedback file and any Action this arrow previously
+    wrote are cleared). Raises a structured tool error if ``fmea/fmea.json`` or
+    ``control-plan/plan.json`` is missing or malformed — both are required inputs.
+    """
+    artifact = _call(build_feedback_file, project_root)
+    return cast("dict[str, Any]", artifact.model_dump(mode="json")) if artifact else None
 
 
 # ---------------------------------------------------------------------------

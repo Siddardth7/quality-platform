@@ -154,7 +154,8 @@ interaction terms (`None` under the Average-and-Range method).
 
 ### `feedback/spc-to-fmea.json` — `SPCToFMEAFeedbackArtifact`
 
-Mirrors `spc_app.fmea_feedback.build_occurrence_feedback`'s return dict: the out-of-control
+One `rows` entry per out-of-control characteristic, each mirroring
+`spc_app.fmea_feedback.build_occurrence_feedback`'s return dict: the out-of-control
 signal, the FMEA cause it traces back to (nullable when there is no Control-Plan link), the
 current and **candidate** Occurrence, and the CAPA prompt. Legitimately absent — a process with
 no out-of-control signal produces no feedback file, which is why the loader offers
@@ -162,7 +163,7 @@ no out-of-control signal produces no feedback file, which is why the loader offe
 
 | | |
 |---|---|
-| Written by | the SPC → FMEA feedback arrow (M3-5) |
+| Written by | the SPC → FMEA feedback arrow (M3-4, `spc_app.fmea_feedback_arrow`) |
 | Read by | the FMEA review step — a human applies the rating, the arrow never does |
 
 ## Using it

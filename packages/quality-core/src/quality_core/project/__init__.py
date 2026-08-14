@@ -50,6 +50,7 @@ from quality_core.project.schema import (
     SPCConfigRow,
     SPCResultArtifact,
     SPCToFMEAFeedbackArtifact,
+    SPCToFMEAFeedbackRow,
     ToleranceSource,
 )
 
@@ -73,6 +74,7 @@ __all__ = [
     "SPCConfigArtifact",
     "SPCResultArtifact",
     "MSAGageRRArtifact",
+    "SPCToFMEAFeedbackRow",
     "SPCToFMEAFeedbackArtifact",
     # io
     "PROJECT_YAML",

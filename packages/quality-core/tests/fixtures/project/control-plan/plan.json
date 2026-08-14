@@ -13,7 +13,7 @@
       "frequency": "per shift",
       "recommended_chart": "Xbar-R",
       "reaction_plan": "Quarantine the lot and notify the process engineer.",
-      "source_cause_id": "F1-M1-C1",
+      "source_cause_id": "F1::F1-M1::F1-M1-C1",
       "sample_plan_is_placeholder": true
     }
   ]

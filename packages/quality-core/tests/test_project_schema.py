@@ -479,8 +479,8 @@ def test_msa_artifact_rejects_negative_ndc() -> None:
 
 def test_feedback_artifact_valid() -> None:
     art = SPCToFMEAFeedbackArtifact.model_validate(_load_json("feedback", "spc-to-fmea.json"))
-    assert art.ooc is True
-    assert art.suggested_occurrence == 6
+    assert [row.ooc for row in art.rows] == [True]
+    assert art.rows[0].suggested_occurrence == 6
 
 
 def test_feedback_artifact_source_fields_optional() -> None:
@@ -492,13 +492,25 @@ def test_feedback_artifact_source_fields_optional() -> None:
         "current_occurrence",
         "component",
     ):
-        data[key] = None
+        data["rows"][0][key] = None
     art = SPCToFMEAFeedbackArtifact.model_validate(data)
-    assert art.source_cause_id is None and art.current_occurrence is None
+    assert art.rows[0].source_cause_id is None and art.rows[0].current_occurrence is None
 
 
 def test_feedback_artifact_rejects_occurrence_above_ten() -> None:
+    data = _load_json("feedback", "spc-to-fmea.json")
+    data["rows"][0]["suggested_occurrence"] = 11
     with pytest.raises(pydantic.ValidationError):
-        SPCToFMEAFeedbackArtifact.model_validate(
-            {**_load_json("feedback", "spc-to-fmea.json"), "suggested_occurrence": 11}
-        )
+        SPCToFMEAFeedbackArtifact.model_validate(data)
+
+
+def test_feedback_artifact_rejects_duplicate_characteristics() -> None:
+    data = _load_json("feedback", "spc-to-fmea.json")
+    data["rows"] = [data["rows"][0], dict(data["rows"][0])]
+    with pytest.raises(pydantic.ValidationError, match="duplicate characteristic rows"):
+        SPCToFMEAFeedbackArtifact.model_validate(data)
+
+
+def test_feedback_artifact_accepts_empty_rows() -> None:
+    data = {**_load_json("feedback", "spc-to-fmea.json"), "rows": []}
+    assert SPCToFMEAFeedbackArtifact.model_validate(data).rows == []
