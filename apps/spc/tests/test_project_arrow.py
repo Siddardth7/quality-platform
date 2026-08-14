@@ -23,6 +23,7 @@ from quality_core.project import (
     discover_project,
     load_artifact,
 )
+
 from spc_app.control_plan_config import config_for, plan_characteristics
 from spc_app.project_arrow import build_spc_config_file
 
