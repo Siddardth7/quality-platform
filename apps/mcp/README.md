@@ -18,6 +18,10 @@ stdio. Two meta tools describe the server process itself — `health` and
 - `spc_config_from_project(project_root)` — the Control Plan → SPC arrow (#278): read
   `<project_root>/control-plan/plan.json`, write `<project_root>/spc/config.json` (which
   characteristics SPC watches and with which chart), return the written artifact.
+- `spc_fmea_feedback_from_project(project_root)` — the SPC → FMEA arrow (#279): read
+  `<project_root>/spc/results/*.json` (joined to FMEA causes through
+  `control-plan/plan.json`), write `<project_root>/feedback/spc-to-fmea.json` and the
+  candidate `Action` on `fmea/fmea.json`; returns `null` when nothing is out of control.
 
 **Export/report tools (#266)** — every one returns a FastMCP `File`/`Image` (no base64 hand-rolling), and every CSV/Excel path routes through the formula-injection sanitizer in `quality_core.io.export` (a cell starting with `= + - @` can never execute):
 

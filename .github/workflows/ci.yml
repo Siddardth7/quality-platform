@@ -137,8 +137,9 @@ jobs:
       # SPC coverage gate: the testable SPC surface (spc_engine — now the app-local
       # data_generator plus the quality_core.spc re-export shims, so a shim added and
       # left unimported fails here — simulation logic, figure builders, report
-      # exporter, and the Control Plan→SPC project-file arrow over
-      # control_plan_config, M3-3 #278) must stay highly covered so it can't
+      # exporter, the Control Plan→SPC project-file arrow over
+      # control_plan_config (M3-3, #278) and the SPC→FMEA feedback arrow over
+      # fmea_feedback (M3-4, #279)) must stay highly covered so it can't
       # regress silently. The Streamlit `pages/` are excluded — they need a
       # runtime to exercise — mirroring how the FMEA bar covers fmea_app/ but not
       # its entry scripts.
@@ -153,6 +154,7 @@ jobs:
           --cov=spc_app.control_plan_config
           --cov=spc_app.fmea_feedback
           --cov=spc_app.project_arrow
+          --cov=spc_app.fmea_feedback_arrow
           --cov-report=term-missing
           --cov-fail-under=100
 

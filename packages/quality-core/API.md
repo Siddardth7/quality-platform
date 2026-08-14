@@ -259,6 +259,7 @@ SPCConfigRow
 SPCConfigArtifact
 SPCResultArtifact
 MSAGageRRArtifact
+SPCToFMEAFeedbackRow
 SPCToFMEAFeedbackArtifact
 PROJECT_YAML
 FMEA_JSON
@@ -300,7 +301,8 @@ write_project_meta
 | `SPCConfigArtifact` | class (model) | `spc/config.json` — which characteristics SPC watches and with which chart, unique by characteristic. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `SPCResultArtifact` | class (model) | `spc/results/<characteristic>.json` — one file per characteristic, control-chart *or* capability. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `MSAGageRRArtifact` | class (model) | `msa/gage-rr.json`; mirrors `compute_gage_rr`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
-| `SPCToFMEAFeedbackArtifact` | class (model) | `feedback/spc-to-fmea.json`; mirrors `build_occurrence_feedback`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SPCToFMEAFeedbackRow` | class (model) | One out-of-control characteristic's feedback; mirrors `build_occurrence_feedback`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SPCToFMEAFeedbackArtifact` | class (model) | `feedback/spc-to-fmea.json` — one row per out-of-control characteristic, unique by characteristic. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `PROJECT_YAML`, `FMEA_JSON`, `CONTROL_PLAN_JSON`, `SPC_CONFIG_JSON`, `SPC_RESULTS_DIR`, `GAGE_RR_JSON`, `FEEDBACK_JSON` | constants | The relative file graph, one constant per node. | `packages/quality-core/src/quality_core/project/io.py` |
 | `ProjectError` | exception | User-facing project-file failure; subclass of `IngestError`. | `packages/quality-core/src/quality_core/project/io.py` |
 | `ProjectPaths` | dataclass | Canonical paths inside one project directory. | `packages/quality-core/src/quality_core/project/io.py` |

@@ -38,6 +38,7 @@ uv run pytest apps/spc \
   --cov=spc_app.spc_engine --cov=spc_app.simulation --cov=spc_app.visualizer \
   --cov=spc_app.exporter --cov=spc_app.schema --cov=spc_app.control_plan_config \
   --cov=spc_app.fmea_feedback --cov=spc_app.project_arrow \
+  --cov=spc_app.fmea_feedback_arrow \
   --cov-fail-under=100
 ```
 
@@ -95,6 +96,9 @@ spc_app/control_plan_config.py  Control Plan -> SPC view config (W07-1, #88)
 spc_app/fmea_feedback.py        SPC OOC signal -> candidate FMEA occurrence feedback (W07-2, #89)
 spc_app/project_arrow.py        Control Plan -> SPC project-file arrow: control-plan/plan.json
                                 -> spc/config.json, glue over control_plan_config (M3-3, #278)
+spc_app/fmea_feedback_arrow.py  SPC -> FMEA project-file arrow: spc/results/*.json ->
+                                feedback/spc-to-fmea.json + candidate Action(o_after=...) on
+                                fmea/fmea.json, glue over fmea_feedback (M3-4, #279)
 ```
 
 **Data flow (Control Charts):** demo CSV / upload → filter by `stream` → `subgroup_rows`
