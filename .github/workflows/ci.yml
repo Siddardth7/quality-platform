@@ -154,8 +154,9 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=100
 
-      # Control Plan coverage gate: the FMEA→Control Plan connector engine (W06-2)
-      # and the validated Control Plan ingest schema (W06-1) are new testable surface
+      # Control Plan coverage gate: the FMEA→Control Plan connector engine (W06-2),
+      # the validated Control Plan ingest schema (W06-1) and the project-file arrow
+      # over the connector (M3-2, #277) are new testable surface
       # and must stay fully covered so the mapping/rule-table and rejection paths can't
       # regress silently. The Streamlit pages/ and the exporter are excluded here —
       # mirroring how the SPC bar covers the engine surface but not its entry scripts.
@@ -165,6 +166,7 @@ jobs:
           uv run pytest apps/controlplan
           --cov=controlplan_app.connector
           --cov=controlplan_app.schema
+          --cov=controlplan_app.project_arrow
           --cov-report=term-missing
           --cov-fail-under=100
 

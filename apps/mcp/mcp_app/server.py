@@ -28,6 +28,7 @@ from typing import Any, Literal, TypeVar, cast
 
 import pandas as pd
 from controlplan_app.connector import build_control_plan, recommend_chart, source_index
+from controlplan_app.project_arrow import build_control_plan_file
 from controlplan_app.schema import SPCChart
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -938,10 +939,12 @@ def msa_export_results_csv(results: dict[str, Any]) -> File:
 # Control Plan — FMEA connector, chart selection, source index
 # (controlplan_app.connector)
 #
-# All three are thin passthroughs over the existing connector: no Control Plan
-# logic is reimplemented here, and ``controlplan_build``/``controlplan_source_index``
-# take the same ``quality_core.schema.RelationalFMEA`` object ``fmea_run_relational``
-# accepts rather than introducing a second FMEA contract.
+# All four are thin passthroughs: no Control Plan logic is reimplemented here, and
+# ``controlplan_build``/``controlplan_source_index`` take the same
+# ``quality_core.schema.RelationalFMEA`` object ``fmea_run_relational`` accepts rather
+# than introducing a second FMEA contract. ``controlplan_build_from_project`` (M3-2,
+# #277) wraps ``controlplan_app.project_arrow`` instead — the same connector, but reading
+# and writing the project-file contract (#276) on disk.
 # ---------------------------------------------------------------------------
 
 
@@ -1007,6 +1010,22 @@ def controlplan_source_index(fmea_model: dict[str, Any]) -> dict[str, dict[str, 
     """
     parsed = _call(RelationalFMEA.model_validate, fmea_model)
     return _call(source_index, parsed)
+
+
+@app.tool
+def controlplan_build_from_project(project_root: str) -> dict[str, Any]:
+    """Derive a Control Plan from a project directory's ``fmea/fmea.json`` and write
+    ``control-plan/plan.json``.
+
+    The project-file (#276) face of ``controlplan_build``: same connector, same rows, but the
+    FMEA is read from ``<project_root>/fmea/fmea.json`` and the result is persisted to
+    ``<project_root>/control-plan/plan.json`` instead of only being returned. A re-run
+    overwrites that file in place — no merge, no history array (git is the history). Returns the
+    written artifact (``schema_version``/``generated_at``/``generated_by`` envelope plus
+    ``rows``). Raises a structured tool error if ``fmea/fmea.json`` is missing or malformed.
+    """
+    artifact = _call(build_control_plan_file, project_root)
+    return cast("dict[str, Any]", artifact.model_dump(mode="json"))
 
 
 # ---------------------------------------------------------------------------

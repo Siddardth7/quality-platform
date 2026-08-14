@@ -28,6 +28,7 @@ stdio. Two meta tools describe the server process itself — `health` and
 - `controlplan_build(fmea_model)` — derive a Control Plan (one row per failure mode, highest-risk first) from a relational FMEA.
 - `controlplan_recommend_chart(data_type, subgroup_size, ...)` — the AIAG SPC chart-selection rule table (bounded per #196).
 - `controlplan_source_index(fmea_model)` — trace every Control Plan row back to its source FMEA failure mode and cause.
+- `controlplan_build_from_project(project_root)` — the project-file (#276) face of `controlplan_build`: read `<project_root>/fmea/fmea.json`, write `<project_root>/control-plan/plan.json` (overwritten in place on a re-run), return the written artifact.
 
 The SECOM tools arrive in a later M1 issue on the same `app` object in `mcp_app/server.py`. (SPC-chart PNGs are deferred to a future issue — they need a headless image renderer beyond the existing exporters.)
 
