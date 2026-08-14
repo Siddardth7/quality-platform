@@ -90,6 +90,7 @@ from spc_app.exporter import (
     build_control_chart_report_excel,
     build_control_chart_report_pdf,
 )
+from spc_app.project_arrow import build_spc_config_file
 
 app = FastMCP("quality-platform")
 
@@ -585,6 +586,35 @@ def spc_assess_stability(
     frame = pd.DataFrame({"value": values, "subgroup": subgroups})
     sigma_hat, signals = _call(assess_stability, frame, chart_type, rule_set=rule_set)
     return {"sigma_hat": sigma_hat, "signals": signals}
+
+
+# ---------------------------------------------------------------------------
+# SPC — project-file arrow (spc_app.project_arrow)
+#
+# The one SPC tool that wraps an app rather than ``quality_core.spc``: the project-file
+# (#276) glue lives in ``spc_app`` because ``quality_core`` never imports an app, and the
+# aggregator exception (#262) is what lets this server reach it.
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def spc_config_from_project(project_root: str) -> dict[str, Any]:
+    """Derive an SPC monitoring config from a project's ``control-plan/plan.json`` and
+    write ``spc/config.json``.
+
+    The Control Plan → SPC arrow (M3-3, #278): one config row per plan characteristic,
+    carrying that characteristic's chart type, tolerance triple and sample plan, read from
+    ``<project_root>/control-plan/plan.json`` and persisted to
+    ``<project_root>/spc/config.json``. A re-run overwrites that file in place — no merge,
+    no history array (git is the history). ``chart_key`` is null when the plan preselects
+    no chart (which is what ``controlplan_build`` emits today) — the choice is left to the
+    user, never fabricated. This is the pre-run *selection*, not a chart result;
+    ``spc/results/<characteristic>.json`` holds those. Returns the written artifact
+    (``schema_version``/``generated_at``/``generated_by`` envelope plus ``rows``). Raises a
+    structured tool error if ``control-plan/plan.json`` is missing or malformed.
+    """
+    artifact = _call(build_spc_config_file, project_root)
+    return cast("dict[str, Any]", artifact.model_dump(mode="json"))
 
 
 # ---------------------------------------------------------------------------

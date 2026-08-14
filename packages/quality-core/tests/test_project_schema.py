@@ -27,6 +27,8 @@ from quality_core.project.schema import (
     NormalityPayload,
     ProjectCharacteristic,
     ProjectMeta,
+    SPCConfigArtifact,
+    SPCConfigRow,
     SPCResultArtifact,
     SPCToFMEAFeedbackArtifact,
 )
@@ -223,6 +225,114 @@ def test_control_plan_artifact_rejects_duplicate_characteristics() -> None:
             rows=[
                 ControlPlanArtifactRow(**_cp_row(characteristic="Dup")),
                 ControlPlanArtifactRow(**_cp_row(characteristic="Dup")),
+            ],
+        )
+
+
+# ---------------------------------------------------------------------------
+# SPCConfigArtifact — the Control Plan → SPC monitoring selection (#278)
+# ---------------------------------------------------------------------------
+
+
+def _spc_config_row(**overrides: object) -> dict:
+    base: dict = {
+        "characteristic": "Bore diameter",
+        "chart_key": "Xbar-R",
+        "lsl": 9.5,
+        "usl": 10.5,
+        "target": 10.0,
+        "sample_size": 5,
+        "frequency": "per shift",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_spc_config_row_valid() -> None:
+    row = SPCConfigRow(**_spc_config_row())
+    assert row.chart_key == "Xbar-R"
+    assert row.sample_size == 5
+
+
+def test_spc_config_row_chart_key_none_allowed() -> None:
+    # `None` means "no chart preselected" — the SPC layer lets the user pick.
+    row = SPCConfigRow(**_spc_config_row(chart_key=None))
+    assert row.chart_key is None
+
+
+def test_spc_config_row_tolerance_all_none_is_allowed() -> None:
+    row = SPCConfigRow(**_spc_config_row(lsl=None, usl=None, target=None))
+    assert row.lsl is None and row.usl is None and row.target is None
+
+
+def test_spc_config_row_usl_not_greater_than_lsl_rejected() -> None:
+    with pytest.raises(pydantic.ValidationError, match="usl must be greater than lsl"):
+        SPCConfigRow(**_spc_config_row(lsl=11.0, usl=10.0, target=None))
+
+
+def test_spc_config_row_target_outside_limits_rejected() -> None:
+    with pytest.raises(pydantic.ValidationError, match="target must be within"):
+        SPCConfigRow(**_spc_config_row(lsl=9.5, usl=10.5, target=12.0))
+
+
+def test_spc_config_row_rejects_sample_size_below_one() -> None:
+    with pytest.raises(pydantic.ValidationError):
+        SPCConfigRow(**_spc_config_row(sample_size=0))
+
+
+def test_spc_config_row_sample_size_none_allowed() -> None:
+    row = SPCConfigRow(**_spc_config_row(sample_size=None))
+    assert row.sample_size is None
+
+
+def test_spc_config_row_rejects_unknown_chart_key() -> None:
+    # chart_key is the SPCChart Literal — EWMA/CUSUM are not valid config keys.
+    with pytest.raises(pydantic.ValidationError):
+        SPCConfigRow(**_spc_config_row(chart_key="EWMA"))
+
+
+def test_spc_config_row_requires_characteristic() -> None:
+    # StrictModel does not forbid extra fields (pydantic's default is to ignore them),
+    # so the mirror-integrity guarantee is carried by required fields + strict typing,
+    # not by extra-rejection: dropping `characteristic` fails loud.
+    payload = _spc_config_row()
+    del payload["characteristic"]
+    with pytest.raises(pydantic.ValidationError):
+        SPCConfigRow(**payload)
+
+
+def test_spc_config_row_enforces_strict_typing() -> None:
+    # strict=True: a stringly-typed sample_size is rejected, not coerced.
+    with pytest.raises(pydantic.ValidationError):
+        SPCConfigRow(**_spc_config_row(sample_size="5"))
+
+
+def test_spc_config_artifact_valid_from_fixture() -> None:
+    art = SPCConfigArtifact.model_validate(_load_json("spc", "config.json"))
+    assert len(art.rows) == 1
+    assert art.rows[0].characteristic == "Example Characteristic"
+    assert art.rows[0].chart_key == "Xbar-R"
+
+
+def test_spc_config_artifact_empty_rows_allowed() -> None:
+    art = SPCConfigArtifact(
+        schema_version=1,
+        generated_at="2026-08-13T12:00:00Z",
+        generated_by="spc_app==0.14.0",
+        rows=[],
+    )
+    assert art.rows == []
+
+
+def test_spc_config_artifact_rejects_duplicate_characteristics() -> None:
+    with pytest.raises(pydantic.ValidationError, match="duplicate characteristic rows"):
+        SPCConfigArtifact(
+            schema_version=1,
+            generated_at="2026-08-13T12:00:00Z",
+            generated_by="spc_app==0.14.0",
+            rows=[
+                SPCConfigRow(**_spc_config_row(characteristic="Dup")),
+                SPCConfigRow(**_spc_config_row(characteristic="Dup")),
             ],
         )
 

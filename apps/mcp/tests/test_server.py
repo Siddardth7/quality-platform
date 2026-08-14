@@ -48,6 +48,7 @@ from mcp_app.server import (
     spc_assess_stability,
     spc_c,
     spc_capability,
+    spc_config_from_project,
     spc_cusum,
     spc_detect_nelson_violations,
     spc_detect_we_violations,
@@ -140,6 +141,7 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_capability",
         "spc_normality_test",
         "spc_assess_stability",
+        "spc_config_from_project",
         "msa_gage_rr",
         "controlplan_build",
         "controlplan_build_from_project",
@@ -1182,6 +1184,34 @@ def test_controlplan_build_from_project_missing_fmea_raises_toolerror(tmp_path: 
     with pytest.raises(ToolError):
         controlplan_build_from_project(str(tmp_path))
     assert not (tmp_path / "control-plan" / "plan.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# spc_config_from_project — Control Plan → SPC project-file arrow (M3-3, #278)
+# ---------------------------------------------------------------------------
+
+
+def test_spc_config_from_project_writes_and_returns(tmp_path: Path):
+    import shutil
+
+    shutil.copytree(_FIXTURE_PROJECT / "control-plan", tmp_path / "control-plan")
+
+    result = spc_config_from_project(str(tmp_path))
+
+    # Written to the project-file contract path.
+    assert (tmp_path / "spc" / "config.json").exists()
+    # Structured dict envelope + config rows derived from the plan.
+    assert result["schema_version"] == 1
+    assert result["generated_by"].startswith("spc_app==")
+    assert [r["characteristic"] for r in result["rows"]] == ["Example Characteristic"]
+    assert result["rows"][0]["chart_key"] == "Xbar-R"
+
+
+def test_spc_config_from_project_missing_plan_raises_toolerror(tmp_path: Path):
+    # Empty project dir -> ProjectError -> structured ToolError; nothing written.
+    with pytest.raises(ToolError):
+        spc_config_from_project(str(tmp_path))
+    assert not (tmp_path / "spc" / "config.json").exists()
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # The project file contract (M3)
 
 What a Quality Platform **project** looks like on disk: one directory, one hand-edited
-metadata file, five tool-written artifact files. Every M3 arrow (#277+) reads and writes
+metadata file, six tool-written artifact files. Every M3 arrow (#277+) reads and writes
 through this contract, so the shape is defined once, here and in
 [`quality_core.project`](../packages/quality-core/src/quality_core/project/), rather than
 being re-invented per arrow.
@@ -27,18 +27,21 @@ graph TD
     Y["project.yaml<br/><i>ProjectMeta</i> — id, name, characteristics + tolerances"]
     F["fmea/fmea.json<br/><i>FMEAArtifact</i>"]
     C["control-plan/plan.json<br/><i>ControlPlanArtifact</i>"]
+    G["spc/config.json<br/><i>SPCConfigArtifact</i> — what SPC watches, and with which chart"]
     S["spc/results/&lt;characteristic&gt;.json<br/><i>SPCResultArtifact</i> (one per characteristic)"]
     M["msa/gage-rr.json<br/><i>MSAGageRRArtifact</i>"]
     B["feedback/spc-to-fmea.json<br/><i>SPCToFMEAFeedbackArtifact</i>"]
 
     Y --- F
     Y --- C
+    Y --- G
     Y --- S
     Y --- M
     Y --- B
 
     F -->|"FMEA → Control Plan connector"| C
-    C -->|"characteristic + chart + tolerance"| S
+    C -->|"characteristic + chart + tolerance"| G
+    G -->|"monitoring selection, one chart run per characteristic"| S
     S -->|"out-of-control signal → candidate Occurrence"| B
     B -.->|"reviewed, then applied by hand"| F
     M -.->|"measurement system verdict qualifies"| S
@@ -55,6 +58,7 @@ artifact is a *candidate* for engineering review, never an applied change.
 ├── control-plan/
 │   └── plan.json                 # ControlPlanArtifact
 ├── spc/
+│   ├── config.json               # SPCConfigArtifact — the monitoring selection
 │   └── results/
 │       └── <characteristic>.json # SPCResultArtifact, one per characteristic
 ├── msa/
@@ -105,6 +109,21 @@ unique by characteristic.
 |---|---|
 | Written by | the FMEA → Control Plan connector (M3-2) |
 | Read by | the SPC arrow, for which chart and tolerance to use per characteristic (M3-3) |
+
+### `spc/config.json` — `SPCConfigArtifact`
+
+`{envelope, rows: [...]}` mirroring `spc_app.control_plan_config.SPCViewConfig`:
+characteristic, `chart_key`, tolerance triple, sample size, frequency. The *pre*-run
+selection — which characteristics SPC watches and with which chart — derived one-to-one from
+`control-plan/plan.json` and keyed on the same `characteristic` string (**exact match**, no
+normalisation, no fuzzy join). `chart_key` is null when the plan preselects no chart, which
+is what the connector emits today; the choice is then the user's, never fabricated. Rows are
+unique by characteristic.
+
+| | |
+|---|---|
+| Written by | the Control Plan → SPC arrow, `spc_app.project_arrow.build_spc_config_file` (M3-3) |
+| Read by | the SPC chart/capability runs, for what to monitor and how |
 
 ### `spc/results/<characteristic>.json` — `SPCResultArtifact`
 

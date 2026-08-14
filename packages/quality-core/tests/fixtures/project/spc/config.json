@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T12:00:00Z",
+  "generated_by": "spc_app==0.14.0",
+  "rows": [
+    {
+      "characteristic": "Example Characteristic",
+      "chart_key": "Xbar-R",
+      "lsl": 9.5,
+      "usl": 10.5,
+      "target": 10.0,
+      "sample_size": 5,
+      "frequency": "per shift"
+    }
+  ]
+}

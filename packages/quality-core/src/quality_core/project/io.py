@@ -41,6 +41,7 @@ _T = TypeVar("_T", bound=pydantic.BaseModel)
 PROJECT_YAML = "project.yaml"
 FMEA_JSON = ("fmea", "fmea.json")
 CONTROL_PLAN_JSON = ("control-plan", "plan.json")
+SPC_CONFIG_JSON = ("spc", "config.json")
 SPC_RESULTS_DIR = ("spc", "results")
 GAGE_RR_JSON = ("msa", "gage-rr.json")
 FEEDBACK_JSON = ("feedback", "spc-to-fmea.json")
@@ -58,6 +59,7 @@ class ProjectPaths:
     project_yaml: Path
     fmea_json: Path
     control_plan_json: Path
+    spc_config_json: Path
     spc_results_dir: Path
     gage_rr_json: Path
     feedback_json: Path
@@ -76,6 +78,7 @@ def discover_project(root: str | os.PathLike[str]) -> ProjectPaths:
         project_yaml=base / PROJECT_YAML,
         fmea_json=base.joinpath(*FMEA_JSON),
         control_plan_json=base.joinpath(*CONTROL_PLAN_JSON),
+        spc_config_json=base.joinpath(*SPC_CONFIG_JSON),
         spc_results_dir=base.joinpath(*SPC_RESULTS_DIR),
         gage_rr_json=base.joinpath(*GAGE_RR_JSON),
         feedback_json=base.joinpath(*FEEDBACK_JSON),

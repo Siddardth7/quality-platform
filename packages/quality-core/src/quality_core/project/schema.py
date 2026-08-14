@@ -186,6 +186,50 @@ class ControlPlanArtifact(ArtifactEnvelope):
 
 
 # ===========================================================================
+# spc/config.json
+# ===========================================================================
+
+
+class SPCConfigRow(StrictModel):
+    """Mirrors `spc_app.control_plan_config.SPCViewConfig` field-for-field (no import).
+
+    `chart_key` is the Control Plan's `recommended_chart` carried through; `None`
+    means no chart was preselected, which the SPC layer treats as "the user picks"
+    — never a fabricated chart type.
+    """
+
+    characteristic: Label
+    chart_key: SPCChart | None = None
+    lsl: float | None = None
+    usl: float | None = None
+    target: float | None = None
+    sample_size: Annotated[int, pydantic.Field(ge=1)] | None = None
+    frequency: Label | None = None
+
+    @pydantic.model_validator(mode="after")
+    def check_tolerance(self) -> "SPCConfigRow":
+        _check_tolerance(self.lsl, self.usl, self.target)
+        return self
+
+
+class SPCConfigArtifact(ArtifactEnvelope):
+    """`spc/config.json` — which characteristics SPC watches and with which chart.
+
+    A *pre*-run selection derived from `control-plan/plan.json`, not a result:
+    `spc/results/<characteristic>.json` holds what a chart run produced.
+    """
+
+    rows: list[SPCConfigRow]
+
+    @pydantic.model_validator(mode="after")
+    def check_unique_characteristics(self) -> "SPCConfigArtifact":
+        dupes = find_duplicates(row.characteristic for row in self.rows)
+        if dupes:
+            raise ValueError(f"duplicate characteristic rows found: {dupes}")
+        return self
+
+
+# ===========================================================================
 # spc/results/<characteristic>.json
 # ===========================================================================
 
