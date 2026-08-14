@@ -23,6 +23,7 @@ from quality_core.project.io import (
     FMEA_JSON,
     GAGE_RR_JSON,
     PROJECT_YAML,
+    SPC_CONFIG_JSON,
     SPC_RESULTS_DIR,
     ProjectError,
     discover_project,
@@ -38,6 +39,7 @@ from quality_core.project.schema import (
     ControlPlanArtifact,
     FMEAArtifact,
     MSAGageRRArtifact,
+    SPCConfigArtifact,
     SPCResultArtifact,
     SPCToFMEAFeedbackArtifact,
 )
@@ -48,6 +50,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "project"
 ARTIFACTS = [
     (("fmea", "fmea.json"), FMEAArtifact),
     (("control-plan", "plan.json"), ControlPlanArtifact),
+    (("spc", "config.json"), SPCConfigArtifact),
     (("spc", "results", "example-characteristic.json"), SPCResultArtifact),
     (("msa", "gage-rr.json"), MSAGageRRArtifact),
     (("feedback", "spc-to-fmea.json"), SPCToFMEAFeedbackArtifact),
@@ -65,6 +68,7 @@ def test_discover_project_builds_canonical_graph(tmp_path: Path) -> None:
     assert paths.project_yaml == tmp_path / PROJECT_YAML
     assert paths.fmea_json == tmp_path.joinpath(*FMEA_JSON)
     assert paths.control_plan_json == tmp_path.joinpath(*CONTROL_PLAN_JSON)
+    assert paths.spc_config_json == tmp_path.joinpath(*SPC_CONFIG_JSON)
     assert paths.spc_results_dir == tmp_path.joinpath(*SPC_RESULTS_DIR)
     assert paths.gage_rr_json == tmp_path.joinpath(*GAGE_RR_JSON)
     assert paths.feedback_json == tmp_path.joinpath(*FEEDBACK_JSON)

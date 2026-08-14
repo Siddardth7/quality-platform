@@ -255,12 +255,15 @@ SecondarySeries
 ControlChartPayload
 NormalityPayload
 CapabilityPayload
+SPCConfigRow
+SPCConfigArtifact
 SPCResultArtifact
 MSAGageRRArtifact
 SPCToFMEAFeedbackArtifact
 PROJECT_YAML
 FMEA_JSON
 CONTROL_PLAN_JSON
+SPC_CONFIG_JSON
 SPC_RESULTS_DIR
 GAGE_RR_JSON
 FEEDBACK_JSON
@@ -293,10 +296,12 @@ write_project_meta
 | `ControlChartPayload` | class (model) | Control-chart result; mirrors `spc_app.exporter.ControlChartReport`. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `NormalityPayload` | class (model) | Shapiro-Wilk result carried by a capability result. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `CapabilityPayload` | class (model) | Capability result; mirrors `spc_app.exporter.CapabilityReport`. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SPCConfigRow` | class (model) | One SPC monitoring selection; mirrors `spc_app.control_plan_config.SPCViewConfig`. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SPCConfigArtifact` | class (model) | `spc/config.json` — which characteristics SPC watches and with which chart, unique by characteristic. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `SPCResultArtifact` | class (model) | `spc/results/<characteristic>.json` — one file per characteristic, control-chart *or* capability. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `MSAGageRRArtifact` | class (model) | `msa/gage-rr.json`; mirrors `compute_gage_rr`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `SPCToFMEAFeedbackArtifact` | class (model) | `feedback/spc-to-fmea.json`; mirrors `build_occurrence_feedback`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
-| `PROJECT_YAML`, `FMEA_JSON`, `CONTROL_PLAN_JSON`, `SPC_RESULTS_DIR`, `GAGE_RR_JSON`, `FEEDBACK_JSON` | constants | The relative file graph, one constant per node. | `packages/quality-core/src/quality_core/project/io.py` |
+| `PROJECT_YAML`, `FMEA_JSON`, `CONTROL_PLAN_JSON`, `SPC_CONFIG_JSON`, `SPC_RESULTS_DIR`, `GAGE_RR_JSON`, `FEEDBACK_JSON` | constants | The relative file graph, one constant per node. | `packages/quality-core/src/quality_core/project/io.py` |
 | `ProjectError` | exception | User-facing project-file failure; subclass of `IngestError`. | `packages/quality-core/src/quality_core/project/io.py` |
 | `ProjectPaths` | dataclass | Canonical paths inside one project directory. | `packages/quality-core/src/quality_core/project/io.py` |
 | `discover_project` | function | Build `ProjectPaths` for a root (pure path arithmetic; no filesystem access). | `packages/quality-core/src/quality_core/project/io.py` |

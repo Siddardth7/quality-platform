@@ -118,6 +118,12 @@ _FIXTURE_PROJECT = (
 _CP_PROJECT_ROOT = Path(tempfile.mkdtemp())
 shutil.copytree(_FIXTURE_PROJECT / "fmea", _CP_PROJECT_ROOT / "fmea")
 
+# A second throwaway project dir with the committed fixture's control-plan/ subtree, for
+# the spc_config_from_project round trip (M3-3, #278): it reads control-plan/plan.json and
+# writes spc/config.json into it when the tool runs.
+_SPC_PROJECT_ROOT = Path(tempfile.mkdtemp())
+shutil.copytree(_FIXTURE_PROJECT / "control-plan", _SPC_PROJECT_ROOT / "control-plan")
+
 _FMEA_FLAT_ROWS = [
     dict(ID=1, Process_Step="A", Component="C1", Function="F1",
          Failure_Mode="M1", Effect="E1", Severity=9,
@@ -427,6 +433,22 @@ _ROUND_TRIPS: list[tuple[str, dict[str, Any], Any]] = [
                     "source_cause_id": "F1::F1-M1::F1-M1-C1",
                     "sample_plan_is_placeholder": True,
                     "recommended_chart": None,
+                }
+            ],
+        },
+    ),
+    (
+        "spc_config_from_project",
+        {"project_root": str(_SPC_PROJECT_ROOT)},
+        {
+            "schema_version": 1,
+            "rows": [
+                {
+                    "characteristic": "Example Characteristic",
+                    "chart_key": "Xbar-R",
+                    "lsl": 9.5,
+                    "usl": 10.5,
+                    "sample_size": 5,
                 }
             ],
         },

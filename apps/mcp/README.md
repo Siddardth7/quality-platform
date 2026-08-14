@@ -15,6 +15,9 @@ stdio. Two meta tools describe the server process itself — `health` and
   (2019 default, FMEA-4 legacy, or a custom JSON scale).
 - the `spc_*` tools — control charts, Phase I/II, Western Electric / Nelson rules,
   capability and stability (see the tool list in `mcp_app/server.py`).
+- `spc_config_from_project(project_root)` — the Control Plan → SPC arrow (#278): read
+  `<project_root>/control-plan/plan.json`, write `<project_root>/spc/config.json` (which
+  characteristics SPC watches and with which chart), return the written artifact.
 
 **Export/report tools (#266)** — every one returns a FastMCP `File`/`Image` (no base64 hand-rolling), and every CSV/Excel path routes through the formula-injection sanitizer in `quality_core.io.export` (a cell starting with `= + - @` can never execute):
 
