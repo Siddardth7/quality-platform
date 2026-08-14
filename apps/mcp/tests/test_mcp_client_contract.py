@@ -20,7 +20,10 @@ import asyncio
 import base64
 import inspect
 import math
+import shutil
+import tempfile
 from collections.abc import Coroutine
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -99,6 +102,21 @@ _ROWS = [
          Cause="Contamination", Occurrence=2, Current_Control="Oven", Detection=5),
 ]
 _RELATIONAL_MODEL = dataframe_to_relational(pd.DataFrame(_ROWS)).model_dump()
+
+# A throwaway project dir with the committed fixture's fmea/ subtree, for the
+# controlplan_build_from_project round trip (it reads/writes a project directory, so it
+# needs a real path rather than an in-memory model). mkdtemp so parametrize can name it at
+# collection time; the tool writes control-plan/plan.json into it when it runs.
+_FIXTURE_PROJECT = (
+    Path(__file__).resolve().parents[3]
+    / "packages"
+    / "quality-core"
+    / "tests"
+    / "fixtures"
+    / "project"
+)
+_CP_PROJECT_ROOT = Path(tempfile.mkdtemp())
+shutil.copytree(_FIXTURE_PROJECT / "fmea", _CP_PROJECT_ROOT / "fmea")
 
 _FMEA_FLAT_ROWS = [
     dict(ID=1, Process_Step="A", Component="C1", Function="F1",
@@ -396,6 +414,21 @@ _ROUND_TRIPS: list[tuple[str, dict[str, Any], Any]] = [
                 "cause_description": "Low temperature",
                 "component": "Resin",
             }
+        },
+    ),
+    (
+        "controlplan_build_from_project",
+        {"project_root": str(_CP_PROJECT_ROOT)},
+        {
+            "schema_version": 1,
+            "rows": [
+                {
+                    "characteristic": "Bracket — Bore oversize",
+                    "source_cause_id": "F1::F1-M1::F1-M1-C1",
+                    "sample_plan_is_placeholder": True,
+                    "recommended_chart": None,
+                }
+            ],
         },
     ),
 ]

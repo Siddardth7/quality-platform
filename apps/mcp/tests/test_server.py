@@ -22,6 +22,7 @@ from mcp_app import __version__
 from mcp_app.server import (
     app,
     controlplan_build,
+    controlplan_build_from_project,
     controlplan_recommend_chart,
     controlplan_source_index,
     export_csv,
@@ -141,6 +142,7 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_assess_stability",
         "msa_gage_rr",
         "controlplan_build",
+        "controlplan_build_from_project",
         "controlplan_recommend_chart",
         "controlplan_source_index",
         "export_csv",
@@ -1143,6 +1145,43 @@ def test_controlplan_build_empty_fmea_returns_empty_list():
 def test_controlplan_build_invalid_model_raises_toolerror():
     with pytest.raises(ToolError, match="validation error"):
         controlplan_build({"functions": [{"id": "f1"}]})
+
+
+# ---------------------------------------------------------------------------
+# controlplan_build_from_project — project-file arrow (M3-2, #277)
+# ---------------------------------------------------------------------------
+
+_FIXTURE_PROJECT = (
+    Path(__file__).resolve().parents[3]
+    / "packages"
+    / "quality-core"
+    / "tests"
+    / "fixtures"
+    / "project"
+)
+
+
+def test_controlplan_build_from_project_writes_and_returns(tmp_path: Path):
+    import shutil
+
+    shutil.copytree(_FIXTURE_PROJECT / "fmea", tmp_path / "fmea")
+
+    result = controlplan_build_from_project(str(tmp_path))
+
+    # Written to the project-file contract path.
+    assert (tmp_path / "control-plan" / "plan.json").exists()
+    # Structured dict envelope + connector-derived rows (not the hand-built fixture row).
+    assert result["schema_version"] == 1
+    assert result["generated_by"].startswith("controlplan_app==")
+    assert [r["characteristic"] for r in result["rows"]] == ["Bracket — Bore oversize"]
+    assert result["rows"][0]["source_cause_id"] == "F1::F1-M1::F1-M1-C1"
+
+
+def test_controlplan_build_from_project_missing_fmea_raises_toolerror(tmp_path: Path):
+    # Empty project dir -> ProjectError -> structured ToolError; nothing written.
+    with pytest.raises(ToolError):
+        controlplan_build_from_project(str(tmp_path))
+    assert not (tmp_path / "control-plan" / "plan.json").exists()
 
 
 # ---------------------------------------------------------------------------

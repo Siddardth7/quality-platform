@@ -14,10 +14,19 @@ The quality-platform MCP server names its tools by one fixed rule:
 | Domain — wraps one engine function | `<domain>_` | `fmea_score`, `spc_capability`, `msa_gage_rr`, `controlplan_build` |
 
 Reference tools by these exact names. The full catalog lives in `apps/mcp/README.md`; a skill
-never invents a tool name or a second naming scheme. There are **exactly three Control Plan
+never invents a tool name or a second naming scheme. There are **exactly four Control Plan
 tools** on this server — `controlplan_build`, `controlplan_recommend_chart`,
-`controlplan_source_index`. All three are thin passthroughs over `controlplan_app.connector`;
-no Control Plan logic is reimplemented at the tool boundary.
+`controlplan_source_index`, and `controlplan_build_from_project`. All four are thin
+passthroughs over `controlplan_app` (the first three over `connector`, the fourth over
+`project_arrow`, which is itself glue over the same connector); no Control Plan logic is
+reimplemented at the tool boundary.
+
+`controlplan_build_from_project(project_root: str) -> dict[str, Any]` is `controlplan_build`
+against a project directory (#276/#277): it reads `<project_root>/fmea/fmea.json`, derives the
+same rows, writes them to `<project_root>/control-plan/plan.json` — overwriting in place on a
+re-run, no merge and no history array — and returns the written artifact
+(`schema_version`/`generated_at`/`generated_by` plus `rows`). A missing or malformed
+`fmea/fmea.json` is a structured tool error.
 
 ## `controlplan_build`
 

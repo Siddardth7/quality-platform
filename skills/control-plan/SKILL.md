@@ -21,6 +21,7 @@ tool by what they already have:
 | A relational FMEA, wants a control plan derived from it | `controlplan_build` |
 | A characteristic's data type + subgroup size, wants the right chart | `controlplan_recommend_chart` |
 | A control plan already built, wants to trace a row back to its FMEA cause | `controlplan_source_index` |
+| A project directory on disk (`fmea/fmea.json`), wants `control-plan/plan.json` written | `controlplan_build_from_project` |
 
 This is **not** the skill for scoring or ranking failure modes — that is the `fmea` skill's
 `fmea_score` / `fmea_run` / `fmea_run_relational`. It is also not the skill for *running* the
