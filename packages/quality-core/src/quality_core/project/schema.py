@@ -230,6 +230,51 @@ class SPCConfigArtifact(ArtifactEnvelope):
 
 
 # ===========================================================================
+# spc/msa-gate.json
+# ===========================================================================
+
+#: How much trust an SPC result for one characteristic has earned from its
+#: measurement system. `pass` = the Gage R&R accepted it; `warn` = accepted with
+#: reservation, or no study on file at all (silence is not an accept); `block` =
+#: the study rejected the measurement system, so the SPC numbers must not be
+#: presented as trustworthy. Policy only — the mapping from a Gage R&R verdict
+#: lives in `spc_app.msa_gate.gate_for`, and the AIAG thresholds behind that
+#: verdict live in `msa_app.gage_rr_engine` (apps/msa ASSUMPTIONS_LOG RULE 7/8).
+GateStatus = Literal["pass", "warn", "block"]
+
+
+class SPCMSAGateRow(StrictModel):
+    """One monitored characteristic's measurement-system gate."""
+
+    characteristic: Label
+    #: The Gage R&R verdict this row was gated on, or `None` when no study on
+    #: file covers this characteristic.
+    verdict: Label | None = None
+    gate_status: GateStatus
+    reason: Text
+
+
+class SPCMSAGateArtifact(ArtifactEnvelope):
+    """`spc/msa-gate.json` — one row per `spc/config.json` characteristic.
+
+    An annotation *of* the SPC monitoring selection (hence `spc/`, not `msa/`),
+    not a second MSA study: it says how far each configured characteristic's SPC
+    result may be trusted given the Gage R&R on file. Written by the MSA -> SPC
+    gate arrow (M3-5, #280) and always written, even with zero rows — "nothing is
+    configured to monitor" is a stable state, not a transient one.
+    """
+
+    rows: list[SPCMSAGateRow]
+
+    @pydantic.model_validator(mode="after")
+    def check_unique_characteristics(self) -> "SPCMSAGateArtifact":
+        dupes = find_duplicates(row.characteristic for row in self.rows)
+        if dupes:
+            raise ValueError(f"duplicate characteristic rows found: {dupes}")
+        return self
+
+
+# ===========================================================================
 # spc/results/<characteristic>.json
 # ===========================================================================
 
@@ -339,8 +384,14 @@ class MSAGageRRArtifact(ArtifactEnvelope):
     The `*_tolerance` percentages are `None` when the study was run without a
     tolerance; the `interaction*` fields are `None` for the Average-and-Range
     method, which has no interaction term.
+
+    `characteristic` names which `spc/config.json` row this study qualifies.
+    `None` (the default, and today's only case — nothing writes more than one
+    study per project) means it is the project's single measurement-system
+    record and gates every monitored characteristic identically.
     """
 
+    characteristic: Label | None = None
     ev: float
     av: float
     grr: float

@@ -40,6 +40,7 @@ from quality_core.project.schema import (
     FMEAArtifact,
     MSAGageRRArtifact,
     SPCConfigArtifact,
+    SPCMSAGateArtifact,
     SPCResultArtifact,
     SPCToFMEAFeedbackArtifact,
 )
@@ -51,6 +52,7 @@ ARTIFACTS = [
     (("fmea", "fmea.json"), FMEAArtifact),
     (("control-plan", "plan.json"), ControlPlanArtifact),
     (("spc", "config.json"), SPCConfigArtifact),
+    (("spc", "msa-gate.json"), SPCMSAGateArtifact),
     (("spc", "results", "example-characteristic.json"), SPCResultArtifact),
     (("msa", "gage-rr.json"), MSAGageRRArtifact),
     (("feedback", "spc-to-fmea.json"), SPCToFMEAFeedbackArtifact),

@@ -132,6 +132,13 @@ _FEEDBACK_PROJECT_ROOT = Path(tempfile.mkdtemp())
 for _subtree in ("fmea", "control-plan", "spc"):
     shutil.copytree(_FIXTURE_PROJECT / _subtree, _FEEDBACK_PROJECT_ROOT / _subtree)
 
+# A fourth throwaway project dir, for the spc_msa_gate_from_project round trip (M3-5,
+# #280): that arrow reads spc/config.json and msa/gage-rr.json and writes
+# spc/msa-gate.json, so it gets its own copy too.
+_GATE_PROJECT_ROOT = Path(tempfile.mkdtemp())
+for _subtree in ("spc", "msa"):
+    shutil.copytree(_FIXTURE_PROJECT / _subtree, _GATE_PROJECT_ROOT / _subtree)
+
 _FMEA_FLAT_ROWS = [
     dict(ID=1, Process_Step="A", Component="C1", Function="F1",
          Failure_Mode="M1", Effect="E1", Severity=9,
@@ -457,6 +464,20 @@ _ROUND_TRIPS: list[tuple[str, dict[str, Any], Any]] = [
                     "lsl": 9.5,
                     "usl": 10.5,
                     "sample_size": 5,
+                }
+            ],
+        },
+    ),
+    (
+        "spc_msa_gate_from_project",
+        {"project_root": str(_GATE_PROJECT_ROOT)},
+        {
+            "schema_version": 1,
+            "rows": [
+                {
+                    "characteristic": "Example Characteristic",
+                    "verdict": "Accept",
+                    "gate_status": "pass",
                 }
             ],
         },
