@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-15T00:00:00Z",
+  "generated_by": "hand-authored ILLUSTRATIVE fixture — NOT derived from SECOM data",
+  "fmea": {
+    "functions": [
+      {
+        "id": "ETCH",
+        "process_step": "Plasma etch",
+        "component": "Etch chamber",
+        "description": "Hold the chamber process parameter inside its operating window",
+        "failure_modes": [
+          {
+            "id": "ETCH-M1",
+            "description": "Chamber parameter drift",
+            "effects": [
+              {
+                "id": "ETCH-M1-E1",
+                "description": "Etch depth out of specification at electrical test",
+                "severity": 7
+              }
+            ],
+            "causes": [
+              {
+                "id": "ETCH-M1-C1",
+                "description": "RF match network drifts between preventive-maintenance intervals",
+                "occurrence": 3
+              }
+            ],
+            "controls": [
+              {
+                "id": "ETCH-M1-CT1",
+                "description": "In-situ chamber sensor, charted per wafer (SECOM signal 220)",
+                "detection": 5
+              }
+            ],
+            "links": [
+              {
+                "row_id": 1,
+                "effect_id": "ETCH-M1-E1",
+                "cause_id": "ETCH-M1-C1",
+                "control_id": "ETCH-M1-CT1",
+                "action": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "CLEAN",
+        "process_step": "Post-etch clean",
+        "component": "Wet bench",
+        "description": "Remove post-etch residue without attacking the underlying film",
+        "failure_modes": [
+          {
+            "id": "CLEAN-M1",
+            "description": "Residue left after clean",
+            "effects": [
+              {
+                "id": "CLEAN-M1-E1",
+                "description": "Defect density rises at the next inspection step",
+                "severity": 5
+              }
+            ],
+            "causes": [
+              {
+                "id": "CLEAN-M1-C1",
+                "description": "Bath chemistry depleted before the scheduled change-out",
+                "occurrence": 4
+              }
+            ],
+            "controls": [
+              {
+                "id": "CLEAN-M1-CT1",
+                "description": "Titration of the bath each shift",
+                "detection": 6
+              }
+            ],
+            "links": [
+              {
+                "row_id": 2,
+                "effect_id": "CLEAN-M1-E1",
+                "cause_id": "CLEAN-M1-C1",
+                "control_id": "CLEAN-M1-CT1",
+                "action": null
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

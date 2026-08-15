@@ -660,6 +660,70 @@ def spc_msa_gate_from_project(project_root: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# The loop orchestrator (M3-6, #281)
+#
+# The one tool that sequences other tools. It lives here for the same reason the four
+# arrows above do: sequencing them means touching both ``controlplan_app`` and
+# ``spc_app``, and ``mcp_app`` is the workspace's one sanctioned cross-app aggregator
+# (#262). It adds no engine math and no fifth arrow — every file it produces is produced
+# by an arrow that already shipped.
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def run_project_loop(project_root: str) -> dict[str, Any]:
+    """Run one full quality loop over a project directory by sequencing the four M3 arrows.
+
+    Order (dependency-derived, **not** the order the loop is usually narrated in — see
+    ``docs/PROJECT_FILE_CONTRACT.md``'s file graph): ``fmea/fmea.json`` →
+    ``control-plan/plan.json`` → ``spc/config.json`` → ``spc/msa-gate.json`` →
+    ``feedback/spc-to-fmea.json`` + candidate ``Action``s back on ``fmea/fmea.json``. The
+    MSA gate cannot run before the Control Plan and SPC config, because it reads
+    ``spc/config.json``; running it *before* the feedback step is a narrative choice
+    (know how far the measurement system can be trusted before consuming its numbers),
+    not a data dependency — the gate and the feedback arrow never read each other's
+    output.
+
+    **Does not produce ``spc/results/*.json``** — no arrow does. Those files come from a
+    prior, separate SPC charting session and are read here as a precondition. With none
+    on disk the feedback step legally no-ops and ``feedback`` comes back ``null``.
+
+    **Known limitation, stated rather than silently fixed:** a characteristic whose
+    ``spc/msa-gate.json`` row says ``block`` still produces feedback, because nothing
+    ties the two arrows together today. Read the gate alongside the feedback rather than
+    assuming the loop filtered on it.
+
+    Returns ``{"control_plan": ..., "spc_config": ..., "msa_gate": ...,
+    "feedback": ... | null}`` — each value is exactly what that arrow's own tool
+    (``controlplan_build_from_project``, ``spc_config_from_project``,
+    ``spc_msa_gate_from_project``, ``spc_fmea_feedback_from_project``) returns on its own,
+    so a caller already parsing one of them needs no new shape.
+
+    Raises a structured tool error at the first arrow missing a required input:
+    ``fmea/fmea.json`` at the Control Plan step, ``control-plan/plan.json`` at the SPC
+    config step, ``spc/config.json`` at the MSA gate step. Files written by earlier,
+    successful steps are left in place — each arrow overwrites only its own file, so a
+    partially-run loop is a resumable state, not a broken one.
+
+    Re-running with unchanged inputs is safe: the feedback arrow rewrites ``fmea.json``
+    only when a candidate ``Action`` actually changes, so a second loop leaves it
+    byte-identical (the other three files are rewritten with a fresh ``generated_at``,
+    same content).
+
+    A worked end-to-end example lives in ``examples/secom-quality-loop/``.
+    """
+    # These four are the ``@app.tool``-registered functions above, called as the plain
+    # functions FastMCP leaves them as — so the return shapes here are the tools' own by
+    # construction, and ``_call``'s error wrapping is applied exactly once, inside each.
+    return {
+        "control_plan": controlplan_build_from_project(project_root),
+        "spc_config": spc_config_from_project(project_root),
+        "msa_gate": spc_msa_gate_from_project(project_root),
+        "feedback": spc_fmea_feedback_from_project(project_root),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Export / report tools (M1-7, #266)
 #
 # Return convention (spec Q1, SME sign-off): every artifact tool returns a

@@ -40,7 +40,14 @@ NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # tokens (GRR/EV/AV/PV/ndc) were added with the msa skill (#273); the leading `\b` keeps
 # `%GRR =` caught (the boundary sits between `%` and `G`), and the match is case-sensitive, so
 # a skill may still write `ndc` prose but not `ndc = 1.41 * PV / GRR`.
-FORMULA_PATTERN = re.compile(r"\b(RPN|AP|Cpk|Cp|Ppk|Pp|GRR|EV|AV|PV|ndc)\s*=")
+#
+# The denylist is per-domain and must grow with each new skill, or the gate is vacuous for
+# that domain: `ooc_rate` / `Occurrence` were added with the project-loop skill (#281), whose
+# smuggleable math is the SPC→FMEA feedback mapping (`ooc_rate = violating / total`, and the
+# rate→rank table behind `Occurrence = ...`). Both live in `spc_app.fmea_feedback`.
+FORMULA_PATTERN = re.compile(
+    r"\b(RPN|AP|Cpk|Cp|Ppk|Pp|GRR|EV|AV|PV|ndc|ooc_rate|Occurrence)\s*="
+)
 
 CODE_SMELLS = ("import numpy", "import pandas", "import scipy", "def compute")
 

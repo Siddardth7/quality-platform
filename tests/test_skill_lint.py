@@ -181,6 +181,36 @@ def test_lint_skill_msa_formula_assignment_fails(tmp_path: pathlib.Path) -> None
     assert any("formula in SKILL.md body" in v for v in violations)
 
 
+def test_lint_skill_loop_feedback_formula_assignment_fails(tmp_path: pathlib.Path) -> None:
+    """The denylist covers the project-loop skill's smuggleable math too (#281).
+
+    Without these tokens the no-compute gate is vacuous for that skill's domain: the
+    SPC→FMEA feedback mapping is the one formula a loop skill could plausibly inline.
+    """
+    text = (
+        "---\nname: example-skill\ndescription: valid.\n---\n\n"
+        "ooc_rate = violating_points / total_points\n"
+    )
+    skill = _write_skill(tmp_path / "example-skill", text=text)
+    violations = lint_skill(skill)
+    assert any("formula in SKILL.md body" in v for v in violations)
+
+
+def test_lint_skill_loop_occurrence_formula_assignment_fails(tmp_path: pathlib.Path) -> None:
+    """The other project-loop token, ``Occurrence``, is load-bearing too (#281).
+
+    Both tokens were added together; without this case the ``Occurrence`` half of the
+    denylist is untested — removing it from FORMULA_PATTERN would leave the suite green.
+    """
+    text = (
+        "---\nname: example-skill\ndescription: valid.\n---\n\n"
+        "Occurrence = rate_to_rank(ooc)\n"
+    )
+    skill = _write_skill(tmp_path / "example-skill", text=text)
+    violations = lint_skill(skill)
+    assert any("formula in SKILL.md body" in v for v in violations)
+
+
 def test_lint_skill_prose_mention_passes(tmp_path: pathlib.Path) -> None:
     """A bare prose mention of a metric name must NOT false-positive."""
     text = (

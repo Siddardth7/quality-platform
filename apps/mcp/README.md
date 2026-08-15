@@ -22,6 +22,15 @@ stdio. Two meta tools describe the server process itself — `health` and
   `<project_root>/spc/results/*.json` (joined to FMEA causes through
   `control-plan/plan.json`), write `<project_root>/feedback/spc-to-fmea.json` and the
   candidate `Action` on `fmea/fmea.json`; returns `null` when nothing is out of control.
+- `spc_msa_gate_from_project(project_root)` — the MSA → SPC gate arrow (#280): read
+  `<project_root>/spc/config.json` and `msa/gage-rr.json` (optional), write
+  `<project_root>/spc/msa-gate.json` — one `pass`/`warn`/`block` row per monitored
+  characteristic. Always written, even with zero rows.
+- `run_project_loop(project_root)` — the loop orchestrator (#281): call the four arrows
+  above in dependency order (Control Plan → SPC config → MSA gate → SPC feedback) against
+  one project directory and return all four results. The one cross-domain tool, hence no
+  `<domain>_` prefix. It does **not** produce `spc/results/*.json` — no arrow does; that is
+  a precondition read off disk. Worked example: `examples/secom-quality-loop/`.
 
 **Export/report tools (#266)** — every one returns a FastMCP `File`/`Image` (no base64 hand-rolling), and every CSV/Excel path routes through the formula-injection sanitizer in `quality_core.io.export` (a cell starting with `= + - @` can never execute):
 
