@@ -62,6 +62,7 @@ from mcp_app.server import (
     spc_freeze_xbar_r,
     spc_freeze_xbar_s,
     spc_imr,
+    spc_msa_gate_from_project,
     spc_normality_test,
     spc_p,
     spc_u,
@@ -144,6 +145,7 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_assess_stability",
         "spc_config_from_project",
         "spc_fmea_feedback_from_project",
+        "spc_msa_gate_from_project",
         "msa_gage_rr",
         "controlplan_build",
         "controlplan_build_from_project",
@@ -1214,6 +1216,56 @@ def test_spc_config_from_project_missing_plan_raises_toolerror(tmp_path: Path):
     with pytest.raises(ToolError):
         spc_config_from_project(str(tmp_path))
     assert not (tmp_path / "spc" / "config.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# spc_msa_gate_from_project — MSA → SPC gate arrow (M3-5, #280)
+# ---------------------------------------------------------------------------
+
+
+def _copy_gate_project(tmp_path: Path, *, with_gage: bool = True) -> Path:
+    import shutil
+
+    (tmp_path / "spc").mkdir()
+    shutil.copy(_FIXTURE_PROJECT / "spc" / "config.json", tmp_path / "spc" / "config.json")
+    if with_gage:
+        shutil.copytree(_FIXTURE_PROJECT / "msa", tmp_path / "msa")
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    "verdict,gate_status",
+    [("Accept", "pass"), ("Marginal", "warn"), ("Reject", "block")],
+)
+def test_spc_msa_gate_from_project_maps_each_verdict(tmp_path: Path, verdict: str, gate_status: str):
+    """Accuracy, not just coverage: the gate value itself, end to end through the tool."""
+    import json
+
+    root = _copy_gate_project(tmp_path)
+    gage_path = root / "msa" / "gage-rr.json"
+    payload = json.loads(gage_path.read_text())
+    payload["verdict"] = verdict
+    gage_path.write_text(json.dumps(payload))
+
+    result = spc_msa_gate_from_project(str(root))
+
+    assert (root / "spc" / "msa-gate.json").exists()
+    assert result["schema_version"] == 1
+    assert result["generated_by"].startswith("spc_app==")
+    assert [r["characteristic"] for r in result["rows"]] == ["Example Characteristic"]
+    assert (result["rows"][0]["verdict"], result["rows"][0]["gate_status"]) == (verdict, gate_status)
+
+
+def test_spc_msa_gate_from_project_warns_when_no_study_on_file(tmp_path: Path):
+    root = _copy_gate_project(tmp_path, with_gage=False)
+    row = spc_msa_gate_from_project(str(root))["rows"][0]
+    assert (row["verdict"], row["gate_status"]) == (None, "warn")
+
+
+def test_spc_msa_gate_from_project_missing_config_raises_toolerror(tmp_path: Path):
+    with pytest.raises(ToolError):
+        spc_msa_gate_from_project(str(tmp_path))
+    assert not (tmp_path / "spc" / "msa-gate.json").exists()
 
 
 # ---------------------------------------------------------------------------

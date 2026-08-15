@@ -244,6 +244,7 @@ load_table_from_path
 SCHEMA_VERSION
 ArtifactEnvelope
 ToleranceSource
+GateStatus
 ProjectCharacteristic
 ProjectMeta
 FMEAArtifact
@@ -257,6 +258,8 @@ NormalityPayload
 CapabilityPayload
 SPCConfigRow
 SPCConfigArtifact
+SPCMSAGateRow
+SPCMSAGateArtifact
 SPCResultArtifact
 MSAGageRRArtifact
 SPCToFMEAFeedbackRow
@@ -265,6 +268,7 @@ PROJECT_YAML
 FMEA_JSON
 CONTROL_PLAN_JSON
 SPC_CONFIG_JSON
+MSA_GATE_JSON
 SPC_RESULTS_DIR
 GAGE_RR_JSON
 FEEDBACK_JSON
@@ -286,6 +290,7 @@ write_project_meta
 | `SCHEMA_VERSION` | constant | Current version of every project file shape; a file declaring another is rejected. | `packages/quality-core/src/quality_core/project/schema.py:52` |
 | `ArtifactEnvelope` | class (model) | Header every artifact shares: `schema_version` / `generated_at` / `generated_by`. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `ToleranceSource` | constant (Literal alias) | Where a characteristic's tolerance came from: `fmea` / `control_plan` / `manual`. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `GateStatus` | constant (Literal alias) | How far an SPC result may be trusted given its measurement system: `pass` / `warn` / `block`. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `ProjectCharacteristic` | class (model) | One monitored characteristic: unit, tolerance, provenance. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `ProjectMeta` | class (model) | `project.yaml` — project identity + characteristic registry. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `FMEAArtifact` | class (model) | `fmea/fmea.json` — a `RelationalFMEA` under the shared envelope. | `packages/quality-core/src/quality_core/project/schema.py` |
@@ -299,11 +304,13 @@ write_project_meta
 | `CapabilityPayload` | class (model) | Capability result; mirrors `spc_app.exporter.CapabilityReport`. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `SPCConfigRow` | class (model) | One SPC monitoring selection; mirrors `spc_app.control_plan_config.SPCViewConfig`. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `SPCConfigArtifact` | class (model) | `spc/config.json` — which characteristics SPC watches and with which chart, unique by characteristic. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SPCMSAGateRow` | class (model) | One characteristic's measurement-system gate: Gage R&R verdict, `gate_status`, reason. | `packages/quality-core/src/quality_core/project/schema.py` |
+| `SPCMSAGateArtifact` | class (model) | `spc/msa-gate.json` — one gate row per monitored characteristic, unique by characteristic. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `SPCResultArtifact` | class (model) | `spc/results/<characteristic>.json` — one file per characteristic, control-chart *or* capability. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `MSAGageRRArtifact` | class (model) | `msa/gage-rr.json`; mirrors `compute_gage_rr`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `SPCToFMEAFeedbackRow` | class (model) | One out-of-control characteristic's feedback; mirrors `build_occurrence_feedback`'s return dict. | `packages/quality-core/src/quality_core/project/schema.py` |
 | `SPCToFMEAFeedbackArtifact` | class (model) | `feedback/spc-to-fmea.json` — one row per out-of-control characteristic, unique by characteristic. | `packages/quality-core/src/quality_core/project/schema.py` |
-| `PROJECT_YAML`, `FMEA_JSON`, `CONTROL_PLAN_JSON`, `SPC_CONFIG_JSON`, `SPC_RESULTS_DIR`, `GAGE_RR_JSON`, `FEEDBACK_JSON` | constants | The relative file graph, one constant per node. | `packages/quality-core/src/quality_core/project/io.py` |
+| `PROJECT_YAML`, `FMEA_JSON`, `CONTROL_PLAN_JSON`, `SPC_CONFIG_JSON`, `MSA_GATE_JSON`, `SPC_RESULTS_DIR`, `GAGE_RR_JSON`, `FEEDBACK_JSON` | constants | The relative file graph, one constant per node. | `packages/quality-core/src/quality_core/project/io.py` |
 | `ProjectError` | exception | User-facing project-file failure; subclass of `IngestError`. | `packages/quality-core/src/quality_core/project/io.py` |
 | `ProjectPaths` | dataclass | Canonical paths inside one project directory. | `packages/quality-core/src/quality_core/project/io.py` |
 | `discover_project` | function | Build `ProjectPaths` for a root (pure path arithmetic; no filesystem access). | `packages/quality-core/src/quality_core/project/io.py` |

@@ -39,6 +39,7 @@ uv run pytest apps/spc \
   --cov=spc_app.exporter --cov=spc_app.schema --cov=spc_app.control_plan_config \
   --cov=spc_app.fmea_feedback --cov=spc_app.project_arrow \
   --cov=spc_app.fmea_feedback_arrow \
+  --cov=spc_app.msa_gate --cov=spc_app.msa_gate_arrow \
   --cov-fail-under=100
 ```
 
@@ -99,6 +100,11 @@ spc_app/project_arrow.py        Control Plan -> SPC project-file arrow: control-
 spc_app/fmea_feedback_arrow.py  SPC -> FMEA project-file arrow: spc/results/*.json ->
                                 feedback/spc-to-fmea.json + candidate Action(o_after=...) on
                                 fmea/fmea.json, glue over fmea_feedback (M3-4, #279)
+spc_app/msa_gate.py             Gage R&R verdict -> SPC trust gate: Accept/Marginal/Reject
+                                -> pass/warn/block, no study on file -> warn (M3-5, #280)
+spc_app/msa_gate_arrow.py       MSA -> SPC gate project-file arrow: spc/config.json +
+                                msa/gage-rr.json -> spc/msa-gate.json, glue over
+                                msa_gate (M3-5, #280)
 ```
 
 **Data flow (Control Charts):** demo CSV / upload → filter by `stream` → `subgroup_rows`

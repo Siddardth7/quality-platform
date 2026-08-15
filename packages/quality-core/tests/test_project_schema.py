@@ -29,6 +29,7 @@ from quality_core.project.schema import (
     ProjectMeta,
     SPCConfigArtifact,
     SPCConfigRow,
+    SPCMSAGateArtifact,
     SPCResultArtifact,
     SPCToFMEAFeedbackArtifact,
 )
@@ -448,8 +449,22 @@ def test_normality_payload_valid() -> None:
 
 def test_msa_artifact_valid() -> None:
     art = MSAGageRRArtifact.model_validate(_load_json("msa", "gage-rr.json"))
-    assert art.verdict == "Acceptable"
+    # One of the three strings msa_app.gage_rr_engine actually emits — the fixture said
+    # "Acceptable" until #280, which no gate band would ever have matched.
+    assert art.verdict == "Accept"
     assert art.pev_tolerance == 12.4
+
+
+def test_msa_artifact_characteristic_defaults_to_project_wide() -> None:
+    """`None` means "the project's one measurement-system record" (#280)."""
+    data = _load_json("msa", "gage-rr.json")
+    assert MSAGageRRArtifact.model_validate(data).characteristic is None
+    del data["characteristic"]
+    assert MSAGageRRArtifact.model_validate(data).characteristic is None
+    assert (
+        MSAGageRRArtifact.model_validate({**data, "characteristic": "Bore"}).characteristic
+        == "Bore"
+    )
 
 
 def test_msa_artifact_tolerance_and_interaction_optional() -> None:
@@ -514,3 +529,39 @@ def test_feedback_artifact_rejects_duplicate_characteristics() -> None:
 def test_feedback_artifact_accepts_empty_rows() -> None:
     data = {**_load_json("feedback", "spc-to-fmea.json"), "rows": []}
     assert SPCToFMEAFeedbackArtifact.model_validate(data).rows == []
+
+
+# ---------------------------------------------------------------------------
+# SPCMSAGateArtifact (M3-5, #280)
+# ---------------------------------------------------------------------------
+
+
+def test_msa_gate_artifact_valid() -> None:
+    art = SPCMSAGateArtifact.model_validate(_load_json("spc", "msa-gate.json"))
+    assert [(row.verdict, row.gate_status) for row in art.rows] == [("Accept", "pass")]
+
+
+def test_msa_gate_artifact_allows_empty_rows() -> None:
+    """Zero monitored characteristics is a stable state, not an error (#280)."""
+    data = {**_load_json("spc", "msa-gate.json"), "rows": []}
+    assert SPCMSAGateArtifact.model_validate(data).rows == []
+
+
+def test_msa_gate_row_verdict_optional() -> None:
+    data = _load_json("spc", "msa-gate.json")
+    data["rows"][0]["verdict"] = None
+    assert SPCMSAGateArtifact.model_validate(data).rows[0].verdict is None
+
+
+def test_msa_gate_artifact_rejects_unknown_gate_status() -> None:
+    data = _load_json("spc", "msa-gate.json")
+    data["rows"][0]["gate_status"] = "maybe"
+    with pytest.raises(pydantic.ValidationError):
+        SPCMSAGateArtifact.model_validate(data)
+
+
+def test_msa_gate_artifact_rejects_duplicate_characteristics() -> None:
+    data = _load_json("spc", "msa-gate.json")
+    data["rows"] = [data["rows"][0], dict(data["rows"][0])]
+    with pytest.raises(pydantic.ValidationError, match="duplicate characteristic rows"):
+        SPCMSAGateArtifact.model_validate(data)

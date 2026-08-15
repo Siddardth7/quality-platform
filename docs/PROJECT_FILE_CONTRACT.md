@@ -1,7 +1,7 @@
 # The project file contract (M3)
 
 What a Quality Platform **project** looks like on disk: one directory, one hand-edited
-metadata file, six tool-written artifact files. Every M3 arrow (#277+) reads and writes
+metadata file, seven tool-written artifact files. Every M3 arrow (#277+) reads and writes
 through this contract, so the shape is defined once, here and in
 [`quality_core.project`](../packages/quality-core/src/quality_core/project/), rather than
 being re-invented per arrow.
@@ -30,6 +30,7 @@ graph TD
     G["spc/config.json<br/><i>SPCConfigArtifact</i> — what SPC watches, and with which chart"]
     S["spc/results/&lt;characteristic&gt;.json<br/><i>SPCResultArtifact</i> (one per characteristic)"]
     M["msa/gage-rr.json<br/><i>MSAGageRRArtifact</i>"]
+    K["spc/msa-gate.json<br/><i>SPCMSAGateArtifact</i> — how far each SPC result may be trusted"]
     B["feedback/spc-to-fmea.json<br/><i>SPCToFMEAFeedbackArtifact</i>"]
 
     Y --- F
@@ -37,6 +38,7 @@ graph TD
     Y --- G
     Y --- S
     Y --- M
+    Y --- K
     Y --- B
 
     F -->|"FMEA → Control Plan connector"| C
@@ -44,7 +46,9 @@ graph TD
     G -->|"monitoring selection, one chart run per characteristic"| S
     S -->|"out-of-control signal → candidate Occurrence"| B
     B -.->|"reviewed, then applied by hand"| F
-    M -.->|"measurement system verdict qualifies"| S
+    G -->|"one gate row per monitored characteristic"| K
+    M -->|"measurement system verdict"| K
+    K -.->|"pass / warn / block qualifies"| S
 ```
 
 Solid arrows are tool-generated data flows; the dashed arrows are advisory — a feedback
@@ -59,6 +63,7 @@ artifact is a *candidate* for engineering review, never an applied change.
 │   └── plan.json                 # ControlPlanArtifact
 ├── spc/
 │   ├── config.json               # SPCConfigArtifact — the monitoring selection
+│   ├── msa-gate.json             # SPCMSAGateArtifact — MSA trust gate per characteristic
 │   └── results/
 │       └── <characteristic>.json # SPCResultArtifact, one per characteristic
 ├── msa/
@@ -96,7 +101,7 @@ one rule (`usl > lsl`, `lsl <= target <= usl`).
 | | |
 |---|---|
 | Written by | the FMEA app / MCP FMEA tools (M3-2) |
-| Read by | the FMEA → Control Plan connector (M3-2); the feedback arrow's review step (M3-5) |
+| Read by | the FMEA → Control Plan connector (M3-2); the feedback arrow's review step (M3-4) |
 
 ### `control-plan/plan.json` — `ControlPlanArtifact`
 
@@ -139,7 +144,7 @@ exactly the matching payload is present:
 | | |
 |---|---|
 | Written by | the SPC arrow (M3-3) — a re-run overwrites that characteristic's file |
-| Read by | the SPC → FMEA feedback arrow (M3-5); reporting/export (M3-6) |
+| Read by | the SPC → FMEA feedback arrow (M3-4); reporting/export (M3-6) |
 
 ### `msa/gage-rr.json` — `MSAGageRRArtifact`
 
@@ -149,8 +154,26 @@ interaction terms (`None` under the Average-and-Range method).
 
 | | |
 |---|---|
-| Written by | the MSA arrow (M3-4) |
-| Read by | reporting (M3-6); a caller qualifying an SPC result's measurement system |
+| Written by | not yet automated — no M3 issue writes it (see #280); today hand-authored, or from the `msa_gage_rr` MCP tool's output |
+| Read by | the MSA → SPC gate arrow, `spc_app.msa_gate_arrow.build_msa_gate_file` (M3-5); reporting (M3-6) |
+
+### `spc/msa-gate.json` — `SPCMSAGateArtifact`
+
+`{envelope, rows: [...]}`, one row per `spc/config.json` characteristic: the Gage R&R
+`verdict` it was gated on (null when no study on file covers it) plus a `gate_status` of
+`pass` (`Accept`), `warn` (`Marginal`, or no study — unknown is never an accept) or `block`
+(`Reject`, trust withheld) and the `reason` prose. An annotation *of* the monitoring
+selection, which is why it lives under `spc/` rather than `msa/`. `block` changes no SPC
+math and deletes nothing — it is a recorded status a caller (MCP tool, UI, report) reads
+before presenting a result as trustworthy. Always written, even with zero rows. Rows are
+unique by characteristic; the join to `spc/config.json` and to the gage study is **exact
+string match**, and a study with `characteristic: null` gates every configured
+characteristic identically.
+
+| | |
+|---|---|
+| Written by | the MSA → SPC gate arrow, `spc_app.msa_gate_arrow.build_msa_gate_file` (M3-5) |
+| Read by | a caller deciding how far to trust an SPC result; reporting (M3-6) |
 
 ### `feedback/spc-to-fmea.json` — `SPCToFMEAFeedbackArtifact`
 

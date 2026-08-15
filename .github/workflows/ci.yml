@@ -139,8 +139,9 @@ jobs:
       # left unimported fails here — simulation logic, figure builders, report
       # exporter, the Control Plan→SPC project-file arrow over
       # control_plan_config (M3-3, #278) and the SPC→FMEA feedback arrow over
-      # fmea_feedback (M3-4, #279)) must stay highly covered so it can't
-      # regress silently. The Streamlit `pages/` are excluded — they need a
+      # fmea_feedback (M3-4, #279), and the MSA→SPC gate engine and its arrow
+      # (M3-5, #280)) must stay highly covered so it can't regress
+      # silently. The Streamlit `pages/` are excluded — they need a
       # runtime to exercise — mirroring how the FMEA bar covers fmea_app/ but not
       # its entry scripts.
       - name: SPC coverage gate
@@ -155,6 +156,8 @@ jobs:
           --cov=spc_app.fmea_feedback
           --cov=spc_app.project_arrow
           --cov=spc_app.fmea_feedback_arrow
+          --cov=spc_app.msa_gate
+          --cov=spc_app.msa_gate_arrow
           --cov-report=term-missing
           --cov-fail-under=100
 

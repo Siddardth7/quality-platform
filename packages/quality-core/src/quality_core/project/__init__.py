@@ -1,8 +1,8 @@
 """The M3 project-file contract: what a Quality Platform project looks like on disk.
 
-`schema` holds the pydantic models for `project.yaml` and the five artifact files
-(FMEA, Control Plan, SPC result, Gage R&R, SPC->FMEA feedback), each under one
-shared `ArtifactEnvelope` (`schema_version` / `generated_at` / `generated_by`).
+`schema` holds the pydantic models for `project.yaml` and the artifact files
+(FMEA, Control Plan, SPC config, SPC result, Gage R&R, MSA->SPC gate, SPC->FMEA
+feedback), each under one shared `ArtifactEnvelope` (`schema_version` / `generated_at` / `generated_by`).
 `io` holds the file graph (`ProjectPaths` / `discover_project`) and the generic
 load/write pair every M3 arrow issue (#277+) routes through.
 
@@ -17,6 +17,7 @@ from quality_core.project.io import (
     FEEDBACK_JSON,
     FMEA_JSON,
     GAGE_RR_JSON,
+    MSA_GATE_JSON,
     PROJECT_YAML,
     SPC_CONFIG_JSON,
     SPC_RESULTS_DIR,
@@ -41,6 +42,7 @@ from quality_core.project.schema import (
     ControlPlanArtifact,
     ControlPlanArtifactRow,
     FMEAArtifact,
+    GateStatus,
     MSAGageRRArtifact,
     NormalityPayload,
     ProjectCharacteristic,
@@ -48,6 +50,8 @@ from quality_core.project.schema import (
     SecondarySeries,
     SPCConfigArtifact,
     SPCConfigRow,
+    SPCMSAGateArtifact,
+    SPCMSAGateRow,
     SPCResultArtifact,
     SPCToFMEAFeedbackArtifact,
     SPCToFMEAFeedbackRow,
@@ -59,6 +63,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "ArtifactEnvelope",
     "ToleranceSource",
+    "GateStatus",
     "ProjectCharacteristic",
     "ProjectMeta",
     "FMEAArtifact",
@@ -72,6 +77,8 @@ __all__ = [
     "CapabilityPayload",
     "SPCConfigRow",
     "SPCConfigArtifact",
+    "SPCMSAGateRow",
+    "SPCMSAGateArtifact",
     "SPCResultArtifact",
     "MSAGageRRArtifact",
     "SPCToFMEAFeedbackRow",
@@ -81,6 +88,7 @@ __all__ = [
     "FMEA_JSON",
     "CONTROL_PLAN_JSON",
     "SPC_CONFIG_JSON",
+    "MSA_GATE_JSON",
     "SPC_RESULTS_DIR",
     "GAGE_RR_JSON",
     "FEEDBACK_JSON",

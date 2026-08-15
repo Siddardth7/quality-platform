@@ -91,6 +91,7 @@ from spc_app.exporter import (
     build_control_chart_report_pdf,
 )
 from spc_app.fmea_feedback_arrow import build_feedback_file
+from spc_app.msa_gate_arrow import build_msa_gate_file
 from spc_app.project_arrow import build_spc_config_file
 
 app = FastMCP("quality-platform")
@@ -636,6 +637,26 @@ def spc_fmea_feedback_from_project(project_root: str) -> dict[str, Any] | None:
     """
     artifact = _call(build_feedback_file, project_root)
     return cast("dict[str, Any]", artifact.model_dump(mode="json")) if artifact else None
+
+
+@app.tool
+def spc_msa_gate_from_project(project_root: str) -> dict[str, Any]:
+    """Gate a project's SPC monitoring on its Gage R&R verdict and write
+    ``spc/msa-gate.json``.
+
+    The MSA → SPC arrow (M3-5, #280): every ``spc/config.json`` characteristic gets one
+    row saying how far its SPC result may be trusted given ``msa/gage-rr.json`` —
+    ``pass`` (verdict ``Accept``), ``warn`` (``Marginal``, or no study on file: unknown
+    is never an accept) or ``block`` (``Reject`` — trust withheld until the measurement
+    system is improved). ``block`` changes no SPC math and deletes nothing; it is a
+    recorded status for a caller to act on. Always returns the written artifact
+    (envelope plus ``rows``), including with zero rows when nothing is configured to
+    monitor. Raises a structured tool error if ``spc/config.json`` is missing or
+    malformed, or if ``msa/gage-rr.json`` is malformed or carries an unrecognised
+    verdict.
+    """
+    artifact = _call(build_msa_gate_file, project_root)
+    return cast("dict[str, Any]", artifact.model_dump(mode="json"))
 
 
 # ---------------------------------------------------------------------------

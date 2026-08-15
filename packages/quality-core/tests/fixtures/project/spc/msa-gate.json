@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T12:00:00Z",
+  "generated_by": "spc_app==0.14.0",
+  "rows": [
+    {
+      "characteristic": "Example Characteristic",
+      "verdict": "Accept",
+      "gate_status": "pass",
+      "reason": "Gage R&R accepted the measurement system — SPC results for this characteristic can be trusted."
+    }
+  ]
+}
