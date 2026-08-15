@@ -43,7 +43,7 @@ graph TD
 
     F -->|"FMEA → Control Plan connector"| C
     C -->|"characteristic + chart + tolerance"| G
-    G -->|"monitoring selection, one chart run per characteristic"| S
+    G -.->|"monitoring selection — the chart run itself is not automated"| S
     S -->|"out-of-control signal → candidate Occurrence"| B
     B -.->|"reviewed, then applied by hand"| F
     G -->|"one gate row per monitored characteristic"| K
@@ -51,8 +51,11 @@ graph TD
     K -.->|"pass / warn / block qualifies"| S
 ```
 
-Solid arrows are tool-generated data flows; the dashed arrows are advisory — a feedback
-artifact is a *candidate* for engineering review, never an applied change.
+Solid arrows are tool-generated data flows; the dashed arrows are not. Two of them are
+advisory — a feedback artifact is a *candidate* for engineering review, never an applied
+change, and the MSA gate qualifies an SPC result without altering it. The third
+(`spc/config.json` ⇢ `spc/results/`) is simply not automated: running a chart against live
+process data is nobody's arrow.
 
 ```
 <project-root>/
@@ -74,6 +77,14 @@ artifact is a *candidate* for engineering review, never an applied change.
 
 A fixture project holding one valid instance of every file lives at
 [`packages/quality-core/tests/fixtures/project/`](../packages/quality-core/tests/fixtures/project/).
+A *loop-coherent* project — five inputs that actually agree end to end, plus the narrative —
+lives at [`examples/secom-quality-loop/`](../examples/secom-quality-loop/).
+
+**Sequencing entry point.** The arrows above can be called individually, or all of them in
+dependency order by the `run_project_loop` MCP tool (M3-6, #281) — see
+[`skills/project-loop/SKILL.md`](../skills/project-loop/SKILL.md). Note that
+`spc/results/<characteristic>.json` is the one file in this graph that **no arrow writes**:
+it is the trace of a prior SPC charting session, and the loop reads it as a precondition.
 
 ## One section per file
 
@@ -143,8 +154,8 @@ exactly the matching payload is present:
 
 | | |
 |---|---|
-| Written by | the SPC arrow (M3-3) — a re-run overwrites that characteristic's file |
-| Read by | the SPC → FMEA feedback arrow (M3-4); reporting/export (M3-6) |
+| Written by | an SPC charting session — **no M3 arrow writes this file** (M3-3 writes `spc/config.json`, the pre-run selection). A re-run overwrites that characteristic's file. |
+| Read by | the SPC → FMEA feedback arrow (M3-4); the loop orchestrator reads it as a precondition (M3-6) |
 
 ### `msa/gage-rr.json` — `MSAGageRRArtifact`
 

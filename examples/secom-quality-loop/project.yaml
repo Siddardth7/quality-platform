@@ -1,0 +1,25 @@
+# HYBRID EXAMPLE — read README.md before reusing anything here.
+# Only spc/results/*.json is real SECOM data. fmea/fmea.json, msa/gage-rr.json and
+# this file are hand-authored ILLUSTRATIVE fixtures, NOT derived from SECOM.
+#
+# No tolerance is declared for either characteristic: SECOM ships no USL/LSL
+# (apps/secom/docs/ASSUMPTIONS_LOG.md, the #65 red line), and inventing one would be
+# exactly the fabrication this example refuses. tolerance_source is therefore
+# "manual" with every limit null — a human would have to supply them.
+schema_version: 1
+project_id: secom-quality-loop
+name: SECOM quality loop (worked example)
+created_at: '2026-08-15T00:00:00Z'
+characteristics:
+- name: Etch chamber — Chamber parameter drift
+  unit: null
+  lsl: null
+  usl: null
+  target: null
+  tolerance_source: manual
+- name: Wet bench — Residue left after clean
+  unit: null
+  lsl: null
+  usl: null
+  target: null
+  tolerance_source: manual

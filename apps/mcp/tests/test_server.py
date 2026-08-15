@@ -146,6 +146,9 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_config_from_project",
         "spc_fmea_feedback_from_project",
         "spc_msa_gate_from_project",
+        # The one cross-domain tool (M3-6, #281): it sequences the four project-file
+        # arrows, so it belongs to no single `<domain>_` namespace and carries none.
+        "run_project_loop",
         "msa_gage_rr",
         "controlplan_build",
         "controlplan_build_from_project",

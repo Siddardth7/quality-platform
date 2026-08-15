@@ -139,6 +139,16 @@ _GATE_PROJECT_ROOT = Path(tempfile.mkdtemp())
 for _subtree in ("spc", "msa"):
     shutil.copytree(_FIXTURE_PROJECT / _subtree, _GATE_PROJECT_ROOT / _subtree)
 
+# A fifth throwaway project dir, for the run_project_loop round trip (M3-6, #281). It uses
+# the committed worked example rather than the shape fixture above: the loop re-derives
+# control-plan/plan.json from fmea/fmea.json, and only the example's five input files agree
+# end to end (see apps/mcp/tests/test_project_loop.py's note). Inputs only — the loop has to
+# produce the rest itself.
+_LOOP_PROJECT_ROOT = Path(tempfile.mkdtemp())
+_EXAMPLE_PROJECT = Path(__file__).resolve().parents[3] / "examples" / "secom-quality-loop"
+for _subtree in ("fmea", "msa", "spc"):
+    shutil.copytree(_EXAMPLE_PROJECT / _subtree, _LOOP_PROJECT_ROOT / _subtree)
+
 _FMEA_FLAT_ROWS = [
     dict(ID=1, Process_Step="A", Component="C1", Function="F1",
          Failure_Mode="M1", Effect="E1", Severity=9,
@@ -497,6 +507,42 @@ _ROUND_TRIPS: list[tuple[str, dict[str, Any], Any]] = [
                     "suggested_occurrence": 9,
                 }
             ],
+        },
+    ),
+    (
+        "run_project_loop",
+        {"project_root": str(_LOOP_PROJECT_ROOT)},
+        {
+            "control_plan": {
+                "rows": [
+                    {"characteristic": "Etch chamber — Chamber parameter drift"},
+                    {"characteristic": "Wet bench — Residue left after clean"},
+                ]
+            },
+            "spc_config": {
+                "rows": [
+                    {"characteristic": "Etch chamber — Chamber parameter drift"},
+                    {"characteristic": "Wet bench — Residue left after clean"},
+                ]
+            },
+            "msa_gate": {
+                "rows": [
+                    {"verdict": "Accept", "gate_status": "pass"},
+                    {"verdict": None, "gate_status": "warn"},
+                ]
+            },
+            "feedback": {
+                "rows": [
+                    {
+                        "characteristic": "Etch chamber — Chamber parameter drift",
+                        "stream": "sensor_220",
+                        "ooc": True,
+                        "source_cause_id": "ETCH::ETCH-M1::ETCH-M1-C1",
+                        "current_occurrence": 3,
+                        "suggested_occurrence": 7,
+                    }
+                ]
+            },
         },
     ),
 ]
