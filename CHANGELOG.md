@@ -8,6 +8,26 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Chunking, embedding and vector store (#284, M4-3).** The retrieval half of the Quality
+  Knowledge Base, on top of M4-2's ingested corpus. `quality_database_app/chunk.py` turns
+  corpus records into retrievable `Chunk`s — **one record is one chunk by default**, since
+  M4-2 already split the sources on Markdown heading boundaries; only a record longer than
+  `MAX_CHARS` (3000) splits, on paragraph boundaries first, with a hard `OVERLAP_CHARS` (200)
+  window as the last resort for a single over-long paragraph. Every chunk carries its record's
+  `standard` / `clause` / `page` / `serving_flag` / `license_class` verbatim, so every hit is
+  citable and the licensing context never gets lost in the index. `embed.py` defines the
+  `Embedder` protocol and a deterministic offline `FakeEmbedder` — **the only embedder CI
+  runs**; a real local model (`fastembed`/ONNX) sits behind the optional `embed` dependency
+  group in `embed_fastembed.py`, excluded from the coverage gate, and real embedding is a
+  hand-run. `store.py` is a file-backed `VectorStore` (`vectors.npy` + `metadata.json`,
+  brute-force cosine scan) — no server, no ANN index, and `numpy` (already a `quality-core`
+  dependency) as the only addition. `search()` filters on `standard` / `source_id` / `region`
+  and **excludes `never-ship` chunks by default**: the flag stays in the data so the gap is
+  auditable, while the query layer is safe by default. `index.py` wires corpus file -> chunks
+  -> vectors -> saved index, with no default embedder so a real run can never silently produce
+  a fake index. Re-indexing unchanged inputs is byte-identical, and the four new modules join
+  the Quality Database CI gate at 100% line + branch.
+
 - **Corpus sourcing + licensing ledger (#282, M4-1).** The foundation of M4 (Quality Knowledge
   Base): every source the RAG may draw on is enumerated once, with its licensing class and an
   explicit rule for what a generated answer may do with it. `docs/CORPUS_LEDGER.md` is the

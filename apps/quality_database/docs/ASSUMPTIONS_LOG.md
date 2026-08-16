@@ -1,5 +1,6 @@
 # Engineering Assumptions Log
-**Project:** Quality Database — Corpus Ingestion + Cleaning Pipeline (M4-2, #283)
+**Project:** Quality Database — Corpus Ingestion + Cleaning (M4-2, #283) and Chunking +
+Embedding + Vector Store (M4-3, #284)
 **Last Updated:** August 15, 2026
 
 **No AIAG/ISO constant, threshold, or quotation is introduced by this app.** It moves
@@ -165,3 +166,88 @@ emit an empty or garbage record. Skipping loudly keeps the gap visible.
 
 **Applied In:** `quality_database_app/ledger.py` -> `skip_reason()`,
 `quality_database_app/pipeline.py` -> `run()`
+
+---
+
+## RULE 9 — Chunk = one record; `MAX_CHARS` / `OVERLAP_CHARS` are tunable defaults (#284)
+
+**Decision:** The default retrieval chunk is **one M4-2 `CorpusRecord`, unchanged**. A
+record is split only when its text exceeds `MAX_CHARS = 3000`: paragraphs (blank-line
+delimited) are packed greedily up to that limit first, and only a single paragraph that
+is itself over the limit falls back to a hard character window with
+`OVERLAP_CHARS = 200` shared between adjacent windows. A trailing window that would sit
+entirely inside its predecessor is dropped rather than emitted as a duplicate.
+
+**Source:** Engineering assumption, not a standard. `3000` characters is ~750 tokens at
+the ~4-characters-per-token rule of thumb — comfortably inside any current embedding
+model's context while keeping a chunk small enough to cite. `200` is enough shared text
+that a citation cut mid-thought has a neighbouring chunk that disambiguates it. Neither
+number is measured against this corpus yet.
+
+**Rationale:** `segment.py` (RULE 5) already split on Markdown heading boundaries, so a
+record is already clause-scoped and carries its page — re-splitting it by a blind fixed
+size would throw that structure away for no gain. Ceiling: both constants are named at
+their definition site as tunable and are to be re-tuned against M4-4's (#285) eval set;
+the fallback window is explicitly the last resort, not the default strategy.
+
+**Applied In:** `quality_database_app/chunk.py` -> `MAX_CHARS`, `OVERLAP_CHARS`,
+`split_text()`, `_windows()`
+
+---
+
+## RULE 10 — The embedder is abstracted; CI never runs a real model (SME-locked, #284)
+
+**Decision:** `chunk.py` / `index.py` / `store.py` depend only on the `Embedder`
+protocol. `FakeEmbedder` — a deterministic sha256-derived unit vector, 32 dimensions,
+offline — is the **only** embedder the CI path exercises. A real local model
+(`fastembed`, ONNX) lives in `embed_fastembed.py` behind the optional `embed`
+dependency group and is excluded from the coverage gate.
+
+**Source:** SME decision, 2026-08-15 (#284). CI has no network and no model cache, the
+same constraint that keeps the licensed corpus itself off CI (RULE 8).
+
+**Rationale:** Hash vectors carry no semantic similarity, so these tests assert the
+plumbing — metadata survives, filters apply, results are ordered and deterministic —
+never retrieval quality, which is M4-4's eval harness. Real embedding is a hand-run.
+Ceiling: swapping the real backend must never touch `chunk.py`/`index.py`/`store.py`;
+if it does, the seam has been broken.
+
+**Applied In:** `quality_database_app/embed.py` -> `Embedder`, `FakeEmbedder`;
+`quality_database_app/embed_fastembed.py`; `.github/workflows/ci.yml` -> Quality
+Database coverage gate
+
+---
+
+## RULE 11 — `never-ship` chunks are indexed and filtered at query time (SME-locked, #284)
+
+**Decision:** Every chunk is embedded and persisted, including
+`serving_flag: never-ship`. `VectorStore.search()` takes `exclude_never_ship: bool = True`
+and drops them from results by default; `exclude_never_ship=False` returns them.
+
+**Source:** SME decision, 2026-08-15 (#284), extending RULE 1's "flag, never silently
+drop" to the index.
+
+**Rationale:** Excluding at build time would erase the flag from the artefact, so the
+licensing gap would stop being auditable and the index would silently disagree with the
+corpus about what exists. Filtering at query time keeps the data honest and the query
+layer (M5) safe by default. Ceiling: a serving decision beyond "never-ship" — e.g.
+`paraphrase-and-point` enforcement in the answer layer — is M5's, not this store's.
+
+**Applied In:** `quality_database_app/store.py` -> `_matches()`, `VectorStore.search()`
+
+---
+
+## RULE 12 — Metadata filters cover `standard` / `source_id` / `region` only (#284)
+
+**Decision:** `VectorStore.search()` filters on the fields the ledger actually carries.
+There is no `tool` filter.
+
+**Source:** `docs/CORPUS_LEDGER.tsv` has no `tool` column, and `CorpusRecord` has no
+such field.
+
+**Rationale:** A `standard -> tool` (FMEA app / SPC app / MSA app) mapping is not
+derivable from the corpus today; inventing one here would be an unverifiable guess of
+exactly the kind RULE 4 forbids. Ceiling: if M5's query layer needs tool scoping, it
+adds an explicit, reviewed mapping table — this store does not infer one.
+
+**Applied In:** `quality_database_app/store.py` -> `_matches()`

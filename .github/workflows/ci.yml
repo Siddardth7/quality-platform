@@ -244,6 +244,15 @@ jobs:
       # licensing carry-through or a mis-derived confidence flag is exactly the kind of
       # regression a partial bar would hide. Engine-only like SECOM (#206) — there is no
       # UI, so every module is gated with no pages/ exclusion.
+      #
+      # M4-3 (#284) adds chunk/embed/index/store — the retrieval path, gated the same way:
+      # a chunk that silently drops its page/clause or its serving_flag is a citation or a
+      # licensing regression, not a cosmetic one. quality_database_app.embed_fastembed is
+      # deliberately NOT gated: it is the optional real embedding backend, needs the
+      # `embed` extra (fastembed/ONNX) which CI does not install, and downloads a model on
+      # first use. Same posture as the Streamlit pages/ exclusions — the code CI cannot run
+      # is excluded explicitly, not silently. The CI path embeds with the deterministic
+      # offline FakeEmbedder only.
       - name: Quality Database coverage gate
         run: >
           uv run pytest apps/quality_database
@@ -251,5 +260,9 @@ jobs:
           --cov=quality_database_app.segment
           --cov=quality_database_app.schema
           --cov=quality_database_app.pipeline
+          --cov=quality_database_app.chunk
+          --cov=quality_database_app.embed
+          --cov=quality_database_app.index
+          --cov=quality_database_app.store
           --cov-report=term-missing
           --cov-fail-under=100

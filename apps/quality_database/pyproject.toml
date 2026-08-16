@@ -1,16 +1,25 @@
 [project]
 name = "quality-database-app"
 version = "0.14.0"
-description = "Quality knowledge base — ingestion + cleaning pipeline over the corpus ledger (M4-2)."
+description = "Quality knowledge base — corpus ingestion, chunking, embedding and retrieval (M4-2/M4-3)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
-# Zero new dependencies (#283, SME-locked): stdlib (csv/re/json/logging) plus the
-# already-installed pydantic, reached through quality_core.schema.StrictModel.
+# Stdlib (csv/re/json/hashlib/logging) plus pydantic, reached through
+# quality_core.schema.StrictModel. numpy is declared here for M4-3's vector store; it
+# is already a direct dependency of quality-core (control_charts), so it costs the
+# install graph nothing new.
 dependencies = [
     "quality-core",
     "pydantic>=2.0",
+    "numpy>=2.4.4",
 ]
+
+# Optional, never installed on CI (#284, SME-locked): a real local embedding model for
+# hand-run indexing only. The CI path uses the deterministic offline FakeEmbedder, so
+# the gate needs no model download and no network. See embed_fastembed.py.
+[project.optional-dependencies]
+embed = ["fastembed>=0.7.0"]
 
 [tool.uv.sources]
 quality-core = { workspace = true }

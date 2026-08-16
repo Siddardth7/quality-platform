@@ -1,4 +1,4 @@
-# Quality Database — corpus ingestion + cleaning (M4-2, #283)
+# Quality Database — corpus ingestion + retrieval (M4-2 #283, M4-3 #284)
 
 **Engine-only (like `apps/secom`, #206).** A tested library with no `app.py`, no
 `st.navigation` entry, and no Streamlit dependency at all — this app is pure text
@@ -21,12 +21,54 @@ It turns M4-1's corpus ledger into the clean intermediate corpus M4-3 embeds:
 - **`quality_database_app/pipeline.py`** — `run()` ties it together and writes the
   corpus. A re-run over unchanged inputs is byte-identical.
 
+## Retrieval (M4-3, #284)
+
+The corpus is then chunked, embedded and indexed for retrieval:
+
+- **`quality_database_app/chunk.py`** — `chunk_corpus()`. The default chunk is **one
+  record as-is** (`segment.py` already split on headings); a record longer than
+  `MAX_CHARS` splits on paragraph boundaries first, and only a single over-long
+  paragraph falls back to a hard window with `OVERLAP_CHARS`. Both constants are tunable
+  (ASSUMPTIONS_LOG RULE 9). Every chunk carries its record's `standard` / `clause` /
+  `page` / `serving_flag` / `license_class` verbatim, so a hit is always citable.
+- **`quality_database_app/embed.py`** — the `Embedder` protocol and `FakeEmbedder`, a
+  deterministic offline embedder (sha256-derived unit vectors). **This is the only
+  embedder CI runs**: hash vectors carry no semantic similarity, so the tests assert the
+  plumbing, not retrieval quality (that is M4-4's eval harness).
+- **`quality_database_app/store.py`** — `VectorStore`: `vectors.npy` + `metadata.json`,
+  brute-force cosine scan, no server and no new dependency. `search()` filters on
+  `standard` / `source_id` / `region` and **excludes `never-ship` chunks by default**
+  (`exclude_never_ship=False` to include them) — the flag stays in the data, the query
+  layer is safe by default.
+- **`quality_database_app/index.py`** — `run(embedder)`: corpus file -> chunks ->
+  vectors -> a saved index under `.corpus_out/index/`. There is deliberately no default
+  embedder; the caller passes one.
+
+### Real embedding is a hand-run
+
+`fastembed` is an **optional** dependency (`[project.optional-dependencies] embed`),
+never installed on CI, and `embed_fastembed.py` is excluded from the coverage gate — it
+needs that extra and downloads a model on first use. A real end-to-end index:
+
+```bash
+uv sync --extra embed
+uv run python -c "
+from quality_database_app.embed_fastembed import FastEmbedEmbedder
+from quality_database_app.index import run
+print(len(run(FastEmbedEmbedder()).chunks))
+"
+```
+
+The output lands in `apps/quality_database/.corpus_out/index/`, gitignored with the rest
+of `.corpus_out/`.
+
 ## Scope of #283
 
 `md` sources only — the two licensed `.md` conversions the ledger names, plus this
 project's own `.md` derivations. Every `pdf` row is **skipped and logged**; PDF text
-extraction (and the dependency decision it implies) is follow-up issue **#329**. This
-app adds **zero new dependencies**.
+extraction (and the dependency decision it implies) is follow-up issue **#329**. #283
+added **zero new dependencies**; #284 adds only `numpy`, already a direct dependency of
+`quality-core`.
 
 ## Output is never committed
 
