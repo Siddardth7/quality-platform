@@ -1,7 +1,8 @@
 # Engineering Assumptions Log
 **Project:** Quality Database — Corpus Ingestion + Cleaning (M4-2, #283) and Chunking +
-Embedding + Vector Store (M4-3, #284)
-**Last Updated:** August 15, 2026
+Embedding + Vector Store (M4-3, #284), Citation Eval (M4-4, #285), Private Storage +
+Access Boundary (M4-5, #286)
+**Last Updated:** August 16, 2026
 
 **No AIAG/ISO constant, threshold, or quotation is introduced by this app.** It moves
 text; it does not compute or restate a standard. Provenance and licensing for every
@@ -251,3 +252,42 @@ exactly the kind RULE 4 forbids. Ceiling: if M5's query layer needs tool scoping
 adds an explicit, reviewed mapping table — this store does not infer one.
 
 **Applied In:** `quality_database_app/store.py` -> `_matches()`
+
+---
+
+## RULE 13 — Storage stays local and gitignored; auth is deferred to M5-2 (SME-locked, #286)
+
+**Decision:** Two parts.
+
+(a) **Storage (OQ1).** The private corpus store is what M4-2/M4-3 already write —
+`apps/quality_database/.corpus_out/` (`corpus.json` + `index/`), derived from the
+on-machine `$CORPUS_ROOT` tree. M4-5 creates no new location, adds no dependency, and
+stands up no remote/cloud store. It adds the machine check
+(`tests/test_no_corpus_content.py`: nothing under `.corpus_out/` is tracked, and no
+tracked file carries verbatim non-`serve` corpus text) and one sanctioned reader
+(`quality_database_app/storage.py`) that **fails closed** — a missing index raises
+`IngestionError`, never an empty store.
+
+(b) **Auth (OQ2).** #286 introduces **no** new secret or auth mechanism. It is a local
+filesystem read with no caller identity to authenticate, so auth code here would be dead
+code. When M5-2 exposes this reader over the network it must **reuse** M1-8's
+shared-secret bearer posture rather than invent a second scheme: a single
+`MCP_AUTH_TOKEN`-style env secret, fail-closed when unset (a `RuntimeError` at provider
+build time, not an open endpoint), and constant-time comparison via
+`hmac.compare_digest`.
+
+**Source:** SME decision, 2026-08-16 (#286). The auth pattern is
+`apps/mcp/mcp_app/transport.py` (`TOKEN_ENV`, `build_auth_provider()`,
+`hmac.compare_digest`), shipped by M1-8 / issue #267. Storage policy: `docs/CORPUS_LEDGER.md`
+("the corpus is private; only our derivations are public"). No AIAG/ISO claim is made by
+this rule — it is an internal architecture decision, cited to repo files.
+
+**Rationale:** A remote store and a second auth scheme would both be infrastructure bought
+for zero live callers (M5-2 does not exist yet), and two auth schemes in one repo is the
+configuration that eventually leaves one of them fail-open. Ceiling: `storage.py` cannot
+*enforce* "only the endpoint may read the corpus" — there is no caller to gate today; that
+enforcement is explicitly M5-2's job. What #286 asserts is narrower and true: the location
+is private and guarded, there is exactly one intended reader, and it fails closed.
+
+**Applied In:** `quality_database_app/storage.py`, `tests/test_no_corpus_content.py`,
+`.gitignore`, `.github/workflows/ci.yml` -> Quality Database coverage gate
