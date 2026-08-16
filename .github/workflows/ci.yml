@@ -235,3 +235,21 @@ jobs:
           --cov=mcp_app.transport
           --cov-report=term-missing
           --cov-fail-under=100
+
+      # Quality Database coverage gate: the M4-2 (#283) corpus ingestion pipeline —
+      # the ledger reader that decides what may be ingested at all, the per-source
+      # segmentation, the record contract that carries each source's serving flag and
+      # confidence, and the orchestration that writes the corpus. New surface, so it is
+      # held at 100% from day one. It is also the copyright-relevant path: a skipped
+      # licensing carry-through or a mis-derived confidence flag is exactly the kind of
+      # regression a partial bar would hide. Engine-only like SECOM (#206) — there is no
+      # UI, so every module is gated with no pages/ exclusion.
+      - name: Quality Database coverage gate
+        run: >
+          uv run pytest apps/quality_database
+          --cov=quality_database_app.ledger
+          --cov=quality_database_app.segment
+          --cov=quality_database_app.schema
+          --cov=quality_database_app.pipeline
+          --cov-report=term-missing
+          --cov-fail-under=100

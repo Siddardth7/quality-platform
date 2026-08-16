@@ -20,6 +20,7 @@ members = [
     "mcp-app",
     "msa-app",
     "quality-core",
+    "quality-database-app",
     "quality-platform",
     "secom-app",
     "spc-app",
@@ -2671,6 +2672,21 @@ requires-dist = [
 provides-extras = ["streamlit"]
 
 [[package]]
+name = "quality-database-app"
+version = "0.14.0"
+source = { editable = "apps/quality_database" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "quality-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "quality-core", editable = "packages/quality-core" },
+]
+
+[[package]]
 name = "quality-platform"
 version = "0.14.0"
 source = { virtual = "." }
@@ -2680,6 +2696,7 @@ dependencies = [
     { name = "mcp-app" },
     { name = "msa-app" },
     { name = "quality-core" },
+    { name = "quality-database-app" },
     { name = "secom-app" },
     { name = "spc-app" },
 ]
@@ -2702,6 +2719,7 @@ requires-dist = [
     { name = "mcp-app", editable = "apps/mcp" },
     { name = "msa-app", editable = "apps/msa" },
     { name = "quality-core", editable = "packages/quality-core" },
+    { name = "quality-database-app", editable = "apps/quality_database" },
     { name = "secom-app", editable = "apps/secom" },
     { name = "spc-app", editable = "apps/spc" },
 ]
