@@ -253,6 +253,16 @@ jobs:
       # first use. Same posture as the Streamlit pages/ exclusions — the code CI cannot run
       # is excluded explicitly, not silently. The CI path embeds with the deterministic
       # offline FakeEmbedder only.
+      #
+      # M4-4 (#285) adds the citation eval — evalset (the committed gold set + its
+      # serving-policy validators), retrieval_metrics (Recall@k/Precision@k/MRR/nDCG math),
+      # generation_metrics (faithfulness/groundedness/citation-accuracy/refusal/hallucination,
+      # scored against a CandidateAnswer with a FakeAnswerGenerator seam for M5), and eval (the
+      # runner). All gated at 100% because a citation eval that silently mis-scores is worse
+      # than none. quality_database_app.build_gold_set is deliberately NOT gated: it is the
+      # optional local derivation script that reads the on-machine licensed manuals (absent on
+      # CI) to page-pin MSA/FMEA gold items — same posture as embed_fastembed and the Streamlit
+      # pages/ exclusions. The CI path scores against the committed gold set + synthetic answers.
       - name: Quality Database coverage gate
         run: >
           uv run pytest apps/quality_database
@@ -264,5 +274,9 @@ jobs:
           --cov=quality_database_app.embed
           --cov=quality_database_app.index
           --cov=quality_database_app.store
+          --cov=quality_database_app.evalset
+          --cov=quality_database_app.retrieval_metrics
+          --cov=quality_database_app.generation_metrics
+          --cov=quality_database_app.eval
           --cov-report=term-missing
           --cov-fail-under=100
