@@ -8,6 +8,24 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Corpus sourcing + licensing ledger (#282, M4-1).** The foundation of M4 (Quality Knowledge
+  Base): every source the RAG may draw on is enumerated once, with its licensing class and an
+  explicit rule for what a generated answer may do with it. `docs/CORPUS_LEDGER.md` is the
+  policy — the corpus stays private and out of the repo (only metadata and this project's own
+  derivations are committed), serving flags are tiered by source type (public ISO/SAE/NIST
+  standards `quote`; licensed AIAG/VDA handbooks and textbooks `paraphrase-and-point`, locator
+  only; the project's own derivations `serve`), and a quoted excerpt in a generated answer is
+  capped at **50 words / 2 sentences** with a locator. `docs/CORPUS_LEDGER.tsv` is the
+  manifest, one row per **(source, region)** so a partially-usable source splits — the AIAG &
+  VDA FMEA Handbook's clean DFMEA prose is `paraphrase-and-point` while its OCR-mangled PFMEA
+  Occurrence/Detection tables (#256) are `never-ship`. Known gaps are recorded rather than
+  hidden: the AIAG SPC edition mismatch (4th Ed. cited, 2nd Ed. held), AIAG FMEA-4 cited but
+  not located, and the Western Electric / Nelson possible-primaries still logged as
+  reproductions. `tests/test_corpus_ledger.py` makes the completeness claim machine-enforced —
+  no blank cells, closed vocabularies, unique keys, and the policy's cross-field rules
+  (`quote` implies a public licence class, `serve` implies own derivation, `not-held` implies
+  nothing to serve). Corpus-presence checks skip on CI, mirroring the MSA/FMEA citation tests.
+
 - **Project-file schema: `quality_core.project` (#276, M3-1).** The M3 data contract — what a
   Quality Platform project looks like on disk — defined once so every M3 arrow (#277+) reads and
   writes the same shape instead of inventing one under deadline. `project/schema.py` holds the
