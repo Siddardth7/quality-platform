@@ -37,3 +37,7 @@ htmlcov/
 
 # Playwright MCP browser artifacts (transient)
 .playwright-mcp/
+
+# Ingested corpus (M4-2, #283) — corpus-derived text is private and is never committed;
+# committed storage is M4-5 (#286). See docs/CORPUS_LEDGER.md.
+apps/quality_database/.corpus_out/
