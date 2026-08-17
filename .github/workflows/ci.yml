@@ -263,6 +263,13 @@ jobs:
       # optional local derivation script that reads the on-machine licensed manuals (absent on
       # CI) to page-pin MSA/FMEA gold items — same posture as embed_fastembed and the Streamlit
       # pages/ exclusions. The CI path scores against the committed gold set + synthetic answers.
+      #
+      # M4-5 (#286) adds storage — the single sanctioned read path into the private
+      # gitignored corpus store, gated at 100% because its whole job is to fail closed: a
+      # missing index must be an error, never a silently empty store handed to M5-2's
+      # endpoint. The companion repo-scan guard lives at tests/test_no_corpus_content.py
+      # (repo-root, like the cross-app import boundary) and runs in the full-suite step,
+      # not here — it asserts about every tracked file, not about one module's coverage.
       - name: Quality Database coverage gate
         run: >
           uv run pytest apps/quality_database
@@ -278,5 +285,6 @@ jobs:
           --cov=quality_database_app.retrieval_metrics
           --cov=quality_database_app.generation_metrics
           --cov=quality_database_app.eval
+          --cov=quality_database_app.storage
           --cov-report=term-missing
           --cov-fail-under=100

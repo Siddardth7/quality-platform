@@ -29,9 +29,11 @@ What is public is only:
 2. **This project's own derivations** — assumption logs, module docstrings, engine code, and
    this ledger.
 
-No corpus text is committed by #282, and no new storage location is created. Storage for the
-embedded/ingested corpus is M4-5 (#286), which also adds the repo-scan test that fails if
-corpus text is ever committed.
+No corpus text is committed by #282, and no new storage location is created. M4-5 (#286)
+settled storage: the embedded/ingested corpus stays in the gitignored
+`apps/quality_database/.corpus_out/`, alongside the on-machine `$CORPUS_ROOT` sources, and
+`tests/test_no_corpus_content.py` is the repo-scan test that fails if a corpus artefact is
+tracked or corpus text is ever committed.
 
 ## Serving flags
 
