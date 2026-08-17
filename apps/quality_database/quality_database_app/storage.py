@@ -20,7 +20,7 @@ authenticate, so #286 adds no auth code. When M5-2 stands up network access over
 reader it should reuse M1-8's shared-secret bearer posture —
 ``apps/mcp/mcp_app/transport.py`` (``MCP_AUTH_TOKEN``, fail-closed on an empty token,
 ``hmac.compare_digest``), issue #267 — not invent a second auth scheme. See
-``docs/ASSUMPTIONS_LOG.md`` RULE 13.
+``docs/ASSUMPTIONS_LOG.md`` RULE 14.
 
 # ponytail: local filesystem only, no CorpusStorage interface — one implementation.
 # Add the seam if/when M5/M6 needs a remote backend (OQ4).

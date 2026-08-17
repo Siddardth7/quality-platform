@@ -1,9 +1,13 @@
-"""Ledger -> segments -> corpus file (M4-2, #283).
+"""Ledger -> segments -> corpus file (M4-2, #283; PDF sources M4-2b, #329).
 
-The whole pipeline: read ``docs/CORPUS_LEDGER.tsv``, skip (and log) every row #283
-cannot ingest, read each remaining Markdown source, segment it, and emit one
-:class:`~quality_database_app.schema.CorpusRecord` per segment with the ledger's
-confidence, serving flag and licence class carried through.
+The whole pipeline: read ``docs/CORPUS_LEDGER.tsv``, skip (and log) every row it cannot
+ingest, read each remaining source — Markdown split on headings, PDF split on pages —
+and emit one :class:`~quality_database_app.schema.CorpusRecord` per segment with the
+ledger's confidence, serving flag and licence class carried through.
+
+Extraction never reclassifies a row: a freshly extracted PDF whose ledger
+``extraction_quality`` is still ``not-extracted`` produces records flagged
+``low_confidence`` until the SME reviews the ledger by hand (RULE 1, RULE 13).
 
 Re-running over unchanged inputs produces a byte-identical output file — the write
 discipline of ``quality_core.project.io.write_artifact``: pretty JSON, parent dir
@@ -23,7 +27,7 @@ from pathlib import Path
 
 import pydantic
 
-from quality_database_app import __version__
+from quality_database_app import __version__, extract_pdf
 from quality_database_app.ledger import (
     DEFAULT_LEDGER_PATH,
     LedgerRow,
@@ -41,15 +45,28 @@ from quality_database_app.schema import (
     IngestionError,
     confidence_for,
 )
-from quality_database_app.segment import page_marker_for, segment
+from quality_database_app.segment import Segment, page_marker_for, segment
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_OUT_PATH = Path(__file__).resolve().parents[1] / ".corpus_out" / "corpus.json"
 
 
-def build_records(row: LedgerRow, text: str) -> list[CorpusRecord]:
-    """Segment one source's text into records carrying that ledger row's classification."""
+def read_segments(row: LedgerRow, path: Path) -> list[Segment]:
+    """Read one source into segments, dispatching on the ledger's ``format``.
+
+    Only formats :data:`~quality_database_app.ledger.INGESTIBLE_FORMATS` admits reach
+    here. Both readers raise ``OSError`` on an unreadable source, so ``run()`` keeps one
+    skip-and-log path.
+    """
+    if row.format == "md":
+        text = path.read_text(encoding="utf-8")
+        return segment(text, page_marker_for(row.source_id))
+    return extract_pdf.extract(path)
+
+
+def build_records(row: LedgerRow, pieces: list[Segment]) -> list[CorpusRecord]:
+    """Turn one source's segments into records carrying that ledger row's classification."""
     confidence = confidence_for(row.extraction_quality)
     return [
         CorpusRecord(
@@ -65,7 +82,7 @@ def build_records(row: LedgerRow, text: str) -> list[CorpusRecord]:
             serving_flag=row.serving_flag,
             license_class=row.license_class,
         )
-        for piece in segment(text, page_marker_for(row.source_id))
+        for piece in pieces
     ]
 
 
@@ -87,13 +104,23 @@ def run(
     for row in ingestible_rows(rows):
         path = resolve_path(row.on_machine_path, root)
         try:
-            text = path.read_text(encoding="utf-8")
+            pieces = read_segments(row, path)
         except OSError as exc:
             # The corpus is private and is not on CI; a missing source is a skip with a
             # log line, not a failure — the ledger already asserts the path elsewhere.
             logger.warning("skipping %s: %s could not be read: %s", row.key, path, exc)
             continue
-        records.extend(build_records(row, text))
+        if not pieces:
+            # Held and readable, but nothing came out — for the ledger's five image-only
+            # scans, every time. Log it rather than let the row vanish into zero records.
+            logger.warning(
+                "skipping %s: %s yielded no text "
+                "(an image-only PDF needs OCR, out of scope — see #335)",
+                row.key,
+                path,
+            )
+            continue
+        records.extend(build_records(row, pieces))
 
     corpus = Corpus(
         envelope=CorpusEnvelope(

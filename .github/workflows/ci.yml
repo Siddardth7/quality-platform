@@ -277,6 +277,7 @@ jobs:
           --cov=quality_database_app.segment
           --cov=quality_database_app.schema
           --cov=quality_database_app.pipeline
+          --cov=quality_database_app.extract_pdf
           --cov=quality_database_app.chunk
           --cov=quality_database_app.embed
           --cov=quality_database_app.index

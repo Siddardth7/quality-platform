@@ -1,7 +1,7 @@
 """Ledger reader: what may be ingested, and every reason a row is skipped (#283).
 
 The ledger is the SME-reviewed source of truth (#282); this module only reads and
-filters it. These tests pin the skip discipline (a non-md / not-held / sentinel-path row
+filters it. These tests pin the skip discipline (an unreadable-format / not-held / sentinel-path row
 is skipped *observably*), the load-time validation errors, and the ``$CORPUS_ROOT``
 re-rooting — none of which touch the private corpus, so all run on CI.
 """
@@ -86,9 +86,14 @@ def test_skip_reason_is_none_for_an_ingestible_row():
     assert skip_reason(LedgerRow.model_validate(_row())) is None
 
 
-def test_skip_reason_flags_a_non_md_format():
-    reason = skip_reason(LedgerRow.model_validate(_row(format="pdf")))
-    assert reason is not None and "not 'md'" in reason
+def test_skip_reason_is_none_for_a_pdf_row():
+    # #329 made pdf ingestible; a pdf row with no text layer is skipped later, by run().
+    assert skip_reason(LedgerRow.model_validate(_row(format="pdf"))) is None
+
+
+def test_skip_reason_flags_a_format_with_no_reader():
+    reason = skip_reason(LedgerRow.model_validate(_row(format="docx")))
+    assert reason is not None and "no reader for it" in reason
 
 
 def test_skip_reason_flags_a_not_held_row():
@@ -105,7 +110,7 @@ def test_skip_reason_flags_a_sentinel_path(sentinel):
 def test_ingestible_rows_keeps_only_ingestible_rows_in_order():
     rows = [
         LedgerRow.model_validate(_row(region="a")),
-        LedgerRow.model_validate(_row(region="b", format="pdf")),
+        LedgerRow.model_validate(_row(region="b", format="docx")),
         LedgerRow.model_validate(_row(region="c", status="not-held", serving_flag="N/A")),
         LedgerRow.model_validate(_row(region="d")),
     ]
