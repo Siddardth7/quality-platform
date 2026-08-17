@@ -65,10 +65,27 @@ of `.corpus_out/`.
 ## Scope of #283
 
 `md` sources only — the two licensed `.md` conversions the ledger names, plus this
-project's own `.md` derivations. Every `pdf` row is **skipped and logged**; PDF text
-extraction (and the dependency decision it implies) is follow-up issue **#329**. #283
-added **zero new dependencies**; #284 adds only `numpy`, already a direct dependency of
-`quality-core`.
+project's own `.md` derivations. Every `pdf` row was **skipped and logged** (lifted by
+#329, below). #283 added **zero new dependencies**; #284 adds only `numpy`, already a
+direct dependency of `quality-core`.
+
+## PDF extraction (#329)
+
+`pdf` rows are now ingested too, via **`pypdf`** — this app's first genuinely new runtime
+dependency (pure Python, no transitive requirements, BSD). Extraction is **text-layer
+only**: one record per page that has text, with pypdf's real 1-indexed page number and
+`clause=None` (raw PDF text carries no heading structure to segment on).
+
+Of the ledger's 20 `format=pdf` rows, **15 have a text layer and are extracted**. The
+five image-only scans — `aiag-apqp-2nd`, `iatf-16949-2016`, `iso-9001-2015`,
+`western-electric-1956`, `montgomery-isqc-8` — extract to nothing and are **skipped with
+a WARNING** naming issue **#335**, where OCR (which needs the system `tesseract` binary,
+not a `pip` install) is being decided. They are not silently dropped.
+
+Extraction does **not** re-grade a source: those 15 rows keep `extraction_quality:
+not-extracted` in the ledger, so every record they produce is `low_confidence: true`
+until the SME reviews the text and edits the ledger by hand (RULE 1, RULE 13). A
+`never-ship` PDF row is extracted and flagged like any other, never skipped (RULE 11).
 
 ## Output is never committed
 

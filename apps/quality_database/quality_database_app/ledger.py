@@ -27,9 +27,10 @@ DEFAULT_CORPUS_ROOT = Path("/Users/sid/Documents/Upskill/SixSigma")
 #: own committed prose. Neither names a file under the corpus root.
 PATH_SENTINELS = frozenset({"not-located", "in-repo"})
 
-#: The only format #283 ingests. The ~18 ``pdf`` rows need a text-extraction dependency,
-#: deferred with that decision to follow-up issue #329.
-INGESTIBLE_FORMAT = "md"
+#: The formats the pipeline can read: ``md`` (#283) and ``pdf`` (#329, via ``pypdf``).
+#: A ``pdf`` row with no text layer passes this filter and is skipped later, by
+#: :func:`~quality_database_app.pipeline.run`, once extraction has proved it empty.
+INGESTIBLE_FORMATS = frozenset({"md", "pdf"})
 
 COLUMNS = (
     "source_id",
@@ -103,15 +104,15 @@ def load_ledger(path: Path = DEFAULT_LEDGER_PATH) -> list[LedgerRow]:
 
 
 def skip_reason(row: LedgerRow) -> str | None:
-    """Why this row cannot be ingested by #283, or ``None`` if it can be.
+    """Why this row cannot be ingested, or ``None`` if it can be.
 
     Returning the reason (rather than a bare bool) is what makes a skip *observable*:
     the pipeline logs it, so a row silently dropping out of the corpus is visible.
     """
-    if row.format != INGESTIBLE_FORMAT:
+    if row.format not in INGESTIBLE_FORMATS:
         return (
-            f"format={row.format!r} is not {INGESTIBLE_FORMAT!r} "
-            "(text extraction for the pdf rows is deferred to #329)"
+            f"format={row.format!r} is not one of "
+            f"{sorted(INGESTIBLE_FORMATS)} — no reader for it"
         )
     if row.status == "not-held":
         return "status='not-held' — no copy to read"
@@ -121,7 +122,7 @@ def skip_reason(row: LedgerRow) -> str | None:
 
 
 def ingestible_rows(rows: list[LedgerRow]) -> list[LedgerRow]:
-    """The rows #283 ingests, in ledger order (see :func:`skip_reason` for the rest)."""
+    """The rows the pipeline ingests, in ledger order (see :func:`skip_reason` for the rest)."""
     return [row for row in rows if skip_reason(row) is None]
 
 

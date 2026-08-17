@@ -164,6 +164,10 @@ PDF rows and the extraction-dependency decision are deferred to **#329**.
 **Rationale:** A `not-extracted` row has no text to segment; running against it would
 emit an empty or garbage record. Skipping loudly keeps the gap visible.
 
+**Superseded in part by RULE 13 (#329):** this rule stands as the record of #283's
+decision, but `pdf` is no longer a skipped format — only formats with no reader at all
+are. The `not-held` / sentinel-path / unreadable-source skips are unchanged.
+
 **Applied In:** `quality_database_app/ledger.py` -> `skip_reason()`,
 `quality_database_app/pipeline.py` -> `run()`
 
@@ -251,3 +255,37 @@ exactly the kind RULE 4 forbids. Ceiling: if M5's query layer needs tool scoping
 adds an explicit, reviewed mapping table — this store does not infer one.
 
 **Applied In:** `quality_database_app/store.py` -> `_matches()`
+
+---
+
+## RULE 13 — PDF is text-layer only: `pypdf`, one segment per page, no OCR (SME-locked, #329)
+
+**Decision:** `pdf` joins `md` in `INGESTIBLE_FORMATS`. Extraction uses **`pypdf` and
+nothing else**: one `CorpusRecord` per page that has extractable text, `page` = pypdf's
+own 1-indexed page number, `clause` = **always `None`**. A held PDF whose every page
+extracts to nothing — an image-only scan — is skipped with a WARNING naming the OCR
+follow-up, not emitted as zero records. `extraction_quality` is **never** written or
+derived by this pipeline, so all 15 newly extracted rows stay `not-extracted` and every
+record they produce is `low_confidence: true` until the SME edits the ledger by hand.
+
+**Source:** SME decisions, 2026-08-16 (#329), on evidence gathered per-row against the
+on-machine corpus: of the 20 `format=pdf` / `not-extracted` ledger rows, **15 have a
+real text layer** and **5 are image-only scans with zero extractable characters**
+(`aiag-apqp-2nd`, `iatf-16949-2016`, `iso-9001-2015`, `western-electric-1956`,
+`montgomery-isqc-8`). OCR for those 5 is issue **#335**.
+
+**Rationale:** `pypdf` is pure Python with zero transitive dependencies (BSD); OCR would
+need `pytesseract` plus the system `tesseract` binary — not `pip`-installable, not
+covered by `uv sync`, a separate SME-level decision. `pdfplumber`'s extra layout fidelity
+buys nothing here because raw PDF text has no heading structure to segment on anyway.
+Hence `clause=None`: inventing "the first line of a page is a heading" would be exactly
+the unverifiable repair RULE 4 forbids. Page numbers, conversely, are *more* trustworthy
+than the `md` path's footer-marker heuristic (RULE 2/3) — they come from the document's
+own page tree, not from the text. Auto-flipping `extraction_quality` to `clean` would be
+the second, code-derived confidence signal RULE 1 exists to prevent. `never-ship` PDF
+rows are extracted and flagged like every other never-ship source (RULE 11): flag, never
+silently drop. Ceiling: the 5 image-only rows stay invisible to retrieval until #335.
+
+**Applied In:** `quality_database_app/extract_pdf.py` -> `extract()`,
+`quality_database_app/ledger.py` -> `INGESTIBLE_FORMATS`,
+`quality_database_app/pipeline.py` -> `read_segments()`, `run()`
