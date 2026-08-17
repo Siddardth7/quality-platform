@@ -117,6 +117,20 @@ rather than transcribed with risk. The handbook therefore carries two rows with 
 `extraction_quality` and different `serving_flag`. `extraction_quality` is the field M4-2
 reads to flag low-confidence extractions instead of trusting them.
 
+**PDF extraction review (2026-08-17, SME, after #329).** The 20 `format: pdf` rows were
+run through `extract_pdf.extract()` and their output inspected. **15 have a faithful text
+layer and are marked `clean`** (all five NIST/SEMATECH chapters, AIAG SPC 2nd / PPAP 4th,
+Nelson JQT + the excluded reproduction, the ASQ/CSSC training material, the Lumafield report,
+and the two ASQ BoK outlines). **Five remain `not-extracted`.** Three are true image-only
+scans (`aiag-apqp-2nd`, `iatf-16949-2016`, `iso-9001-2015`) that extract to zero characters.
+The other two — `western-electric-1956` and `montgomery-isqc-8` — are also image-only *for
+content*, but their PDFs carry a thin junk text layer (a third-party SPC-software
+advertisement and a browser-extension download prompt respectively), not handbook text; they
+stay `not-extracted` so that junk is treated as low-confidence, and both — along with the
+three true scans — are the OCR follow-up **#335**. Note that `extract_pdf` currently emits a
+record for any page with *any* text, so those two junk pages ingest as low-confidence rows
+until #335 replaces them with OCR.
+
 ## Known gaps, recorded rather than hidden
 
 - **Edition mismatch — AIAG SPC.** `apps/spc` and `apps/controlplan` cite the *4th Edition
