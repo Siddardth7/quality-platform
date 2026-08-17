@@ -91,8 +91,13 @@ until the SME reviews the text and edits the ledger by hand (RULE 1, RULE 13). A
 
 `run()` writes to `apps/quality_database/.corpus_out/corpus.json`, which is
 `.gitignore`d. The corpus is private; only our derivations are public
-(`docs/CORPUS_LEDGER.md`), and committed storage for the ingested corpus is M4-5
-(#286). Do not commit anything under `.corpus_out/`.
+(`docs/CORPUS_LEDGER.md`). M4-5 (#286) settled storage there: the private store is this
+gitignored `.corpus_out/` plus the on-machine `$CORPUS_ROOT` sources — nothing moved and
+nothing is committed. `tests/test_no_corpus_content.py` enforces both halves (no tracked
+artefact, no verbatim licensed text in any tracked file), and
+`quality_database_app.storage.load_index()` is the one sanctioned read path into the
+index — it fails closed if no index has been built. Do not commit anything under
+`.corpus_out/`.
 
 ```bash
 uv run python -c "from quality_database_app.pipeline import run; print(len(run().records))"

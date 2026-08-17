@@ -14,8 +14,9 @@ discipline of ``quality_core.project.io.write_artifact``: pretty JSON, parent di
 created, overwrite in place, no wall-clock content.
 
 The output is corpus-derived text, so it is **gitignored, never committed**, per the
-M4-1 policy ("the corpus is private; only our derivations are public"); committed
-storage is M4-5's (#286) decision.
+M4-1 policy ("the corpus is private; only our derivations are public"). M4-5 (#286) kept
+it that way: ``.corpus_out/`` *is* the private store, guarded by
+``tests/test_no_corpus_content.py`` and read through ``quality_database_app.storage``.
 """
 
 from __future__ import annotations
