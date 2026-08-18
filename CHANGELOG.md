@@ -82,13 +82,18 @@ All notable changes to the Quality Platform are documented here. The format foll
   real MCP tool call (the `quality-platform` FastMCP server launched over stdio,
   `python -m mcp_app.server`), and the four transcripts are committed to
   `skills/compat-evidence/claude-code-column.txt` (control-plan's row is byte-identical to its
-  SKILL.md worked example). The other three hosts are marked `PENDING`, not green — deliberately,
-  because they cannot be driven authentically from the build environment and a fabricated cell
-  would be worse than none; the runbook says exactly how to turn each PENDING green. Documents
-  the real install quirk that `npx skills add <repo>` pulls the repo's *default branch*, so a
-  host run before promotion must install from `test` or a local checkout. No engine or test
-  changes — a verification artifact; the Claude Code `PASS` covers the real tool call, with
-  host-native npx auto-activation flagged as a separate clean-room check still worth doing.
+  SKILL.md worked example). **All four host columns are now verified live (SME, 2026-08-17):**
+  Codex CLI, Cursor, and Gemini CLI each cloned `test` in isolation and reproduced the exact
+  reference values (`rpn 240` · `cpk 2.1150000000000024` · `ppk 2.8284271247461983` ·
+  `verdict Reject` · `ndc 13` · `"Bracket weld — Incomplete weld"`) for all four skills —
+  evidence in `skills/compat-evidence/{codex-cli,cursor,gemini-cli}-column.txt`. `PASS ✓` is
+  scoped to the **real MCP tool call**; **host-native `SKILL.md` activation is mixed and recorded
+  honestly** in the quirks table (Gemini 1/4, Codex 3/4, Cursor 0/4 in-session) — the next M2-6
+  layer, not folded into a green cell. Documents real install quirks: `npx skills add <repo>`
+  pulls the *default branch* (skills reach it only after promotion), the branch-ref syntax
+  differs by host (`#test` works on Gemini, `@test` fails on Cursor), all hosts install to the
+  agentskills.io `.agents/skills/`, and the shipped scripts must be run with `uv run` (bare
+  `python` fails the FastMCP import). No engine or test changes — a verification artifact.
 - **Control Plan Agent Skill: `skills/control-plan/` (#274, M2-5).** The fourth shipped skill
   on the #270 foundation, and the first whose input is another skill's output: `fmea_model` is
   the *same* `RelationalFMEA` object the `fmea` skill's `fmea_run_relational` takes, so the

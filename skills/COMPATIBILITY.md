@@ -27,26 +27,41 @@ host run) · `N/A`.
 
 | Skill | Real MCP tool exercised | Claude Code | Codex CLI | Cursor | Gemini CLI |
 |---|---|---|---|---|---|
-| `control-plan` | `controlplan_build` | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | PENDING | PENDING | PENDING |
-| `fmea` | `fmea_score` | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | PENDING | PENDING | PENDING |
-| `spc` | spc capability | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | PENDING | PENDING | PENDING |
-| `msa` | `msa_gage_rr` | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | PENDING | PENDING | PENDING |
+| `control-plan` | `controlplan_build` | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | **PASS ✓** [evidence](compat-evidence/codex-cli-column.txt) | **PASS ✓** [evidence](compat-evidence/cursor-column.txt) | **PASS ✓** [evidence](compat-evidence/gemini-cli-column.txt) |
+| `fmea` | `fmea_score` | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | **PASS ✓** [evidence](compat-evidence/codex-cli-column.txt) | **PASS ✓** [evidence](compat-evidence/cursor-column.txt) | **PASS ✓** [evidence](compat-evidence/gemini-cli-column.txt) |
+| `spc` | spc capability | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | **PASS ✓** [evidence](compat-evidence/codex-cli-column.txt) | **PASS ✓** [evidence](compat-evidence/cursor-column.txt) | **PASS ✓** [evidence](compat-evidence/gemini-cli-column.txt) |
+| `msa` | `msa_gage_rr` | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | **PASS ✓** [evidence](compat-evidence/codex-cli-column.txt) | **PASS ✓** [evidence](compat-evidence/cursor-column.txt) | **PASS ✓** [evidence](compat-evidence/gemini-cli-column.txt) |
 | `example-skill` | — (template) | N/A | N/A | N/A | N/A |
 
-### What the Claude Code `PASS ✓` means — and does not
+### What `PASS ✓` means — and does not (all four hosts)
 
-Each Claude Code cell is backed by a **real MCP tool call** in
-[`compat-evidence/claude-code-column.txt`](compat-evidence/claude-code-column.txt): the
-skill's own shipped `scripts/*.py` launches the `quality-platform` FastMCP server over stdio
+Every cell is backed by a **real MCP tool call**, evidence linked per column: the skill's own
+shipped `scripts/*.py` launches the `quality-platform` FastMCP server over stdio
 (`python -m mcp_app.server`) and calls the tool. That is genuine MCP-protocol traffic to the
 real server returning the real result (control-plan's row is byte-identical to the SKILL.md
-worked example, em dash included).
+worked example, em dash included). **All four hosts reproduced the reference values exactly**
+(`rpn 240` · `cpk 2.1150000000000024` · `ppk 2.8284271247461983` · `verdict Reject` · `ndc 13`
+· `grr 0.11126574364256647` · `"Bracket weld — Incomplete weld"`), captured 2026-08-17 against
+an isolated clone of `test` at commit `9939575`.
 
-It does **not** additionally assert host-native auto-discovery of an `npx`-installed
-`SKILL.md` inside a fresh Claude Code session — that was not separately captured in the build
-environment. So: **(a) real MCP tool call → PASS ✓ (evidenced); (b) npx-install +
-host-native activation → still worth a clean-room confirmation** when convenient. The other
-three hosts are `PENDING` end-to-end.
+`PASS ✓` is scoped to **(a) the real MCP tool call**. It does **not** assert **(b) host-native
+auto-discovery/activation of an `npx`-installed `SKILL.md`** — that dimension is real but
+**mixed across hosts**, and is recorded honestly in the quirks table below rather than folded
+into the cell:
+
+- **Claude Code** — tool call evidenced; clean-room npx activation not separately captured.
+- **Gemini CLI** (Antigravity) — `#test` branch-ref install works; **1/4 skills** (msa)
+  followed `SKILL.md` natively; the rest free-formed (native tool invocation needs the stdio
+  server registered in `mcp_config.json`).
+- **Codex CLI** — local-path install works; **3/4 skills** followed `SKILL.md` (one used bare
+  `python` instead of the prescribed `uv run` and failed the FastMCP import).
+- **Cursor** — local-path + `--full-depth` install works (GitHub one-liner broken, see quirks);
+  native activation did **not** fire in-session (skills added mid-session don't appear in
+  `available_skills` until a fresh session).
+
+So: the **cross-host real-tool-call layer of M2-6 is complete and evidenced**; **host-native
+activation remains a partial, per-host follow-up** (register each host's MCP server + confirm
+in a fresh session), tracked in the quirks table.
 
 ## Per-host runbook (how to turn a PENDING cell green)
 
@@ -82,9 +97,17 @@ record.
 | Host | Observed | Status |
 |---|---|---|
 | Claude Code | MCP tool calls succeed over stdio via the shipped scripts; server is `quality-platform` (FastMCP 3.4.6). | real-tool-call verified; clean-room npx activation pending |
-| Codex CLI | — | pending run |
-| Cursor | — | pending run |
-| Gemini CLI | — | pending run |
+| Gemini CLI (Antigravity `agy 1.1.13`) | `npx skills add <repo>#test` works (branch ref via `#`); installs to `.agents/skills/`. Real tool calls PASS. Native activation 1/4 (msa). Non-interactive `agy -p` needs `--dangerously-skip-permissions` **before** `-p`. Native tool invocation in free-text needs the stdio server in `mcp_config.json`. | real-tool-call verified; native activation partial |
+| Codex CLI (`0.147.0`) | Local-path `npx skills add /tmp/.../skills` works (→ `.agents/skills/`). Real tool calls PASS. Native activation 3/4 — one skill ran the script with bare `python` and failed the FastMCP import (SKILL.md prescribes `uv run`). Sandbox needed `UV_CACHE_DIR` override (default `~/.cache/uv` unwritable). | real-tool-call verified; native activation partial |
+| Cursor (`cursor-agent 2026.08.11`) | GitHub one-liner **broken** for this repo (both default and `@test` — note `@test` fails where Gemini's `#test` works); local path + `--full-depth` required. Installs to `~/.agents/skills/`, **not** `~/.cursor/skills/`. Real tool calls PASS via the shipped scripts (~38 s stdio cold-start). No qp MCP server in Cursor config; mid-session skills absent from `available_skills` (need a fresh session). | real-tool-call verified; native activation did not fire in-session |
 
-_Fill rows as hosts are exercised. The install-from-default-branch caveat above applies to
-every host until the skills are promoted past `test`._
+**Cross-host takeaways (actionable follow-ups):** (1) `npx skills add` branch-ref syntax differs
+by host — `#test` (Gemini) vs `@test` (Cursor, failed); local-path install is the reliable path
+until skills reach the default branch. (2) All hosts install to the agentskills.io standard
+`.agents/skills/`. (3) The shipped `SKILL.md` scripts must be run with **`uv run`** — a host that
+uses bare `python` fails the FastMCP import (Codex); make that instruction unmissable in each
+`SKILL.md`. (4) Native tool invocation needs each host's MCP-server registration — the next layer
+of M2-6 beyond this PR's real-tool-call evidence.
+
+_The install-from-default-branch caveat above applies to every host until the skills are promoted
+past `test`._
