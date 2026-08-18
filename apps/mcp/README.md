@@ -15,6 +15,22 @@ stdio. Two meta tools describe the server process itself — `health` and
   (2019 default, FMEA-4 legacy, or a custom JSON scale).
 - the `spc_*` tools — control charts, Phase I/II, Western Electric / Nelson rules,
   capability and stability (see the tool list in `mcp_app/server.py`).
+- `spc_config_from_project(project_root)` — the Control Plan → SPC arrow (#278): read
+  `<project_root>/control-plan/plan.json`, write `<project_root>/spc/config.json` (which
+  characteristics SPC watches and with which chart), return the written artifact.
+- `spc_fmea_feedback_from_project(project_root)` — the SPC → FMEA arrow (#279): read
+  `<project_root>/spc/results/*.json` (joined to FMEA causes through
+  `control-plan/plan.json`), write `<project_root>/feedback/spc-to-fmea.json` and the
+  candidate `Action` on `fmea/fmea.json`; returns `null` when nothing is out of control.
+- `spc_msa_gate_from_project(project_root)` — the MSA → SPC gate arrow (#280): read
+  `<project_root>/spc/config.json` and `msa/gage-rr.json` (optional), write
+  `<project_root>/spc/msa-gate.json` — one `pass`/`warn`/`block` row per monitored
+  characteristic. Always written, even with zero rows.
+- `run_project_loop(project_root)` — the loop orchestrator (#281): call the four arrows
+  above in dependency order (Control Plan → SPC config → MSA gate → SPC feedback) against
+  one project directory and return all four results. The one cross-domain tool, hence no
+  `<domain>_` prefix. It does **not** produce `spc/results/*.json` — no arrow does; that is
+  a precondition read off disk. Worked example: `examples/secom-quality-loop/`.
 
 **Export/report tools (#266)** — every one returns a FastMCP `File`/`Image` (no base64 hand-rolling), and every CSV/Excel path routes through the formula-injection sanitizer in `quality_core.io.export` (a cell starting with `= + - @` can never execute):
 
@@ -28,6 +44,7 @@ stdio. Two meta tools describe the server process itself — `health` and
 - `controlplan_build(fmea_model)` — derive a Control Plan (one row per failure mode, highest-risk first) from a relational FMEA.
 - `controlplan_recommend_chart(data_type, subgroup_size, ...)` — the AIAG SPC chart-selection rule table (bounded per #196).
 - `controlplan_source_index(fmea_model)` — trace every Control Plan row back to its source FMEA failure mode and cause.
+- `controlplan_build_from_project(project_root)` — the project-file (#276) face of `controlplan_build`: read `<project_root>/fmea/fmea.json`, write `<project_root>/control-plan/plan.json` (overwritten in place on a re-run), return the written artifact.
 
 The SECOM tools arrive in a later M1 issue on the same `app` object in `mcp_app/server.py`. (SPC-chart PNGs are deferred to a future issue — they need a headless image renderer beyond the existing exporters.)
 

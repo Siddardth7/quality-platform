@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T12:00:00Z",
+  "generated_by": "spc_app==0.14.0",
+  "rows": [
+    {
+      "characteristic": "Example Characteristic",
+      "stream": "Example Characteristic",
+      "rule_set": "Western Electric",
+      "ooc": true,
+      "violating_points": 1,
+      "rules": [
+        "Rule 1"
+      ],
+      "ooc_rate": 0.2,
+      "source_failure_mode_id": "F1-M1",
+      "source_cause_id": "F1::F1-M1::F1-M1-C1",
+      "source_cause_description": "Tool wear",
+      "current_occurrence": 4,
+      "suggested_occurrence": 6,
+      "component": "Bracket",
+      "capa_prompt": "Characteristic 'Example Characteristic' went out of statistical control (1 point(s), Rule 1). Review the occurrence rating / open a CAPA — this is a candidate, not an applied change."
+    }
+  ]
+}

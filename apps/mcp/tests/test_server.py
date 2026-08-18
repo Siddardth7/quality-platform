@@ -22,6 +22,7 @@ from mcp_app import __version__
 from mcp_app.server import (
     app,
     controlplan_build,
+    controlplan_build_from_project,
     controlplan_recommend_chart,
     controlplan_source_index,
     export_csv,
@@ -47,6 +48,7 @@ from mcp_app.server import (
     spc_assess_stability,
     spc_c,
     spc_capability,
+    spc_config_from_project,
     spc_cusum,
     spc_detect_nelson_violations,
     spc_detect_we_violations,
@@ -55,10 +57,12 @@ from mcp_app.server import (
     spc_export_capability_pdf,
     spc_export_control_chart_excel,
     spc_export_control_chart_pdf,
+    spc_fmea_feedback_from_project,
     spc_freeze_imr,
     spc_freeze_xbar_r,
     spc_freeze_xbar_s,
     spc_imr,
+    spc_msa_gate_from_project,
     spc_normality_test,
     spc_p,
     spc_u,
@@ -139,8 +143,15 @@ def test_exactly_the_expected_tools_are_registered():
         "spc_capability",
         "spc_normality_test",
         "spc_assess_stability",
+        "spc_config_from_project",
+        "spc_fmea_feedback_from_project",
+        "spc_msa_gate_from_project",
+        # The one cross-domain tool (M3-6, #281): it sequences the four project-file
+        # arrows, so it belongs to no single `<domain>_` namespace and carries none.
+        "run_project_loop",
         "msa_gage_rr",
         "controlplan_build",
+        "controlplan_build_from_project",
         "controlplan_recommend_chart",
         "controlplan_source_index",
         "export_csv",
@@ -1143,6 +1154,172 @@ def test_controlplan_build_empty_fmea_returns_empty_list():
 def test_controlplan_build_invalid_model_raises_toolerror():
     with pytest.raises(ToolError, match="validation error"):
         controlplan_build({"functions": [{"id": "f1"}]})
+
+
+# ---------------------------------------------------------------------------
+# controlplan_build_from_project — project-file arrow (M3-2, #277)
+# ---------------------------------------------------------------------------
+
+_FIXTURE_PROJECT = (
+    Path(__file__).resolve().parents[3]
+    / "packages"
+    / "quality-core"
+    / "tests"
+    / "fixtures"
+    / "project"
+)
+
+
+def test_controlplan_build_from_project_writes_and_returns(tmp_path: Path):
+    import shutil
+
+    shutil.copytree(_FIXTURE_PROJECT / "fmea", tmp_path / "fmea")
+
+    result = controlplan_build_from_project(str(tmp_path))
+
+    # Written to the project-file contract path.
+    assert (tmp_path / "control-plan" / "plan.json").exists()
+    # Structured dict envelope + connector-derived rows (not the hand-built fixture row).
+    assert result["schema_version"] == 1
+    assert result["generated_by"].startswith("controlplan_app==")
+    assert [r["characteristic"] for r in result["rows"]] == ["Bracket — Bore oversize"]
+    assert result["rows"][0]["source_cause_id"] == "F1::F1-M1::F1-M1-C1"
+
+
+def test_controlplan_build_from_project_missing_fmea_raises_toolerror(tmp_path: Path):
+    # Empty project dir -> ProjectError -> structured ToolError; nothing written.
+    with pytest.raises(ToolError):
+        controlplan_build_from_project(str(tmp_path))
+    assert not (tmp_path / "control-plan" / "plan.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# spc_config_from_project — Control Plan → SPC project-file arrow (M3-3, #278)
+# ---------------------------------------------------------------------------
+
+
+def test_spc_config_from_project_writes_and_returns(tmp_path: Path):
+    import shutil
+
+    shutil.copytree(_FIXTURE_PROJECT / "control-plan", tmp_path / "control-plan")
+
+    result = spc_config_from_project(str(tmp_path))
+
+    # Written to the project-file contract path.
+    assert (tmp_path / "spc" / "config.json").exists()
+    # Structured dict envelope + config rows derived from the plan.
+    assert result["schema_version"] == 1
+    assert result["generated_by"].startswith("spc_app==")
+    assert [r["characteristic"] for r in result["rows"]] == ["Example Characteristic"]
+    assert result["rows"][0]["chart_key"] == "Xbar-R"
+
+
+def test_spc_config_from_project_missing_plan_raises_toolerror(tmp_path: Path):
+    # Empty project dir -> ProjectError -> structured ToolError; nothing written.
+    with pytest.raises(ToolError):
+        spc_config_from_project(str(tmp_path))
+    assert not (tmp_path / "spc" / "config.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# spc_msa_gate_from_project — MSA → SPC gate arrow (M3-5, #280)
+# ---------------------------------------------------------------------------
+
+
+def _copy_gate_project(tmp_path: Path, *, with_gage: bool = True) -> Path:
+    import shutil
+
+    (tmp_path / "spc").mkdir()
+    shutil.copy(_FIXTURE_PROJECT / "spc" / "config.json", tmp_path / "spc" / "config.json")
+    if with_gage:
+        shutil.copytree(_FIXTURE_PROJECT / "msa", tmp_path / "msa")
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    "verdict,gate_status",
+    [("Accept", "pass"), ("Marginal", "warn"), ("Reject", "block")],
+)
+def test_spc_msa_gate_from_project_maps_each_verdict(tmp_path: Path, verdict: str, gate_status: str):
+    """Accuracy, not just coverage: the gate value itself, end to end through the tool."""
+    import json
+
+    root = _copy_gate_project(tmp_path)
+    gage_path = root / "msa" / "gage-rr.json"
+    payload = json.loads(gage_path.read_text())
+    payload["verdict"] = verdict
+    gage_path.write_text(json.dumps(payload))
+
+    result = spc_msa_gate_from_project(str(root))
+
+    assert (root / "spc" / "msa-gate.json").exists()
+    assert result["schema_version"] == 1
+    assert result["generated_by"].startswith("spc_app==")
+    assert [r["characteristic"] for r in result["rows"]] == ["Example Characteristic"]
+    assert (result["rows"][0]["verdict"], result["rows"][0]["gate_status"]) == (verdict, gate_status)
+
+
+def test_spc_msa_gate_from_project_warns_when_no_study_on_file(tmp_path: Path):
+    root = _copy_gate_project(tmp_path, with_gage=False)
+    row = spc_msa_gate_from_project(str(root))["rows"][0]
+    assert (row["verdict"], row["gate_status"]) == (None, "warn")
+
+
+def test_spc_msa_gate_from_project_missing_config_raises_toolerror(tmp_path: Path):
+    with pytest.raises(ToolError):
+        spc_msa_gate_from_project(str(tmp_path))
+    assert not (tmp_path / "spc" / "msa-gate.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# spc_fmea_feedback_from_project — SPC → FMEA project-file arrow (M3-4, #279)
+# ---------------------------------------------------------------------------
+
+
+def _copy_feedback_project(tmp_path: Path) -> Path:
+    import shutil
+
+    for sub in ("fmea", "control-plan", "spc"):
+        shutil.copytree(_FIXTURE_PROJECT / sub, tmp_path / sub)
+    return tmp_path
+
+
+def test_spc_fmea_feedback_from_project_writes_and_returns(tmp_path: Path):
+    root = _copy_feedback_project(tmp_path)
+
+    result = spc_fmea_feedback_from_project(str(root))
+
+    assert result is not None
+    assert (root / "feedback" / "spc-to-fmea.json").exists()
+    assert result["schema_version"] == 1
+    assert result["generated_by"].startswith("spc_app==")
+    assert [r["characteristic"] for r in result["rows"]] == ["Example Characteristic"]
+    assert result["rows"][0]["suggested_occurrence"] == 9
+
+
+def test_spc_fmea_feedback_from_project_returns_none_when_nothing_ooc(tmp_path: Path):
+    # The None-return branch of the tool: an SPC result with no violations → nothing
+    # out of control → the arrow returns None → the tool returns null (mcp_app.server gate).
+    import json
+
+    root = _copy_feedback_project(tmp_path)
+    result_path = root / "spc" / "results" / "example-characteristic.json"
+    payload = json.loads(result_path.read_text())
+    payload["control_chart"]["violations"] = []
+    result_path.write_text(json.dumps(payload))
+
+    assert spc_fmea_feedback_from_project(str(root)) is None
+    assert not (root / "feedback" / "spc-to-fmea.json").exists()
+
+
+def test_spc_fmea_feedback_from_project_missing_plan_raises_toolerror(tmp_path: Path):
+    import shutil
+
+    shutil.copytree(_FIXTURE_PROJECT / "fmea", tmp_path / "fmea")
+    shutil.copytree(_FIXTURE_PROJECT / "spc", tmp_path / "spc")
+    with pytest.raises(ToolError):
+        spc_fmea_feedback_from_project(str(tmp_path))
+    assert not (tmp_path / "feedback" / "spc-to-fmea.json").exists()
 
 
 # ---------------------------------------------------------------------------

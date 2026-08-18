@@ -28,6 +28,7 @@ from typing import Any, Literal, TypeVar, cast
 
 import pandas as pd
 from controlplan_app.connector import build_control_plan, recommend_chart, source_index
+from controlplan_app.project_arrow import build_control_plan_file
 from controlplan_app.schema import SPCChart
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -89,6 +90,9 @@ from spc_app.exporter import (
     build_control_chart_report_excel,
     build_control_chart_report_pdf,
 )
+from spc_app.fmea_feedback_arrow import build_feedback_file
+from spc_app.msa_gate_arrow import build_msa_gate_file
+from spc_app.project_arrow import build_spc_config_file
 
 app = FastMCP("quality-platform")
 
@@ -587,6 +591,139 @@ def spc_assess_stability(
 
 
 # ---------------------------------------------------------------------------
+# SPC — project-file arrow (spc_app.project_arrow)
+#
+# The one SPC tool that wraps an app rather than ``quality_core.spc``: the project-file
+# (#276) glue lives in ``spc_app`` because ``quality_core`` never imports an app, and the
+# aggregator exception (#262) is what lets this server reach it.
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def spc_config_from_project(project_root: str) -> dict[str, Any]:
+    """Derive an SPC monitoring config from a project's ``control-plan/plan.json`` and
+    write ``spc/config.json``.
+
+    The Control Plan → SPC arrow (M3-3, #278): one config row per plan characteristic,
+    carrying that characteristic's chart type, tolerance triple and sample plan, read from
+    ``<project_root>/control-plan/plan.json`` and persisted to
+    ``<project_root>/spc/config.json``. A re-run overwrites that file in place — no merge,
+    no history array (git is the history). ``chart_key`` is null when the plan preselects
+    no chart (which is what ``controlplan_build`` emits today) — the choice is left to the
+    user, never fabricated. This is the pre-run *selection*, not a chart result;
+    ``spc/results/<characteristic>.json`` holds those. Returns the written artifact
+    (``schema_version``/``generated_at``/``generated_by`` envelope plus ``rows``). Raises a
+    structured tool error if ``control-plan/plan.json`` is missing or malformed.
+    """
+    artifact = _call(build_spc_config_file, project_root)
+    return cast("dict[str, Any]", artifact.model_dump(mode="json"))
+
+
+@app.tool
+def spc_fmea_feedback_from_project(project_root: str) -> dict[str, Any] | None:
+    """Derive candidate FMEA occurrence feedback from a project's SPC results and write
+    ``feedback/spc-to-fmea.json`` plus the matching ``Action`` candidates on ``fmea/fmea.json``.
+
+    The SPC → FMEA arrow (M3-4, #279), closing the loop: every
+    ``<project_root>/spc/results/*.json`` control chart is checked for rule violations, joined
+    back to its FMEA cause through ``control-plan/plan.json``'s ``source_cause_id``, and turned
+    into one feedback row per out-of-control characteristic (violating points, rules,
+    out-of-control rate, current and candidate Occurrence, CAPA prompt). The candidate lands on
+    ``fmea/fmea.json`` as an ``Open`` ``Action`` with ``o_after`` set — the cause's own
+    ``occurrence`` is never overwritten, so the proposal always awaits a human. Returns ``null``
+    when nothing is out of control (any stale feedback file and any Action this arrow previously
+    wrote are cleared). Raises a structured tool error if ``fmea/fmea.json`` or
+    ``control-plan/plan.json`` is missing or malformed — both are required inputs.
+    """
+    artifact = _call(build_feedback_file, project_root)
+    return cast("dict[str, Any]", artifact.model_dump(mode="json")) if artifact else None
+
+
+@app.tool
+def spc_msa_gate_from_project(project_root: str) -> dict[str, Any]:
+    """Gate a project's SPC monitoring on its Gage R&R verdict and write
+    ``spc/msa-gate.json``.
+
+    The MSA → SPC arrow (M3-5, #280): every ``spc/config.json`` characteristic gets one
+    row saying how far its SPC result may be trusted given ``msa/gage-rr.json`` —
+    ``pass`` (verdict ``Accept``), ``warn`` (``Marginal``, or no study on file: unknown
+    is never an accept) or ``block`` (``Reject`` — trust withheld until the measurement
+    system is improved). ``block`` changes no SPC math and deletes nothing; it is a
+    recorded status for a caller to act on. Always returns the written artifact
+    (envelope plus ``rows``), including with zero rows when nothing is configured to
+    monitor. Raises a structured tool error if ``spc/config.json`` is missing or
+    malformed, or if ``msa/gage-rr.json`` is malformed or carries an unrecognised
+    verdict.
+    """
+    artifact = _call(build_msa_gate_file, project_root)
+    return cast("dict[str, Any]", artifact.model_dump(mode="json"))
+
+
+# ---------------------------------------------------------------------------
+# The loop orchestrator (M3-6, #281)
+#
+# The one tool that sequences other tools. It lives here for the same reason the four
+# arrows above do: sequencing them means touching both ``controlplan_app`` and
+# ``spc_app``, and ``mcp_app`` is the workspace's one sanctioned cross-app aggregator
+# (#262). It adds no engine math and no fifth arrow — every file it produces is produced
+# by an arrow that already shipped.
+# ---------------------------------------------------------------------------
+
+
+@app.tool
+def run_project_loop(project_root: str) -> dict[str, Any]:
+    """Run one full quality loop over a project directory by sequencing the four M3 arrows.
+
+    Order (dependency-derived, **not** the order the loop is usually narrated in — see
+    ``docs/PROJECT_FILE_CONTRACT.md``'s file graph): ``fmea/fmea.json`` →
+    ``control-plan/plan.json`` → ``spc/config.json`` → ``spc/msa-gate.json`` →
+    ``feedback/spc-to-fmea.json`` + candidate ``Action``s back on ``fmea/fmea.json``. The
+    MSA gate cannot run before the Control Plan and SPC config, because it reads
+    ``spc/config.json``; running it *before* the feedback step is a narrative choice
+    (know how far the measurement system can be trusted before consuming its numbers),
+    not a data dependency — the gate and the feedback arrow never read each other's
+    output.
+
+    **Does not produce ``spc/results/*.json``** — no arrow does. Those files come from a
+    prior, separate SPC charting session and are read here as a precondition. With none
+    on disk the feedback step legally no-ops and ``feedback`` comes back ``null``.
+
+    **Known limitation, stated rather than silently fixed:** a characteristic whose
+    ``spc/msa-gate.json`` row says ``block`` still produces feedback, because nothing
+    ties the two arrows together today. Read the gate alongside the feedback rather than
+    assuming the loop filtered on it.
+
+    Returns ``{"control_plan": ..., "spc_config": ..., "msa_gate": ...,
+    "feedback": ... | null}`` — each value is exactly what that arrow's own tool
+    (``controlplan_build_from_project``, ``spc_config_from_project``,
+    ``spc_msa_gate_from_project``, ``spc_fmea_feedback_from_project``) returns on its own,
+    so a caller already parsing one of them needs no new shape.
+
+    Raises a structured tool error at the first arrow missing a required input:
+    ``fmea/fmea.json`` at the Control Plan step, ``control-plan/plan.json`` at the SPC
+    config step, ``spc/config.json`` at the MSA gate step. Files written by earlier,
+    successful steps are left in place — each arrow overwrites only its own file, so a
+    partially-run loop is a resumable state, not a broken one.
+
+    Re-running with unchanged inputs is safe: the feedback arrow rewrites ``fmea.json``
+    only when a candidate ``Action`` actually changes, so a second loop leaves it
+    byte-identical (the other three files are rewritten with a fresh ``generated_at``,
+    same content).
+
+    A worked end-to-end example lives in ``examples/secom-quality-loop/``.
+    """
+    # These four are the ``@app.tool``-registered functions above, called as the plain
+    # functions FastMCP leaves them as — so the return shapes here are the tools' own by
+    # construction, and ``_call``'s error wrapping is applied exactly once, inside each.
+    return {
+        "control_plan": controlplan_build_from_project(project_root),
+        "spc_config": spc_config_from_project(project_root),
+        "msa_gate": spc_msa_gate_from_project(project_root),
+        "feedback": spc_fmea_feedback_from_project(project_root),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Export / report tools (M1-7, #266)
 #
 # Return convention (spec Q1, SME sign-off): every artifact tool returns a
@@ -938,10 +1075,12 @@ def msa_export_results_csv(results: dict[str, Any]) -> File:
 # Control Plan — FMEA connector, chart selection, source index
 # (controlplan_app.connector)
 #
-# All three are thin passthroughs over the existing connector: no Control Plan
-# logic is reimplemented here, and ``controlplan_build``/``controlplan_source_index``
-# take the same ``quality_core.schema.RelationalFMEA`` object ``fmea_run_relational``
-# accepts rather than introducing a second FMEA contract.
+# All four are thin passthroughs: no Control Plan logic is reimplemented here, and
+# ``controlplan_build``/``controlplan_source_index`` take the same
+# ``quality_core.schema.RelationalFMEA`` object ``fmea_run_relational`` accepts rather
+# than introducing a second FMEA contract. ``controlplan_build_from_project`` (M3-2,
+# #277) wraps ``controlplan_app.project_arrow`` instead — the same connector, but reading
+# and writing the project-file contract (#276) on disk.
 # ---------------------------------------------------------------------------
 
 
@@ -1007,6 +1146,22 @@ def controlplan_source_index(fmea_model: dict[str, Any]) -> dict[str, dict[str, 
     """
     parsed = _call(RelationalFMEA.model_validate, fmea_model)
     return _call(source_index, parsed)
+
+
+@app.tool
+def controlplan_build_from_project(project_root: str) -> dict[str, Any]:
+    """Derive a Control Plan from a project directory's ``fmea/fmea.json`` and write
+    ``control-plan/plan.json``.
+
+    The project-file (#276) face of ``controlplan_build``: same connector, same rows, but the
+    FMEA is read from ``<project_root>/fmea/fmea.json`` and the result is persisted to
+    ``<project_root>/control-plan/plan.json`` instead of only being returned. A re-run
+    overwrites that file in place — no merge, no history array (git is the history). Returns the
+    written artifact (``schema_version``/``generated_at``/``generated_by`` envelope plus
+    ``rows``). Raises a structured tool error if ``fmea/fmea.json`` is missing or malformed.
+    """
+    artifact = _call(build_control_plan_file, project_root)
+    return cast("dict[str, Any]", artifact.model_dump(mode="json"))
 
 
 # ---------------------------------------------------------------------------

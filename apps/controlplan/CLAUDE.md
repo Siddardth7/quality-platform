@@ -37,6 +37,7 @@ uv run pytest --cov
 # Control Plan coverage gate (CI enforces 100% line+branch):
 uv run pytest apps/controlplan \
   --cov=controlplan_app.connector --cov=controlplan_app.schema \
+  --cov=controlplan_app.project_arrow \
   --cov-report=term-missing --cov-fail-under=100
 ```
 

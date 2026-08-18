@@ -1,0 +1,6 @@
+# The loop's own output. Deliberately not committed: the demo has to be provably
+# `run_project_loop`'s work, not a hand-edited stand-in for it. See README.md.
+/control-plan/
+/spc/config.json
+/spc/msa-gate.json
+/feedback/

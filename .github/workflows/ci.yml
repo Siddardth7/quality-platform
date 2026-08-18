@@ -57,6 +57,12 @@ jobs:
       - name: README test-count drift check
         run: uv run python scripts/check_readme_test_count.py
 
+      # #270 (M2-1): validate every Agent Skill under skills/ against skills/CONVENTIONS.md —
+      # frontmatter contract, name/folder match, and the "engine decides, skill orchestrates"
+      # import denylist. A plain script step like the drift check above, not a --cov surface.
+      - name: Skill lint
+        run: uv run python scripts/skill_lint.py
+
       - name: Ruff
         run: uv run ruff check .
 
@@ -90,6 +96,17 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=100
 
+      # Core project coverage gate: quality_core.project holds the M3 on-disk data contract
+      # (project.yaml + per-artifact JSON schemas + the load/write boundary shared by MCP
+      # tools and, indirectly, skills) that every M3 arrow issue (#277+) reads and writes.
+      # Foundation surface — held at 100% from day one, same discipline as io/schema/scoring/spc.
+      - name: Core project coverage gate
+        run: >
+          uv run pytest packages/quality-core
+          --cov=quality_core.project
+          --cov-report=term-missing
+          --cov-fail-under=100
+
       # Core scoring coverage gate: quality_core.scoring holds the shared scalar
       # risk scorers (RPN + the AIAG-VDA Action Priority table, promoted W05-3a),
       # used by FMEA and the future action-effectiveness model. A standards table
@@ -120,8 +137,11 @@ jobs:
       # SPC coverage gate: the testable SPC surface (spc_engine — now the app-local
       # data_generator plus the quality_core.spc re-export shims, so a shim added and
       # left unimported fails here — simulation logic, figure builders, report
-      # exporter) must stay highly covered so it can't
-      # regress silently. The Streamlit `pages/` are excluded — they need a
+      # exporter, the Control Plan→SPC project-file arrow over
+      # control_plan_config (M3-3, #278) and the SPC→FMEA feedback arrow over
+      # fmea_feedback (M3-4, #279), and the MSA→SPC gate engine and its arrow
+      # (M3-5, #280)) must stay highly covered so it can't regress
+      # silently. The Streamlit `pages/` are excluded — they need a
       # runtime to exercise — mirroring how the FMEA bar covers fmea_app/ but not
       # its entry scripts.
       - name: SPC coverage gate
@@ -134,11 +154,16 @@ jobs:
           --cov=spc_app.schema
           --cov=spc_app.control_plan_config
           --cov=spc_app.fmea_feedback
+          --cov=spc_app.project_arrow
+          --cov=spc_app.fmea_feedback_arrow
+          --cov=spc_app.msa_gate
+          --cov=spc_app.msa_gate_arrow
           --cov-report=term-missing
           --cov-fail-under=100
 
-      # Control Plan coverage gate: the FMEA→Control Plan connector engine (W06-2)
-      # and the validated Control Plan ingest schema (W06-1) are new testable surface
+      # Control Plan coverage gate: the FMEA→Control Plan connector engine (W06-2),
+      # the validated Control Plan ingest schema (W06-1) and the project-file arrow
+      # over the connector (M3-2, #277) are new testable surface
       # and must stay fully covered so the mapping/rule-table and rejection paths can't
       # regress silently. The Streamlit pages/ and the exporter are excluded here —
       # mirroring how the SPC bar covers the engine surface but not its entry scripts.
@@ -148,6 +173,7 @@ jobs:
           uv run pytest apps/controlplan
           --cov=controlplan_app.connector
           --cov=controlplan_app.schema
+          --cov=controlplan_app.project_arrow
           --cov-report=term-missing
           --cov-fail-under=100
 
@@ -207,5 +233,68 @@ jobs:
           uv run pytest apps/mcp
           --cov=mcp_app.server
           --cov=mcp_app.transport
+          --cov-report=term-missing
+          --cov-fail-under=100
+
+      # Quality Database coverage gate: the M4-2 (#283) corpus ingestion pipeline —
+      # the ledger reader that decides what may be ingested at all, the per-source
+      # segmentation, the record contract that carries each source's serving flag and
+      # confidence, and the orchestration that writes the corpus. New surface, so it is
+      # held at 100% from day one. It is also the copyright-relevant path: a skipped
+      # licensing carry-through or a mis-derived confidence flag is exactly the kind of
+      # regression a partial bar would hide. Engine-only like SECOM (#206) — there is no
+      # UI, so every module is gated with no pages/ exclusion.
+      #
+      # M4-3 (#284) adds chunk/embed/index/store — the retrieval path, gated the same way:
+      # a chunk that silently drops its page/clause or its serving_flag is a citation or a
+      # licensing regression, not a cosmetic one. quality_database_app.embed_fastembed is
+      # deliberately NOT gated: it is the optional real embedding backend, needs the
+      # `embed` extra (fastembed/ONNX) which CI does not install, and downloads a model on
+      # first use. Same posture as the Streamlit pages/ exclusions — the code CI cannot run
+      # is excluded explicitly, not silently. The CI path embeds with the deterministic
+      # offline FakeEmbedder only.
+      #
+      # M4-4 (#285) adds the citation eval — evalset (the committed gold set + its
+      # serving-policy validators), retrieval_metrics (Recall@k/Precision@k/MRR/nDCG math),
+      # generation_metrics (faithfulness/groundedness/citation-accuracy/refusal/hallucination,
+      # scored against a CandidateAnswer with a FakeAnswerGenerator seam for M5), and eval (the
+      # runner). All gated at 100% because a citation eval that silently mis-scores is worse
+      # than none. quality_database_app.build_gold_set is deliberately NOT gated: it is the
+      # optional local derivation script that reads the on-machine licensed manuals (absent on
+      # CI) to page-pin MSA/FMEA gold items — same posture as embed_fastembed and the Streamlit
+      # pages/ exclusions. The CI path scores against the committed gold set + synthetic answers.
+      #
+      # M4-5 (#286) adds storage — the single sanctioned read path into the private
+      # gitignored corpus store, gated at 100% because its whole job is to fail closed: a
+      # missing index must be an error, never a silently empty store handed to M5-2's
+      # endpoint. The companion repo-scan guard lives at tests/test_no_corpus_content.py
+      # (repo-root, like the cross-app import boundary) and runs in the full-suite step,
+      # not here — it asserts about every tracked file, not about one module's coverage.
+      # M4-2c (#335) adds ocr — the OCR seam (the Ocr Protocol + the offline NullOcr
+      # default), gated at 100% because it is what decides whether a below-threshold page
+      # is recovered or dropped. quality_database_app.ocr_tesseract is deliberately NOT
+      # gated: it is the optional real OCR backend, needs the `ocr` extra (PyMuPDF +
+      # pytesseract) *and* a system `tesseract` binary that no CI step installs, and its
+      # output is not bit-for-bit stable across tesseract versions. Same posture as
+      # embed_fastembed, build_gold_set and the Streamlit pages/ exclusions — the code CI
+      # cannot run is excluded explicitly, not silently. The CI path OCRs with NullOcr only.
+      - name: Quality Database coverage gate
+        run: >
+          uv run pytest apps/quality_database
+          --cov=quality_database_app.ledger
+          --cov=quality_database_app.segment
+          --cov=quality_database_app.schema
+          --cov=quality_database_app.pipeline
+          --cov=quality_database_app.extract_pdf
+          --cov=quality_database_app.ocr
+          --cov=quality_database_app.chunk
+          --cov=quality_database_app.embed
+          --cov=quality_database_app.index
+          --cov=quality_database_app.store
+          --cov=quality_database_app.evalset
+          --cov=quality_database_app.retrieval_metrics
+          --cov=quality_database_app.generation_metrics
+          --cov=quality_database_app.eval
+          --cov=quality_database_app.storage
           --cov-report=term-missing
           --cov-fail-under=100

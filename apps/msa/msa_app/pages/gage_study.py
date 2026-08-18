@@ -171,7 +171,7 @@ def render_gage_study() -> None:
         st.metric("Data", is_balanced_str)
 
     # Interpretation guide
-    st.subheader("AIAG Acceptance Criteria")
+    st.subheader("Acceptance Criteria (AIAG %GRR bands + platform ndc bands)")
     criteria_text = """
     **Accept:** ndc ≥ 5 AND %GRR < 10%
     - Measurement system is adequate for the intended use.
