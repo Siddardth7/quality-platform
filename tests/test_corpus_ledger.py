@@ -216,7 +216,8 @@ def test_known_extraction_quality_implies_a_text_extraction_exists() -> None:
     `extract_pdf` (text-layer extraction), so a `pdf` may honestly be `clean` once its layer has
     been read and reviewed — as the SME did for the 15 text-layer PDFs in #337. Formats with no
     extraction path (e.g. an image-only scan) still cannot be `clean`; those stay `not-extracted`
-    for the #335 OCR follow-up. This is the structural half of the reality check below, and unlike
+    until the SME reads #335's OCR output by hand. This is the structural half of the reality check
+    below, and unlike
     that one it runs on CI.
     """
     offenders = [

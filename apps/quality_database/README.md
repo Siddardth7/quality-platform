@@ -78,14 +78,43 @@ only**: one record per page that has text, with pypdf's real 1-indexed page numb
 
 Of the ledger's 20 `format=pdf` rows, **15 have a text layer and are extracted**. The
 five image-only scans — `aiag-apqp-2nd`, `iatf-16949-2016`, `iso-9001-2015`,
-`western-electric-1956`, `montgomery-isqc-8` — extract to nothing and are **skipped with
-a WARNING** naming issue **#335**, where OCR (which needs the system `tesseract` binary,
-not a `pip` install) is being decided. They are not silently dropped.
+`western-electric-1956`, `montgomery-isqc-8` — yield nothing usable from their text layer
+and are **skipped with a WARNING** unless an OCR backend is supplied (#335, below). They
+are not silently dropped.
 
 Extraction does **not** re-grade a source: those 15 rows keep `extraction_quality:
 not-extracted` in the ledger, so every record they produce is `low_confidence: true`
 until the SME reviews the text and edits the ledger by hand (RULE 1, RULE 13). A
 `never-ship` PDF row is extracted and flagged like any other, never skipped (RULE 11).
+
+## OCR fallback (#335)
+
+Two changes (RULE 15). First, a page now needs **30 words** to become a record, not just
+one non-blank character: `western-electric-1956` and `montgomery-isqc-8` carry a thin junk
+text layer (an SPC-software advert, a browser-extension prompt) that used to ingest as
+three low-confidence records, while the handbook's real 1956 foreword page — ~120 words —
+still passes. It is a heuristic with a stated ceiling, not content-aware junk detection.
+
+Second, `extract()` and `pipeline.run()` take an `ocr` argument. The default is `NullOcr`
+(recognizes nothing, so CI behaviour is unchanged and needs no system binary), and OCR is
+consulted **only** for a page below the word threshold — a readable page is never
+re-recognized. `TesseractOcr` (PyMuPDF rasterization + local `tesseract`) is the real
+backend, behind the optional `ocr` extra and out of the coverage gate, exactly like
+`FastEmbedEmbedder`. Everything runs locally; no page image leaves the machine.
+
+```bash
+brew install tesseract          # or: apt-get install tesseract-ocr — never on CI
+uv sync --extra ocr
+uv run python -c "
+from quality_database_app.ocr_tesseract import TesseractOcr
+from quality_database_app.pipeline import run
+print(len(run(ocr=TesseractOcr()).records))
+"
+```
+
+OCR text does **not** change a row's grading: `extraction_quality` stays `not-extracted`
+(so records stay `low_confidence: true`) until the SME reads the output and edits the
+ledger by hand (RULE 1).
 
 ## Output is never committed
 

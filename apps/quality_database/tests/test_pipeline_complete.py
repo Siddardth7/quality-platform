@@ -42,10 +42,17 @@ def _write_ledger(path: Path, rows: list[dict[str, str]]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _page(prefix: str) -> str:
+    """A PDF page of at least `MIN_WORDS` words — anything shorter is junk (#335, RULE 15)."""
+    return prefix + " lorem ipsum" * 15
+
+
 def _fixture(tmp_path: Path, synthetic_pdf) -> tuple[Path, Path]:
     (tmp_path / "clean.md").write_text("# Intro\nHello world\n\n# Body\nmore\n", encoding="utf-8")
     (tmp_path / "mangled.md").write_text("# Tbl\nHih g Mdt oerae\n", encoding="utf-8")
-    (tmp_path / "text.pdf").write_bytes(synthetic_pdf(["Page one text", "Page two text"]))
+    (tmp_path / "text.pdf").write_bytes(
+        synthetic_pdf([_page("Page one text"), _page("Page two text")])
+    )
     (tmp_path / "scan.pdf").write_bytes(synthetic_pdf(["", ""]))
     ledger = tmp_path / "CORPUS_LEDGER.tsv"
     _write_ledger(ledger, [
@@ -57,7 +64,8 @@ def _fixture(tmp_path: Path, synthetic_pdf) -> tuple[Path, Path]:
         # and `never-ship` — extracted and flagged, never silently dropped.
         _row(source_id="demo-pdf", on_machine_path=str(tmp_path / "text.pdf"), format="pdf",
              extraction_quality="not-extracted", serving_flag="never-ship"),
-        # An image-only scan: readable, but no text layer — skipped and logged (#335).
+        # An image-only scan: readable, but no text layer and no OCR backend supplied —
+        # skipped and logged (#335).
         _row(source_id="demo-pdf-scan", on_machine_path=str(tmp_path / "scan.pdf"),
              format="pdf", extraction_quality="not-extracted"),
         _row(source_id="demo-docx", on_machine_path=str(tmp_path / "x.docx"), format="docx"),
@@ -90,6 +98,23 @@ def test_run_ingests_md_flags_mangled_and_skips_the_rest(tmp_path: Path, synthet
     assert "demo-missing" in text and "could not be read" in text  # OSError skip logged (run 90-94)
     # the image-only row is skipped *observably*, pointing at the OCR follow-up
     assert "demo-pdf-scan" in text and "no text" in text and "#335" in text
+
+
+def test_image_only_row_skip_log_unchanged_when_no_ocr_supplied(
+    tmp_path: Path, synthetic_pdf, caplog
+) -> None:
+    """§5.8 with no `ocr` argument (the CI/default path), the image-only scan is still
+    skipped-and-logged and the log still carries the reworded #335 pointer. Pins
+    test_pipeline_complete's `"#335" in text` assertion against the coder's message reword."""
+    ledger, out = _fixture(tmp_path, synthetic_pdf)
+    with caplog.at_level(logging.WARNING):
+        corpus = run(ledger_path=ledger, root=tmp_path, out_path=out)
+
+    assert "demo-pdf-scan" not in {r.source_id for r in corpus.records}  # not silently kept
+    text = caplog.text
+    assert "demo-pdf-scan" in text and "yielded no text" in text
+    assert "#335" in text
+    assert "pass an Ocr backend to recover it" in text  # the reworded message, verbatim
 
 
 def test_pdf_rows_are_extracted_with_pages_and_stay_flagged(tmp_path: Path, synthetic_pdf) -> None:

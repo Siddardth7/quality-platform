@@ -1,8 +1,8 @@
 # Engineering Assumptions Log
 **Project:** Quality Database — Corpus Ingestion + Cleaning (M4-2, #283) and Chunking +
 Embedding + Vector Store (M4-3, #284), Citation Eval (M4-4, #285), Private Storage +
-Access Boundary (M4-5, #286)
-**Last Updated:** August 16, 2026
+Access Boundary (M4-5, #286), OCR Fallback (M4-2c, #335)
+**Last Updated:** August 17, 2026
 
 **No AIAG/ISO constant, threshold, or quotation is introduced by this app.** It moves
 text; it does not compute or restate a standard. Provenance and licensing for every
@@ -329,3 +329,64 @@ is private and guarded, there is exactly one intended reader, and it fails close
 
 **Applied In:** `quality_database_app/storage.py`, `tests/test_no_corpus_content.py`,
 `.gitignore`, `.github/workflows/ci.yml` -> Quality Database coverage gate
+
+---
+
+## RULE 15 — A page needs 30 words to be a record; OCR is an optional fallback seam (SME-locked, #335)
+
+**Decision:** Three parts.
+
+(a) **Word-count threshold.** `extract_pdf.extract()` keeps a page only if its normalized
+text carries at least `MIN_WORDS = 30` words, replacing #329's "any non-blank page" rule.
+
+(b) **OCR seam.** OCR reaches the pipeline through `quality_database_app.ocr.Ocr`, a
+Protocol whose default implementation `NullOcr` recognizes nothing — the same Protocol +
+offline-default shape as RULE 10's `Embedder`/`FakeEmbedder`. `extract()` and
+`pipeline.run()` take an `ocr` argument; OCR is consulted **only** for a page whose text
+layer is below threshold, so a readable page is never re-recognized, and the page number
+still comes from pypdf's page tree (RULE 13), never from OCR.
+
+(c) **Dependency.** The real backend (`ocr_tesseract.py`) rasterizes with **PyMuPDF**
+(`fitz`, a pure pip wheel) and recognizes with **pytesseract** driving a system
+`tesseract` binary, shipped as the optional `ocr` extra. **No CI step installs
+`tesseract`**, `ocr_tesseract.py` is excluded from the coverage gate (`ocr.py` is in it),
+and no cloud OCR is used — no page image or corpus text leaves this machine (RULE 14).
+`extraction_quality` is still never written by this pipeline (RULE 1): moving a row off
+`not-extracted` after reading OCR output stays a hand SME ledger edit, as in #337.
+
+**Source:** SME decision, 2026-08-17 (#335), on evidence gathered by running `extract()`
+against the on-machine corpus (`$CORPUS_ROOT`). The leak was **4 records across 2 files**,
+and one of the four is real content:
+
+| Page | What it is | Words |
+|---|---|---|
+| `western-electric-1956` p1 | third-party SPC-software advertisement | 24 |
+| `western-electric-1956` p2 | logo fragment | 3 |
+| `montgomery-isqc-8` p1 | browser-extension download prompt | 12 |
+| `western-electric-1956` p3 | **genuine 1956 handbook foreword** | ~120 |
+
+Any cut strictly between 24 and 120 separates them; 30 leaves headroom on the junk side.
+Character count does **not** separate them (211 / 38 / 81 / 791 — the advert outweighs the
+real prompt), so the heuristic is word count. The three true image-only scans
+(`aiag-apqp-2nd`, `iatf-16949-2016`, `iso-9001-2015`) extract zero characters either way
+and are what the OCR backend exists to recover.
+
+**Rationale:** Dropping "any page with any text" would have deleted real foreword content
+along with the junk; a word floor keeps it. This is an inclusion threshold, the same
+category as #329's blank-page skip, not the content repair RULE 4 forbids — no kept text
+is edited. Ceiling: a heuristic, exactly like RULE 2/3's page-marker rules — a longer
+advert (>30 words) still leaks and a genuinely short real page (a one-sentence epigraph)
+is still dropped; the upgrade path is per-source calibration, not content classification.
+On the dependency: `tesseract` is the first system binary this repo has ever needed, so it
+is opt-in and hand-run only, and PyMuPDF was chosen over `pdf2image` because poppler would
+have made it two system binaries instead of one. Cloud OCR was rejected outright — it
+would ship page images of a licensed private corpus to a third party, a data-egress path
+RULE 14 never approved. Second ceiling: real tesseract output is not bit-for-bit stable
+across versions or DPI, which is why the *seam* is on the deterministic CI path and the
+*backend* is not.
+
+**Applied In:** `quality_database_app/ocr.py`, `quality_database_app/ocr_tesseract.py`,
+`quality_database_app/extract_pdf.py` -> `MIN_WORDS`, `_is_substantive()`, `extract()`,
+`quality_database_app/pipeline.py` -> `read_segments()`, `run()`,
+`apps/quality_database/pyproject.toml` -> `[project.optional-dependencies] ocr`,
+`.github/workflows/ci.yml` -> Quality Database coverage gate
