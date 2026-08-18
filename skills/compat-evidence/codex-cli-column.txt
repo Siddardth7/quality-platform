@@ -1,0 +1,32 @@
+# M2-6 (#275) evidence — HOST: Codex CLI (codex-cli 0.147.0)
+# Captured 2026-08-17 by the SME on macOS 26.5.2, against an isolated clone of the
+# `test` branch at commit 9939575 (uv sync ok with UV_CACHE_DIR=/tmp/qp-codex-uv-cache).
+# Scope, same as claude-code-column.txt: PART B is a REAL MCP tool call over stdio via
+# the shipped scripts/*.py; PART A (host-native SKILL.md activation) is separate.
+# Full reference JSON in claude-code-column.txt; this host reproduced the key values exactly.
+
+== PART B — real MCP tool call (all four reproduce the reference) ==
+control-plan :: controlplan_build  → PASS  characteristic="Bracket weld — Incomplete weld"
+fmea :: fmea_score(8,5,6)          → PASS  {"rpn": 240, "action_priority": "Medium"}
+spc :: spc capability              → PASS  cpk=2.1150000000000024, ppk=2.8284271247461983
+msa :: msa_gage_rr(avg&range,2.0)  → PASS  verdict="Reject", ndc=13
+
+== PART A — host-native skill activation (best-effort) ==
+install: `npx skills add /tmp/qp-codex/skills` WORKED (copied into .agents/skills/).
+activation: control-plan / fmea / msa — LOADED & FOLLOWED SKILL.md (read it and ran/attempted
+  the prescribed script). control-plan attempted its script with `python/python3` OUTSIDE uv and
+  failed to import FastMCP (the SKILL.md prescribes `uv run`). fmea ran its `uv run` script
+  correctly. spc — FREE-FORMED (asked for the omitted readings without loading/running the skill).
+
+== Quirks ==
+- Local-path `npx skills add` worked; skills copied into .agents/skills/.
+- Default uv cache was unwritable in this sandbox ("Operation not permitted" on
+  ~/.cache/uv/...) → required UV_CACHE_DIR=/tmp/qp-codex-uv-cache. Matplotlib/fontconfig
+  emitted similar unwritable-cache warnings. (Sandbox/machine quirk, not a skill defect.)
+- Direct MCP scripts succeeded over stdio.
+- A host that runs the SKILL.md script with bare `python` instead of `uv run` will fail the
+  FastMCP import — the SKILL.md prescribes `uv run`; worth making that instruction unmissable.
+
+Overall (this host): PARTIAL — all four real MCP tool calls reproduce the reference (hard
+evidence PASS); native activation partial (3/4 followed SKILL.md; one used bare python and
+failed the import), plus a uv-cache-permission environment workaround.
