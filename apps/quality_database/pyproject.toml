@@ -10,7 +10,8 @@ requires-python = ">=3.11"
 # is already a direct dependency of quality-core (control_charts), so it costs the
 # install graph nothing new. pypdf (#329) is this app's first genuinely new runtime
 # dependency: pure Python, zero transitive requirements, BSD — text-layer PDF extraction
-# only. OCR for the five image-only rows is out of scope (#335).
+# only. OCR for the five image-only rows is the optional `ocr` extra below (#335), never
+# a runtime dependency.
 dependencies = [
     "quality-core",
     "pydantic>=2.0",
@@ -23,6 +24,13 @@ dependencies = [
 # the gate needs no model download and no network. See embed_fastembed.py.
 [project.optional-dependencies]
 embed = ["fastembed>=0.7.0"]
+
+# Optional, never installed on CI (#335, SME-locked): PyMuPDF rasterizes a page and
+# pytesseract drives a **system `tesseract` binary** (`brew install tesseract`) that no
+# CI step installs. PyMuPDF over pdf2image/poppler keeps the new system-binary surface
+# at one instead of two. The CI path uses the offline NullOcr, so the gate needs neither.
+# See ocr_tesseract.py.
+ocr = ["pymupdf>=1.24.0", "pytesseract>=0.3.10"]
 
 [tool.uv.sources]
 quality-core = { workspace = true }

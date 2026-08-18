@@ -270,6 +270,14 @@ jobs:
       # endpoint. The companion repo-scan guard lives at tests/test_no_corpus_content.py
       # (repo-root, like the cross-app import boundary) and runs in the full-suite step,
       # not here — it asserts about every tracked file, not about one module's coverage.
+      # M4-2c (#335) adds ocr — the OCR seam (the Ocr Protocol + the offline NullOcr
+      # default), gated at 100% because it is what decides whether a below-threshold page
+      # is recovered or dropped. quality_database_app.ocr_tesseract is deliberately NOT
+      # gated: it is the optional real OCR backend, needs the `ocr` extra (PyMuPDF +
+      # pytesseract) *and* a system `tesseract` binary that no CI step installs, and its
+      # output is not bit-for-bit stable across tesseract versions. Same posture as
+      # embed_fastembed, build_gold_set and the Streamlit pages/ exclusions — the code CI
+      # cannot run is excluded explicitly, not silently. The CI path OCRs with NullOcr only.
       - name: Quality Database coverage gate
         run: >
           uv run pytest apps/quality_database
@@ -278,6 +286,7 @@ jobs:
           --cov=quality_database_app.schema
           --cov=quality_database_app.pipeline
           --cov=quality_database_app.extract_pdf
+          --cov=quality_database_app.ocr
           --cov=quality_database_app.chunk
           --cov=quality_database_app.embed
           --cov=quality_database_app.index

@@ -127,9 +127,14 @@ The other two — `western-electric-1956` and `montgomery-isqc-8` — are also i
 content*, but their PDFs carry a thin junk text layer (a third-party SPC-software
 advertisement and a browser-extension download prompt respectively), not handbook text; they
 stay `not-extracted` so that junk is treated as low-confidence, and both — along with the
-three true scans — are the OCR follow-up **#335**. Note that `extract_pdf` currently emits a
-record for any page with *any* text, so those two junk pages ingest as low-confidence rows
-until #335 replaces them with OCR.
+three true scans — were the OCR follow-up **#335**.
+
+**#335 (2026-08-17).** `extract_pdf` no longer emits a record for any page with *any* text:
+a page needs 30 words to be kept, which drops those junk pages (3-24 words each) while
+keeping the Western Electric handbook's real 1956 foreword page (~120 words). OCR is now an
+optional local fallback for below-threshold pages (PyMuPDF + `tesseract`, hand-run only,
+never on CI, nothing leaves the machine). All five rows stay `not-extracted` until the SME
+reads OCR output and edits the ledger by hand, as in #337.
 
 ## Known gaps, recorded rather than hidden
 
