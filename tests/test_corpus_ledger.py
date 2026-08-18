@@ -210,18 +210,23 @@ def test_not_held_rows_have_nothing_to_serve_and_no_local_path() -> None:
 
 
 def test_known_extraction_quality_implies_a_text_extraction_exists() -> None:
-    """`clean`/`mangled` are claims about an extraction, so the row must name a text format.
+    """`clean`/`mangled` are claims about an extraction, so the row must name an extractable format.
 
-    A `pdf` row with no conversion cannot honestly be called clean — nobody has read it. This
-    is the structural half of the reality check below, and unlike that one it runs on CI.
+    `md`/`py` rows carry their text directly. `pdf` rows became extractable with #329's
+    `extract_pdf` (text-layer extraction), so a `pdf` may honestly be `clean` once its layer has
+    been read and reviewed — as the SME did for the 15 text-layer PDFs in #337. Formats with no
+    extraction path (e.g. an image-only scan) still cannot be `clean`; those stay `not-extracted`
+    for the #335 OCR follow-up. This is the structural half of the reality check below, and unlike
+    that one it runs on CI.
     """
     offenders = [
         f"{_key(row)}: extraction_quality={row['extraction_quality']} format={row['format']}"
         for row in ROWS
-        if row["extraction_quality"] in {"clean", "mangled"} and row["format"] not in {"md", "py"}
+        if row["extraction_quality"] in {"clean", "mangled"}
+        and row["format"] not in {"md", "py", "pdf"}
     ]
     assert not offenders, (
-        "extraction_quality 'clean'/'mangled' requires a text format (md/py):\n  "
+        "extraction_quality 'clean'/'mangled' requires an extractable format (md/py/pdf):\n  "
         + "\n  ".join(offenders)
     )
 
