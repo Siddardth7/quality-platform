@@ -1,0 +1,40 @@
+# M2-6 (#275) evidence — HOST: Cursor (cursor-agent 2026.08.11-e8db854)
+# Captured 2026-08-17 by the SME on macOS 26.5.2 (darwin arm64), against an isolated
+# clone of the `test` branch at commit 9939575 (uv sync --frozen ok, 141 packages).
+# Scope, same as claude-code-column.txt: PART B is a REAL MCP tool call over stdio via
+# the shipped scripts/*.py; PART A (host-native SKILL.md activation) is separate.
+# Full reference JSON in claude-code-column.txt; this host reproduced the key values exactly.
+
+== PART B — real MCP tool call (all four reproduce the reference) ==
+control-plan :: controlplan_build  → PASS
+  characteristic="Bracket weld — Incomplete weld", measurement_method="Visual weld inspection",
+  sample_plan_is_placeholder=true
+fmea :: fmea_score(8,5,6)          → PASS  {"rpn": 240, "action_priority": "Medium"}
+spc :: spc capability              → PASS  cp=cpk=2.115, pp=ppk=2.8284271247, mean=10.0, n=10,
+  method="normal"
+msa :: msa_gage_rr(avg&range,2.0)  → PASS  verdict="Reject", ndc=13, grr=0.11126574364256647
+
+== PART A — host-native skill activation (best-effort) ==
+install: `npx skills add /tmp/qp-cursor --skill fmea --skill spc --skill msa --skill control-plan
+  --agent cursor -y --copy -g` WORKED → copied to ~/.agents/skills/{...}; project-scoped (no -g)
+  also worked → /tmp/qp-cursor/.agents/skills/.
+  FAILED: `npx skills add Siddardth7/quality-platform --list` (default branch, exit 1) and
+  `...@quality-platform@test --list --full-depth` — the GitHub URL form never discovers the
+  skills/ subtree even on test (contrast Gemini's `#test` success — the `@test` form failed here).
+activation: NONE loaded natively in this session — skills installed mid-session did not appear
+  in the chat's available_skills (needs a fresh session or manual @skill/rule wiring). When the
+  SKILL.md was read manually, fmea/msa/control-plan followed their scripts; spc/msa/control-plan
+  activation prompts also lacked the required data (intake checklist correctly blocks the call).
+
+== Quirks ==
+- `npx skills` GitHub one-liner is BROKEN for this repo (both default and `@test`); local path +
+  `--full-depth` required.
+- Installs land in ~/.agents/skills/, NOT ~/.cursor/skills/ (Cursor's create-skill doc path) —
+  a doc-vs-agentskills.io path mismatch.
+- No quality-platform MCP server in Cursor's config → Part B works only via the shipped scripts
+  (~38 s stdio cold-start per call).
+- Tested via cursor-agent CLI; desktop Cursor.app not installed on this machine.
+
+Overall (this host): PARTIAL — all four real MCP tool calls reproduce the reference (hard
+evidence PASS), but native install needs the local-path workaround and native activation did not
+fire in-session.

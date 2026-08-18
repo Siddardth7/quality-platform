@@ -1,0 +1,38 @@
+# M2-6 (#275) evidence — HOST: Gemini CLI (Google Antigravity, agy 1.1.13)
+# Captured 2026-08-17 by the SME on macOS Darwin 25.5.0 arm64, against an isolated
+# clone of the `test` branch at commit 9939575 (uv sync --frozen ok, 141 deps).
+# Scope, same as claude-code-column.txt: PART B is a REAL MCP tool call — the skill's
+# shipped scripts/*.py launches the quality-platform FastMCP server over stdio
+# (python -m mcp_app.server) and calls one tool. PART A (host-native SKILL.md
+# activation) is a SEPARATE assertion, recorded honestly below.
+# Full reference JSON for each RESULT is in claude-code-column.txt; this host
+# reproduced the reference key values exactly.
+
+== PART B — real MCP tool call (all four reproduce the reference) ==
+control-plan :: controlplan_build  → PASS
+  characteristic="Bracket weld — Incomplete weld", measurement_method="Visual weld inspection",
+  sample_plan_is_placeholder=true (1 row)
+fmea :: fmea_score(8,5,6)          → PASS  {"rpn": 240, "action_priority": "Medium"}
+spc :: spc capability              → PASS  cp=cpk=2.1150000000000024, pp=ppk=2.8284271247461983,
+  mean=10.0, n=10, method="normal"
+msa :: msa_gage_rr(avg&range,2.0)  → PASS  verdict="Reject", ndc=13, grr=0.11126574364256647
+
+== PART A — host-native skill activation (best-effort) ==
+install: `npx skills add Siddardth7/quality-platform#test -y` WORKED (branch ref via `#`);
+  local path `npx skills add /tmp/qp-gemini -y` also worked; skills discovered in .agents/skills/.
+  The default `npx skills add Siddardth7/quality-platform -y` FAILED ("No valid skills found") —
+  the default branch lacks the SKILL.md files (expected: skills are on `test` pre-promotion).
+activation: msa — LOADED & FOLLOWED SKILL.md (ran the intake checklist verbatim, cited the
+  crossed/balanced design + 2x2x2 floor vs 10x3x3 AIAG optimum, referenced msa_gage_rr).
+  control-plan / fmea / spc — FREE-FORMED (answered from AIAG knowledge in prose without
+  invoking the tool). Native LLM tool invocation during free-text needs the stdio server
+  registered in the host's mcp_config.json — not done in this run.
+
+== Quirks ==
+- `npx skills add` supports the `#test` branch-ref syntax and local dirs; installs land in
+  .agents/skills/ (agentskills.io standard), which is in Antigravity's discovery path.
+- Non-interactive runs (`agy -p`) need `--dangerously-skip-permissions` BEFORE `-p`.
+- FastMCP stdio server runs cleanly via the shipped scripts.
+
+Overall (this host): PASS — all four real MCP tool calls reproduce the reference; native
+activation partial (1/4 followed SKILL.md without MCP-server registration).
