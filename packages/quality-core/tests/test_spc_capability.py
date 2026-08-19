@@ -607,6 +607,30 @@ def test_compute_capability_study_no_small_n_note_when_n_at_least_30():
     assert "n<30" not in study["note"]
 
 
+# #234: pin the boundary itself — the note must flip at exactly n=30, not 29 or 31.
+
+
+def test_compute_capability_study_small_n_note_present_at_n29():
+    data = np.random.default_rng(234).normal(10.0, 0.5, size=29)
+    study = compute_capability_study(data, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA)
+    assert study["n"] == 29
+    assert "n<30" in study["note"]
+
+
+def test_compute_capability_study_no_small_n_note_at_n30_boundary():
+    data = np.random.default_rng(235).normal(10.0, 0.5, size=30)
+    study = compute_capability_study(data, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA)
+    assert study["n"] == 30
+    assert "n<30" not in study["note"]
+
+
+def test_compute_capability_study_no_small_n_note_at_n31():
+    data = np.random.default_rng(236).normal(10.0, 0.5, size=31)
+    study = compute_capability_study(data, lsl=8.0, usl=12.0, alpha=STUDY_ALPHA)
+    assert study["n"] == 31
+    assert "n<30" not in study["note"]
+
+
 # ---------------------------------------------------------------------------
 # W10-5 (#145): force_method override (SME Q1) — 4 values x conditions.
 # ---------------------------------------------------------------------------

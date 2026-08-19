@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T12:00:00Z",
+  "generated_by": "spc_app==0.14.0",
+  "kind": "control_chart",
+  "characteristic": "Example Characteristic",
+  "control_chart": {
+    "chart_label": "Xbar-R",
+    "stream": "Example Characteristic",
+    "rule_set": "Western Electric",
+    "points": [
+      10.02,
+      9.98,
+      10.11,
+      10.4,
+      9.95
+    ],
+    "cl": 10.0,
+    "ucl": 10.3,
+    "lcl": 9.7,
+    "violations": [
+      {
+        "index": 3,
+        "rule": "Rule 1"
+      }
+    ],
+    "metrics": [
+      {
+        "label": "Subgroup size",
+        "value": "5"
+      }
+    ],
+    "secondary_points": null
+  },
+  "capability": null
+}

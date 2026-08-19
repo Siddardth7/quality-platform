@@ -20,7 +20,10 @@ import asyncio
 import base64
 import inspect
 import math
+import shutil
+import tempfile
 from collections.abc import Coroutine
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -99,6 +102,52 @@ _ROWS = [
          Cause="Contamination", Occurrence=2, Current_Control="Oven", Detection=5),
 ]
 _RELATIONAL_MODEL = dataframe_to_relational(pd.DataFrame(_ROWS)).model_dump()
+
+# A throwaway project dir with the committed fixture's fmea/ subtree, for the
+# controlplan_build_from_project round trip (it reads/writes a project directory, so it
+# needs a real path rather than an in-memory model). mkdtemp so parametrize can name it at
+# collection time; the tool writes control-plan/plan.json into it when it runs.
+_FIXTURE_PROJECT = (
+    Path(__file__).resolve().parents[3]
+    / "packages"
+    / "quality-core"
+    / "tests"
+    / "fixtures"
+    / "project"
+)
+_CP_PROJECT_ROOT = Path(tempfile.mkdtemp())
+shutil.copytree(_FIXTURE_PROJECT / "fmea", _CP_PROJECT_ROOT / "fmea")
+
+# A second throwaway project dir with the committed fixture's control-plan/ subtree, for
+# the spc_config_from_project round trip (M3-3, #278): it reads control-plan/plan.json and
+# writes spc/config.json into it when the tool runs.
+_SPC_PROJECT_ROOT = Path(tempfile.mkdtemp())
+shutil.copytree(_FIXTURE_PROJECT / "control-plan", _SPC_PROJECT_ROOT / "control-plan")
+
+# A third throwaway project dir, for the spc_fmea_feedback_from_project round trip (M3-4,
+# #279): that arrow reads spc/results/*.json, control-plan/plan.json and fmea/fmea.json, and
+# writes feedback/spc-to-fmea.json plus a candidate Action back into fmea/fmea.json — so it
+# gets its own copy rather than mutating either root above.
+_FEEDBACK_PROJECT_ROOT = Path(tempfile.mkdtemp())
+for _subtree in ("fmea", "control-plan", "spc"):
+    shutil.copytree(_FIXTURE_PROJECT / _subtree, _FEEDBACK_PROJECT_ROOT / _subtree)
+
+# A fourth throwaway project dir, for the spc_msa_gate_from_project round trip (M3-5,
+# #280): that arrow reads spc/config.json and msa/gage-rr.json and writes
+# spc/msa-gate.json, so it gets its own copy too.
+_GATE_PROJECT_ROOT = Path(tempfile.mkdtemp())
+for _subtree in ("spc", "msa"):
+    shutil.copytree(_FIXTURE_PROJECT / _subtree, _GATE_PROJECT_ROOT / _subtree)
+
+# A fifth throwaway project dir, for the run_project_loop round trip (M3-6, #281). It uses
+# the committed worked example rather than the shape fixture above: the loop re-derives
+# control-plan/plan.json from fmea/fmea.json, and only the example's five input files agree
+# end to end (see apps/mcp/tests/test_project_loop.py's note). Inputs only — the loop has to
+# produce the rest itself.
+_LOOP_PROJECT_ROOT = Path(tempfile.mkdtemp())
+_EXAMPLE_PROJECT = Path(__file__).resolve().parents[3] / "examples" / "secom-quality-loop"
+for _subtree in ("fmea", "msa", "spc"):
+    shutil.copytree(_EXAMPLE_PROJECT / _subtree, _LOOP_PROJECT_ROOT / _subtree)
 
 _FMEA_FLAT_ROWS = [
     dict(ID=1, Process_Step="A", Component="C1", Function="F1",
@@ -396,6 +445,104 @@ _ROUND_TRIPS: list[tuple[str, dict[str, Any], Any]] = [
                 "cause_description": "Low temperature",
                 "component": "Resin",
             }
+        },
+    ),
+    (
+        "controlplan_build_from_project",
+        {"project_root": str(_CP_PROJECT_ROOT)},
+        {
+            "schema_version": 1,
+            "rows": [
+                {
+                    "characteristic": "Bracket — Bore oversize",
+                    "source_cause_id": "F1::F1-M1::F1-M1-C1",
+                    "sample_plan_is_placeholder": True,
+                    "recommended_chart": None,
+                }
+            ],
+        },
+    ),
+    (
+        "spc_config_from_project",
+        {"project_root": str(_SPC_PROJECT_ROOT)},
+        {
+            "schema_version": 1,
+            "rows": [
+                {
+                    "characteristic": "Example Characteristic",
+                    "chart_key": "Xbar-R",
+                    "lsl": 9.5,
+                    "usl": 10.5,
+                    "sample_size": 5,
+                }
+            ],
+        },
+    ),
+    (
+        "spc_msa_gate_from_project",
+        {"project_root": str(_GATE_PROJECT_ROOT)},
+        {
+            "schema_version": 1,
+            "rows": [
+                {
+                    "characteristic": "Example Characteristic",
+                    "verdict": "Accept",
+                    "gate_status": "pass",
+                }
+            ],
+        },
+    ),
+    (
+        "spc_fmea_feedback_from_project",
+        {"project_root": str(_FEEDBACK_PROJECT_ROOT)},
+        {
+            "schema_version": 1,
+            "rows": [
+                {
+                    "characteristic": "Example Characteristic",
+                    "ooc": True,
+                    "violating_points": 1,
+                    "source_cause_id": "F1::F1-M1::F1-M1-C1",
+                    "current_occurrence": 4,
+                    "suggested_occurrence": 9,
+                }
+            ],
+        },
+    ),
+    (
+        "run_project_loop",
+        {"project_root": str(_LOOP_PROJECT_ROOT)},
+        {
+            "control_plan": {
+                "rows": [
+                    {"characteristic": "Etch chamber — Chamber parameter drift"},
+                    {"characteristic": "Wet bench — Residue left after clean"},
+                ]
+            },
+            "spc_config": {
+                "rows": [
+                    {"characteristic": "Etch chamber — Chamber parameter drift"},
+                    {"characteristic": "Wet bench — Residue left after clean"},
+                ]
+            },
+            "msa_gate": {
+                "rows": [
+                    {"verdict": "Accept", "gate_status": "pass"},
+                    {"verdict": None, "gate_status": "warn"},
+                ]
+            },
+            "feedback": {
+                "rows": [
+                    {
+                        "characteristic": "Etch chamber — Chamber parameter drift",
+                        "stream": "sensor_220",
+                        "ooc": True,
+                        "source_cause_id": "ETCH::ETCH-M1::ETCH-M1-C1",
+                        "current_occurrence": 3,
+                        "suggested_occurrence": 7,
+                    }
+                ]
+            },
         },
     ),
 ]

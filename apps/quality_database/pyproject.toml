@@ -1,0 +1,45 @@
+[project]
+name = "quality-database-app"
+version = "0.15.0"
+description = "Quality knowledge base — corpus ingestion, chunking, embedding and retrieval (M4-2/M4-3)."
+authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.11"
+# Stdlib (csv/re/json/hashlib/logging) plus pydantic, reached through
+# quality_core.schema.StrictModel. numpy is declared here for M4-3's vector store; it
+# is already a direct dependency of quality-core (control_charts), so it costs the
+# install graph nothing new. pypdf (#329) is this app's first genuinely new runtime
+# dependency: pure Python, zero transitive requirements, BSD — text-layer PDF extraction
+# only. OCR for the five image-only rows is the optional `ocr` extra below (#335), never
+# a runtime dependency.
+dependencies = [
+    "quality-core",
+    "pydantic>=2.0",
+    "numpy>=2.4.4",
+    "pypdf>=6.16.1",
+]
+
+# Optional, never installed on CI (#284, SME-locked): a real local embedding model for
+# hand-run indexing only. The CI path uses the deterministic offline FakeEmbedder, so
+# the gate needs no model download and no network. See embed_fastembed.py.
+[project.optional-dependencies]
+embed = ["fastembed>=0.7.0"]
+
+# Optional, never installed on CI (#335, SME-locked): PyMuPDF rasterizes a page and
+# pytesseract drives a **system `tesseract` binary** (`brew install tesseract`) that no
+# CI step installs. PyMuPDF over pdf2image/poppler keeps the new system-binary surface
+# at one instead of two. The CI path uses the offline NullOcr, so the gate needs neither.
+# See ocr_tesseract.py.
+ocr = ["pymupdf>=1.24.0", "pytesseract>=0.3.10"]
+
+[tool.uv.sources]
+quality-core = { workspace = true }
+
+# Engine-only, like apps/secom (#206): a tested library with no entry script and no
+# Streamlit dependency at all — this app is pure text processing.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["quality_database_app"]

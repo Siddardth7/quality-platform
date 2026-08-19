@@ -6,4 +6,4 @@ build, not a hardcoded string that can drift. Keep this in sync with
 ``apps/mcp/pyproject.toml`` at release; ``tests/test_version.py`` guards against drift.
 """
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
