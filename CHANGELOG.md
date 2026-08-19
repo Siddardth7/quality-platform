@@ -4,9 +4,63 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.0] - 2026-08-18 — M2 · Agent Skills · M3 · Closed-loop contract · M4 · Quality Knowledge Base
+
+Three milestones ship together. **M2** puts an Agent Skills layer over the MCP server shipped in
+0.14.0 and proves it on four CLI hosts. **M3** turns the four engines into one closed loop over a
+project directory on disk — FMEA → Control Plan → SPC → back to the FMEA — with MSA gating what
+the SPC numbers are worth. **M4** stands up the private Quality Knowledge Base the M5 research
+skill will query: a licensed corpus ledger, an OCR-aware ingestion pipeline, chunking/embedding
+with a file-backed vector store, a citation eval set, and a fail-closed private read path.
 
 ### Added
+
+- **OCR fallback for image-only corpus PDFs (#335, M4-2c).** `pypdf` reads an embedded text
+  layer and nothing else, so the corpus' image-only scans extracted to zero characters.
+  `quality_database_app/ocr.py` adds an `Ocr` Protocol seam — the same shape as M4-3's
+  `Embedder` — and a page whose text layer falls below `MIN_WORDS` is retried through it. The
+  default `NullOcr` recognizes nothing, so **CI's behaviour is byte-identical to pre-#335** and
+  the gate still needs no system binary. The real backend (`ocr_tesseract.py`, PyMuPDF
+  rasterization + `tesseract`) sits behind the optional `ocr` extra, is excluded from the
+  coverage gate, and is a hand-run — its output is not bit-stable across tesseract versions or
+  DPI, which is stated rather than papered over. OCR supplies **text only**: page numbers still
+  come from pypdf's page tree and `extraction_quality` still comes solely from the SME-reviewed
+  ledger (RULE 1), so no code-derived confidence signal is ever invented. Also fixes a
+  junk-page leak in `extract_pdf` that let below-threshold pages through as corpus records.
+
+- **PDF text extraction for the corpus pipeline (#329, M4-2b).** `extract_pdf.py` is the PDF
+  counterpart to `segment.py`, emitting the same `Segment` shape so everything downstream of
+  extraction is format-agnostic. Three narrowings, all SME-locked: **one Segment per page,
+  never per heading** (raw PDF text carries no Markdown structure, so `clause` is `None` rather
+  than guessed from a "first line is a heading" heuristic); **page numbers are pypdf's own page
+  index, 1-indexed**, which is strictly more reliable than the Markdown path's footer-marker
+  regex; and **extraction never reclassifies a row** — a freshly extracted PDF whose ledger
+  `extraction_quality` is still `not-extracted` produces `low_confidence` records until the SME
+  reviews the ledger by hand. A follow-up SME extraction review then marked 15 text-layer PDFs
+  clean (PR #337).
+
+- **Private corpus storage + access boundary (#286, M4-5).** The corpus store is what M4-2/M4-3
+  already write — the gitignored `apps/quality_database/.corpus_out/` (`corpus.json` +
+  `index/`), derived from the on-machine `$CORPUS_ROOT` tree — so M4-5 creates **no new
+  location and adds no dependency**. `storage.py` is the one sanctioned read path:
+  `load_index()` **fails closed**, so a missing index is an error rather than a silently empty
+  store, and M5-2's query endpoint is meant to import it and nothing else. Two limits are
+  stated rather than implied: this module cannot yet *enforce* single-reader access (M5-2 does
+  not exist to be gated), and it adds no auth code because a local filesystem read has no
+  caller identity — when M5-2 puts it on the network it should reuse M1-8's shared-secret
+  bearer posture (#267), not invent a second scheme. `tests/test_no_corpus_content.py` is the
+  machine check that keeps corpus text out of version control.
+
+- **Citation eval set + RAG metrics (#285, M4-4).** `evalset.py` / `build_gold_set.py` build a
+  gold set from the existing `CITATIONS.tsv` ground truth; `retrieval_metrics.py` scores
+  Recall@k / MRR / nDCG and `generation_metrics.py` scores the answer side, with `eval.py`
+  running whichever half it was given the machinery for. **What CI can conclude from this is
+  bounded on purpose**: `FakeEmbedder`'s sha256-derived vectors carry no semantic similarity,
+  so CI asserts *plumbing* — report shape, item count, filters honoured — and never a numeric
+  quality threshold; real retrieval numbers are a local hand-run with the real embedder.
+  `never-ship` items score 0 recall by design (the licensing gate makes their chunk
+  unreachable) and are scored instead by `refusal_correctness`, where the right answer is a
+  refusal. `write_report` exists so M5-4 can gate on a report produced that way.
 
 - **Chunking, embedding and vector store (#284, M4-3).** The retrieval half of the Quality
   Knowledge Base, on top of M4-2's ingested corpus. `quality_database_app/chunk.py` turns
@@ -28,6 +82,17 @@ All notable changes to the Quality Platform are documented here. The format foll
   a fake index. Re-indexing unchanged inputs is byte-identical, and the four new modules join
   the Quality Database CI gate at 100% line + branch.
 
+- **OCR-aware ingestion + cleaning pipeline (#283, M4-2).** The ledger becomes text:
+  `pipeline.py` reads `docs/CORPUS_LEDGER.tsv`, skips (and logs) every row it cannot ingest,
+  reads each remaining source — Markdown split on headings, PDF split on pages — and emits one
+  `CorpusRecord` per segment with the ledger's confidence, serving flag and licence class
+  carried through, so no downstream consumer can lose the licensing context. Cleaning is
+  **format-only** (RULE 4): it normalises whitespace and layout artefacts and never rewrites
+  content. Re-running over unchanged inputs produces a byte-identical output file, the same
+  write discipline as `quality_core.project.io.write_artifact`. The output is corpus-derived
+  text, so it is gitignored and never committed, per M4-1's "the corpus is private; only our
+  derivations are public".
+
 - **Corpus sourcing + licensing ledger (#282, M4-1).** The foundation of M4 (Quality Knowledge
   Base): every source the RAG may draw on is enumerated once, with its licensing class and an
   explicit rule for what a generated answer may do with it. `docs/CORPUS_LEDGER.md` is the
@@ -45,6 +110,59 @@ All notable changes to the Quality Platform are documented here. The format foll
   no blank cells, closed vocabularies, unique keys, and the policy's cross-field rules
   (`quote` implies a public licence class, `serve` implies own derivation, `not-held` implies
   nothing to serve). Corpus-presence checks skip on CI, mirroring the MSA/FMEA citation tests.
+
+- **Loop orchestration + SECOM worked example (#281, M3-6).** `run_project_loop(project_root)`
+  — a new MCP tool plus the `skills/project-loop/` Agent Skill over it — sequences the four M3
+  arrows in dependency order (`fmea/fmea.json` → `control-plan/plan.json` → `spc/config.json` →
+  `spc/msa-gate.json` → `feedback/spc-to-fmea.json` + candidate `Action`s back on the FMEA) and
+  returns exactly what each arrow's own tool returns, so the one-call path and the four
+  individual calls can never disagree. Two boundaries are documented rather than fudged: the
+  loop **does not produce `spc/results/*.json`** (no arrow does — those come from a prior SPC
+  charting session and are read as a precondition, and with none on disk the feedback step
+  legally no-ops), and a characteristic whose MSA gate says `block` **still produces feedback**,
+  because nothing ties the two arrows together today — read the gate alongside the feedback
+  rather than assuming the loop filtered on it. `examples/secom-quality-loop/` is the runnable
+  end-to-end example on the SECOM case study.
+
+- **MSA → SPC gate (#280, M3-5).** `spc_app/msa_gate_arrow.py` reads `spc/config.json` and
+  `msa/gage-rr.json` and writes `spc/msa-gate.json` — one row per *monitored* characteristic
+  saying how far its SPC result may be trusted. No gate policy lives in the arrow; the verdict →
+  status mapping is `msa_gate.gate_for`'s. `spc/config.json` is **required** (no monitored
+  characteristics means a mis-ordered pipeline, not an empty answer, so its `ProjectError`
+  propagates), while `msa/gage-rr.json` is **optional** — a project that has not run a Gage R&R
+  yet is a normal state and every row gates as "no study on file" (`warn`); a file that exists
+  but is malformed still raises. The gate file is *always* written, even with zero rows,
+  because "nothing is configured to monitor" is a stable state worth recording.
+
+- **SPC → FMEA occurrence feedback arrow — the living FMEA (#279, M3-4).** The leg that closes
+  the loop. `spc_app/fmea_feedback_arrow.py` reads every `spc/results/<characteristic>.json`
+  plus the plan and the FMEA, and writes `feedback/spc-to-fmea.json` with full provenance
+  (chart, rule set, violating points, CAPA prompt). **It proposes, it never applies**:
+  `Cause.occurrence` is never touched — the proposal lands as a `quality_core.schema.action.Action`
+  with `o_after=suggested_occurrence` and `status=Open`, the schema's own before/after mechanism
+  for the AIAG optimization loop, and a human decides. Because the loop's input is never written
+  by its output, a re-run on the same violations recomputes the same suggestion: **oscillation is
+  structurally impossible**, so there is deliberately no anti-oscillation guard to maintain. The
+  occurrence math stays in `fmea_feedback` (AIAG-4 / SAE J1739, ASSUMPTIONS_LOG RULE 10).
+
+- **Control Plan → SPC monitoring config (#278, M3-3).** `spc_app/project_arrow.py` reads
+  `control-plan/plan.json` and writes `spc/config.json`, one SPC monitoring config per plan
+  characteristic. No SPC selection logic lives in the arrow — chart-key normalisation and the
+  spec/sample-plan pass-through are `control_plan_config`'s. The join key is an **exact string
+  match on `characteristic`** — no normalisation, no fuzzy match — and the same string is
+  carried onto the SPC config row, so a plan row and its config row share one identifier.
+  A `recommended_chart` of `None` (what `build_control_plan` emits today) carries through as
+  `chart_key=None`: no exception, and no fabricated chart type. `spc_app` imports
+  `quality_core.project` and never `controlplan_app` (audit A11, #202).
+
+- **FMEA → Control Plan project-file arrow (#277, M3-2).** `controlplan_app/project_arrow.py`
+  is the on-disk face of the existing connector: read `fmea/fmea.json`, run
+  `build_control_plan` on the `RelationalFMEA` it carries, write `control-plan/plan.json`. No
+  Control Plan logic is duplicated — the mapping rules, defaults and the `source_cause_id` join
+  key remain the connector's. Every row written carries that `source_cause_id`, which is what
+  M3-3 and M3-4 join on straight out of `plan.json`, so traceability runs the length of the
+  loop. A re-run overwrites in place: no merge, no run id, no history array — git is the
+  history (#276).
 
 - **Project-file schema: `quality_core.project` (#276, M3-1).** The M3 data contract — what a
   Quality Platform project looks like on disk — defined once so every M3 arrow (#277+) reads and
