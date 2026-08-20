@@ -167,6 +167,8 @@ def test_exactly_the_expected_tools_are_registered():
         "msa_export_pdf",
         "msa_export_study_csv",
         "msa_export_results_csv",
+        # The private-corpus RAG endpoint (M5-2, #288).
+        "qdb_answer_question",
     }
 
 

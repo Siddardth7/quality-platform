@@ -203,7 +203,9 @@ def test_verify_token_uses_hmac_compare_digest(monkeypatch: pytest.MonkeyPatch):
 # ---------------------------------------------------------------------------
 
 
-async def _http_call(asgi: Any, token: str | None, tool: str) -> Any:
+async def _http_call(
+    asgi: Any, token: str | None, tool: str, arguments: dict[str, Any] | None = None
+) -> Any:
     """Call one tool through the Streamable HTTP transport with the given bearer token."""
 
     def factory(**kw: Any) -> httpx.AsyncClient:
@@ -213,7 +215,7 @@ async def _http_call(asgi: Any, token: str | None, tool: str) -> Any:
         url="http://testserver/mcp", auth=token, httpx_client_factory=factory
     )
     async with Client(http) as client:
-        return await client.call_tool(tool)
+        return await client.call_tool(tool, arguments or {})
 
 
 def test_http_parity_and_auth(caplog: pytest.LogCaptureFixture):
@@ -254,3 +256,35 @@ def test_http_parity_and_auth(caplog: pytest.LogCaptureFixture):
     # No secret ever hits the logs, on success or failure paths.
     assert TEST_TOKEN not in caplog.text
     assert "wrong-token" not in caplog.text
+
+
+def test_qdb_answer_question_rejected_without_valid_token():
+    """The M5-2 RAG tool (#288), specifically, is gated by the shared secret.
+
+    Auth is transport-level (``SharedSecretVerifier`` on ``app.auth``), applied to every
+    ``@app.tool`` before its body runs — so a wrong or missing token is rejected with 401
+    and the corpus is never touched, even though this tool needs a corpus, an embedder
+    and a generator none of which exist here. This proves the new tool is not silently
+    unauthenticated, not merely that the transport rejects in general.
+    """
+    app.auth = SharedSecretVerifier(TEST_TOKEN)
+    asgi = app.http_app()
+    question = {"question": "what is Gage R&R?"}
+
+    async def driver() -> dict[str, str | None]:
+        async with asgi.router.lifespan_context(asgi):
+            wrong_err: str | None = None
+            try:
+                await _http_call(asgi, "wrong-token", "qdb_answer_question", question)
+            except Exception as exc:  # noqa: BLE001
+                wrong_err = f"{type(exc).__name__}: {exc}"
+            missing_err: str | None = None
+            try:
+                await _http_call(asgi, None, "qdb_answer_question", question)
+            except Exception as exc:  # noqa: BLE001
+                missing_err = f"{type(exc).__name__}: {exc}"
+        return {"wrong_err": wrong_err, "missing_err": missing_err}
+
+    out = anyio.run(driver)
+    assert out["wrong_err"] is not None and "401" in out["wrong_err"]
+    assert out["missing_err"] is not None and "401" in out["missing_err"]
