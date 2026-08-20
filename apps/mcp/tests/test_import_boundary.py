@@ -109,6 +109,42 @@ def test_mcp_app_actually_imports_the_controlplan_engine() -> None:
     )
 
 
+def test_mcp_app_actually_imports_the_quality_database_engine() -> None:
+    """The M5-2 RAG tool (#288) wraps the real M5-1 engine: query is in sys.modules.
+
+    Sibling to the FMEA check: if qdb_answer_question were ever rewritten to reimplement
+    retrieval/refusal/citation locally, this file's aggregator premise would fail loudly.
+    """
+    result = _run(
+        "import sys, mcp_app.server; "
+        "assert 'quality_database_app.query' in sys.modules, sorted(sys.modules); "
+        "print('QUALITY DATABASE ENGINE IMPORTED')"
+    )
+    assert result.returncode == 0, (
+        f"mcp_app no longer imports the Quality Database engine:\n"
+        f"stdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+
+def test_importing_mcp_app_server_is_side_effect_free() -> None:
+    """Importing the server loads no corpus and no fastembed model (hermetic on CI).
+
+    The three M5-2 loaders (#288) are lru_cache'd so they fire on first tool *call*, not
+    at import. A regression that loaded the index or the real embedder at import time
+    would break every existing MCP test on a runner with no corpus / no ``embed`` extra.
+    """
+    result = _run(
+        "import sys, mcp_app.server; "
+        "assert 'fastembed' not in sys.modules, "
+        "[m for m in sys.modules if 'fastembed' in m]; "
+        "print('IMPORT SIDE-EFFECT-FREE')"
+    )
+    assert result.returncode == 0, (
+        f"importing mcp_app.server has a corpus/model side effect:\n"
+        f"stdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+
 def test_mcp_app_pulls_in_no_streamlit_chain() -> None:
     """Importing the server must not drag Streamlit into a stdio server process.
 
