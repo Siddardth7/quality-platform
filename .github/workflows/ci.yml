@@ -278,6 +278,20 @@ jobs:
       # output is not bit-for-bit stable across tesseract versions. Same posture as
       # embed_fastembed, build_gold_set and the Streamlit pages/ exclusions — the code CI
       # cannot run is excluded explicitly, not silently. The CI path OCRs with NullOcr only.
+      #
+      # M5-1 (#287) adds query — the RAG query engine: retrieve via the M4-3 store,
+      # gate refusal deterministically on a top-1 cosine threshold (measured by a real
+      # FastEmbedEmbedder hand-run against the real corpus, ASSUMPTIONS_LOG RULE 16 —
+      # never a placeholder) before any generator call, verify every cited locator
+      # against the retrieved chunks, and enforce the M4-1 quote cap in code. Gated at
+      # 100% because a citation that is trusted rather than verified is exactly the
+      # fidelity regression this whole app exists to prevent. The generator is an
+      # injected Callable (question, context) -> str; CI only ever exercises a fake one,
+      # same posture as embed.py's Embedder/FakeEmbedder split — no live model call is
+      # on the CI path. quality_database_app.calibrate_refusal_threshold is deliberately
+      # NOT gated: it is the optional local calibration script that needs the `embed`
+      # extra and the real corpus (absent on CI) — same posture as embed_fastembed and
+      # build_gold_set.
       - name: Quality Database coverage gate
         run: >
           uv run pytest apps/quality_database
@@ -296,5 +310,6 @@ jobs:
           --cov=quality_database_app.generation_metrics
           --cov=quality_database_app.eval
           --cov=quality_database_app.storage
+          --cov=quality_database_app.query
           --cov-report=term-missing
           --cov-fail-under=100

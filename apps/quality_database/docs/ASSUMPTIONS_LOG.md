@@ -1,8 +1,8 @@
 # Engineering Assumptions Log
 **Project:** Quality Database — Corpus Ingestion + Cleaning (M4-2, #283) and Chunking +
 Embedding + Vector Store (M4-3, #284), Citation Eval (M4-4, #285), Private Storage +
-Access Boundary (M4-5, #286), OCR Fallback (M4-2c, #335)
-**Last Updated:** August 17, 2026
+Access Boundary (M4-5, #286), OCR Fallback (M4-2c, #335), RAG Query Engine (M5-1, #287)
+**Last Updated:** August 19, 2026
 
 **No AIAG/ISO constant, threshold, or quotation is introduced by this app.** It moves
 text; it does not compute or restate a standard. Provenance and licensing for every
@@ -390,3 +390,66 @@ across versions or DPI, which is why the *seam* is on the deterministic CI path 
 `quality_database_app/pipeline.py` -> `read_segments()`, `run()`,
 `apps/quality_database/pyproject.toml` -> `[project.optional-dependencies] ocr`,
 `.github/workflows/ci.yml` -> Quality Database coverage gate
+
+---
+
+## RULE 16 — Refusal threshold is measured from a real embedder run; citations are verified, not trusted (SME-locked, #287)
+
+**Decision:** Three parts.
+
+(a) **Refusal threshold, measured, not placeholder.**
+`query.answer_question()` computes `passes_retrieval_gate()` from
+`VectorStore.search()`'s own top-1 cosine score *before* any generator call:
+`REFUSAL_SCORE_THRESHOLD = 0.6383290503624621`.
+Below it (or zero hits), the engine returns a refused `CandidateAnswer` and the generator
+is never invoked.
+
+**Source:** `quality_database_app/calibrate_refusal_threshold.py`, run
+2026-08-19 against model `BAAI/bge-small-en-v1.5` over the real ingested corpus
+(1157 chunks). In-corpus side: every `answerable=True` question in
+`docs/eval/gold_set.json` (11 questions, top-1 score range 0.6647-0.8670).
+Out-of-corpus side: `docs/eval/out_of_corpus_questions.json` (12 questions, top-1 score
+range 0.4422-0.6120). Branch taken: `clean_separation` — the two distributions do not
+overlap (weakest in-corpus 0.6647 > strongest out-of-corpus 0.6120), so the threshold is
+their midpoint, and at that cutoff **zero** questions are misclassified on either side
+(0/11 in-corpus below, 0/12 out-of-corpus at-or-above). The run is deterministic and was
+reproduced twice with identical output. SME direction, 2026-08-19 (#287): calibrate now
+with a real hand-run rather
+than ship an unmeasured placeholder, matching the standing preference for
+standards-anchored fidelity over the lean default.
+
+**Rationale:** `FakeEmbedder` (RULE 10) carries no semantic similarity, so no CI run can
+ever validate a real cosine cutoff — this is why the number is derived by a hand-run
+script against the real backend and the real corpus, exactly like M4-3's real indexing
+run and M4-4's real-embedder retrieval numbers, rather than guessed and shipped
+unmeasured (contrast RULE 9's `MAX_CHARS`, an explicitly unmeasured tunable). If a later
+corpus or model change moves the score distributions, re-run
+`calibrate_refusal_threshold.py` and update this rule and the constant together — never
+hand-edit the number without a fresh run backing it.
+
+(b) **Citations are parsed from generated text and verified against retrieval, never
+trusted from the model.** A generator emits inline `[source_id:region:page]` tokens; the
+engine accepts an answer only if every cited token matches a retrieved
+`SearchResult`'s locator. Zero cited tokens, or any token not present in retrieval, is
+treated identically to a retrieval-gate failure: refuse.
+
+**Source:** SME-locked issue framing (#287): "Citations must be verified programmatically
+against the retrieved chunks (a cited locator not present in retrieval = failure)."
+
+(c) **Quote-cap enforcement is fail-closed across the whole retrieved set, not
+per-chunk.** `evalset.QUOTABLE_FLAGS`/`within_quote_cap` (docs/CORPUS_LEDGER.md's quote
+cap) are reused verbatim. If any retrieved hit's `serving_flag` is not in
+`QUOTABLE_FLAGS`, no quoted span is allowed anywhere in the answer; otherwise every
+quoted span must satisfy `within_quote_cap`.
+
+**Rationale:** The engine cannot attribute a specific quoted span in generated text to a
+specific retrieved chunk without a second parsing layer this issue does not build, so the
+safe rule is the most restrictive hit in the retrieved set governs the whole answer —
+consistent with "refuse rather than guess." A second, code-derived confidence/attribution
+heuristic here would repeat the mistake RULE 1 exists to prevent.
+
+**Applied In:** `quality_database_app/query.py` -> `REFUSAL_SCORE_THRESHOLD`,
+`passes_retrieval_gate()`, `extract_locators()`, `_verified_locator()`,
+`violates_quote_policy()`, `answer_question()`;
+`quality_database_app/calibrate_refusal_threshold.py` (the measurement itself);
+`docs/eval/out_of_corpus_questions.json` (the out-of-corpus fixture)
