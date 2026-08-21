@@ -1,8 +1,9 @@
 # Engineering Assumptions Log
 **Project:** Quality Database — Corpus Ingestion + Cleaning (M4-2, #283) and Chunking +
 Embedding + Vector Store (M4-3, #284), Citation Eval (M4-4, #285), Private Storage +
-Access Boundary (M4-5, #286), OCR Fallback (M4-2c, #335), RAG Query Engine (M5-1, #287)
-**Last Updated:** August 19, 2026
+Access Boundary (M4-5, #286), OCR Fallback (M4-2c, #335), RAG Query Engine (M5-1, #287),
+Citation-Accuracy CI Gate (M5-4, #290)
+**Last Updated:** August 21, 2026
 
 **No AIAG/ISO constant, threshold, or quotation is introduced by this app.** It moves
 text; it does not compute or restate a standard. Provenance and licensing for every
@@ -453,3 +454,45 @@ heuristic here would repeat the mistake RULE 1 exists to prevent.
 `violates_quote_policy()`, `answer_question()`;
 `quality_database_app/calibrate_refusal_threshold.py` (the measurement itself);
 `docs/eval/out_of_corpus_questions.json` (the out-of-corpus fixture)
+
+---
+
+## RULE 17 — The citation-accuracy gate is a structural floor over a known-correct fixture, not a measured generator score (SME-locked, #290)
+
+**Decision:** Four named constants gate every
+`eval.run_generation_eval()` report the CI suite produces
+(`quality_database_app/generation_metrics.py:59-62`):
+
+| Constant | Value | Metric gated |
+|---|---|---|
+| `MIN_CITATION_ACCURACY` | `1.0` | `GenerationReport.citation_accuracy_mean` (floor) |
+| `MIN_GROUNDEDNESS` | `1.0` | `GenerationReport.groundedness_mean` (floor) |
+| `MIN_REFUSAL_CORRECTNESS` | `1.0` | `GenerationReport.refusal_correctness_mean` (floor) |
+| `MAX_HALLUCINATION_RATE` | `0.0` | `GenerationReport.hallucination_rate` (ceiling) |
+
+**Source:** SME resolution, 2026-08-21 (#290, M5-4): build the **structural gate now**, defer a
+real-backend-calibrated gate to M6 when a live generator is wired end to end. `1.0`/`0.0` is not
+a calibration — it is the only value the fixture's construction implies. `tests/test_citation_gate.py`
+scores one hand-authored answer per item of the committed `docs/eval/gold_set.json` (13 items:
+11 answerable, cited at their own `(source_id, region, page)`; 2 `never-ship`, refused), so the
+correct report is *exactly* all-1.0 means and a 0.0 hallucination rate. Any other value would be
+inventing slack for a fixture that has none.
+
+**Ceiling — state it plainly:** these constants say **nothing** about a real generator's citation
+quality. The scored answers are correct by construction, so the gate proves the *scoring and
+serving-policy machinery plus the gold set* are intact — a fabricated citation, an answered
+`never-ship` question, or a barred/over-cap verbatim excerpt each move a metric across its
+threshold (the three permanent negative controls in that module). It does not prove a model
+cites well. CI has no model and no network (RULE 10, RULE 16(a)), and no real-generator eval
+report is committed anywhere in this repo to derive a non-trivial floor such as "≥ 0.9" from.
+Deriving one requires a hand-run against a real backend written out through `eval.write_report()`
+and refreshed with the constant together, RULE 16(a)-style — deferred to M6. This is the same
+posture as RULE 9's explicitly unmeasured tunable: an honest label beats an implied measurement.
+
+**Also note:** `refusal_correctness` here is *not* `query.REFUSAL_SCORE_THRESHOLD` (RULE 16(a)).
+That one is a retrieval-gate cosine cutoff; this one scores whether a `CandidateAnswer` refused
+exactly when `GoldItem.answerable` said it must. The two "refusal" concepts are never conflated.
+
+**Applied In:** `quality_database_app/generation_metrics.py` -> `MIN_CITATION_ACCURACY`,
+`MIN_GROUNDEDNESS`, `MIN_REFUSAL_CORRECTNESS`, `MAX_HALLUCINATION_RATE`;
+`tests/test_citation_gate.py` (the gate and its negative controls)
