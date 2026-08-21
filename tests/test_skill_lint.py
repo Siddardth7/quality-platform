@@ -211,6 +211,22 @@ def test_lint_skill_loop_occurrence_formula_assignment_fails(tmp_path: pathlib.P
     assert any("formula in SKILL.md body" in v for v in violations)
 
 
+def test_lint_skill_project_grr_formula_assignment_fails(tmp_path: pathlib.Path) -> None:
+    """The denylist covers the project-artifact field name too (#291).
+
+    Without this token the no-compute gate is vacuous for the one new smuggle
+    surface M5-5 opens: a formula written using the JSON field's own (lowercase)
+    name rather than the uppercase prose form already denylisted.
+    """
+    text = (
+        "---\nname: example-skill\ndescription: valid.\n---\n\n"
+        "pgrr_study = 100 * grr / tv\n"
+    )
+    skill = _write_skill(tmp_path / "example-skill", text=text)
+    violations = lint_skill(skill)
+    assert any("formula in SKILL.md body" in v for v in violations)
+
+
 def test_lint_skill_prose_mention_passes(tmp_path: pathlib.Path) -> None:
     """A bare prose mention of a metric name must NOT false-positive."""
     text = (

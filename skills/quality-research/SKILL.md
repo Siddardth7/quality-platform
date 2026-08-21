@@ -31,7 +31,9 @@ AIAG / ISO / NIST actually publishes about a topic. Not a request to compute any
 This is not the skill for running an engine. A request that carries *data* — ratings, a
 study, readings, an FMEA table — is a tool call, and belongs to `fmea`, `msa`, `spc` or
 `control-plan`. If this skill fires on one anyway, hand it to the owning skill rather than
-answering it from a citation.
+answering it from a citation. **That boundary does not move when a project is loaded**: with a
+project on disk this skill may *read* an already-computed result (step 1b) to say what the
+project's own value is, but "run a Gage R&R on this study" is still `msa`'s job, not this one's.
 
 ## Steps
 
@@ -40,6 +42,35 @@ answering it from a citation.
    retrieval. `scripts/call_qdb_answer_question.py` is the same call as a runnable script; it
    reads `QDB_MCP_URL` and `QDB_MCP_TOKEN` from the environment. This is always tried first:
    it is the primary path, not an optional enhancement.
+
+   **Step 1b — if a project is loaded, also read the one artifact the question is about.**
+   A project is loaded when the user named a project directory (or one is already the working project) and
+   `<project-root>/project.yaml` exists and parses; note its `project_id`. If it is absent, or
+   no directory was named, there is no project — skip this step entirely and answer the
+   standards question exactly as the four worked examples below do. With a project loaded, map
+   the question's topic to a single artifact and read only that file with the host's `Read`
+   tool, taking only the fields the question needs:
+
+   | Topic | Artifact | Field(s) |
+   |---|---|---|
+   | %GRR, Gage R&R, ndc, EV/AV/PV | `msa/gage-rr.json` | `pgrr_study`, `pgrr_tolerance`, `ndc`, `verdict`, `characteristic` |
+   | RPN, Action Priority, severity/occurrence/detection | `fmea/fmea.json` | the relevant `FailureLink` row's ratings |
+   | Cp/Cpk/Pp/Ppk, capability | `spc/results/<characteristic>.json` | `capability`, `oos_signal_count` |
+
+   The full table, the detection procedure and the end-to-end worked example are in
+   [`references/project-context.md`](references/project-context.md). Three rules hold in all
+   cases. **Never recompute:** the values in these files are the engines' own output — read
+   them as written, do not derive them from components, re-round them, or re-run the verdict
+   logic by hand; if the file does not carry the number the question needs, say so.
+   **Read-only, and only this file:** this skill never writes a project artifact and never
+   proposes a change to one — that is the post-1.0 project-aware co-pilot's job — and it opens
+   no file beyond the one the topic maps to. If that file does not exist, say the project has
+   no data for that artifact and fall through to standards-only. **Still call the endpoint:**
+   the project read augments step 1, it does not replace it — the answer must ground in both
+   the corpus and the artifact. Compose the two halves separately: the project's own value and
+   the file it came from, then the standard's threshold with its citation, stating which
+   published band the project's value falls into — never a verdict the standard does not
+   publish.
 2. **If `refused` is true**, report the tool's own fixed string verbatim — *"Not found in the
    corpus."* — and stop. Do **not** fall back and do not guess further: a refusal is a real,
    cited-as-absent answer, not an outage.
@@ -172,3 +203,6 @@ them as indicative only (RULE 7's note). Do not overstate it as a hard gate, and
 - [`references/fallback-sources.md`](references/fallback-sources.md) — the five-step local
   fallback procedure, the per-app `ASSUMPTIONS_LOG.md` table, and the quote-cap /
   cite-and-point rule from `docs/CORPUS_LEDGER.md`.
+- [`references/project-context.md`](references/project-context.md) — the project-detection
+  procedure, the full topic → artifact → field table, the read-only/no-compute rules, and the
+  end-to-end worked "is my %GRR acceptable?" example against a loaded project.

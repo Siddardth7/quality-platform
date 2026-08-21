@@ -45,8 +45,14 @@ NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # that domain: `ooc_rate` / `Occurrence` were added with the project-loop skill (#281), whose
 # smuggleable math is the SPC→FMEA feedback mapping (`ooc_rate = violating / total`, and the
 # rate→rank table behind `Occurrence = ...`). Both live in `spc_app.fmea_feedback`.
+# `pgrr_study` / `pgrr_tolerance` were added with quality-research's in-project read (#291):
+# because the match is case-sensitive, a re-derivation written with the M3 artifact's own
+# lowercase JSON field names (`pgrr_study = 100 * grr / tv`) slipped past the uppercase
+# `GRR|EV|AV|PV` prose tokens. Scoped to those two unambiguous field names only — bare `ev`,
+# `av`, `pv` are ordinary prose fragments and would false-positive.
 FORMULA_PATTERN = re.compile(
-    r"\b(RPN|AP|Cpk|Cp|Ppk|Pp|GRR|EV|AV|PV|ndc|ooc_rate|Occurrence)\s*="
+    r"\b(RPN|AP|Cpk|Cp|Ppk|Pp|GRR|EV|AV|PV|ndc|ooc_rate|Occurrence"
+    r"|pgrr_study|pgrr_tolerance)\s*="
 )
 
 CODE_SMELLS = ("import numpy", "import pandas", "import scipy", "def compute")
