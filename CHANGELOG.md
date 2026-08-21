@@ -4,6 +4,25 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Citation-accuracy CI gate for the Quality Knowledge Base (#290, M5-4).** Four named
+  thresholds in `quality_database_app/generation_metrics.py` — `MIN_CITATION_ACCURACY`,
+  `MIN_GROUNDEDNESS`, `MIN_REFUSAL_CORRECTNESS` (floors, `1.0`) and `MAX_HALLUCINATION_RATE`
+  (ceiling, `0.0`) — are enforced by `apps/quality_database/tests/test_citation_gate.py`, which
+  scores one hand-authored answer per item of the committed 13-item `docs/eval/gold_set.json`
+  and fails `CI / gate` on any regression. Three permanent negative controls prove the gate is
+  load-bearing: a fabricated citation, a `never-ship` question answered instead of refused, and
+  a barred or over-cap verbatim excerpt each push a metric across its threshold. The thresholds
+  are a **structural floor over a correct-by-construction fixture, not a measurement of a real
+  generator** — CI has no model and no network — and ASSUMPTIONS_LOG RULE 17 states that ceiling
+  explicitly; a real-backend-calibrated gate is deferred to M6. No new CI step: the module runs
+  inside the existing full-suite and Quality Database coverage-gate steps. Server-side serving
+  policy (quote cap, cite-and-point, fail-closed refusal) was already shipped in M4-4/M5-1 and
+  is unchanged.
+
 ## [0.15.0] - 2026-08-18 — M2 · Agent Skills · M3 · Closed-loop contract · M4 · Quality Knowledge Base
 
 Three milestones ship together. **M2** puts an Agent Skills layer over the MCP server shipped in
