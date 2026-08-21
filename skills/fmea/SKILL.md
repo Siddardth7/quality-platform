@@ -35,7 +35,9 @@ So do not invent a threshold verdict from the Risk Priority Number alone. Report
 engine returned and let Action Priority carry the prioritization weight.
 
 This is not the skill for statistical process control (control charts, capability) or for
-measurement systems analysis (Gage R&R) — those have their own tools on the same server.
+measurement systems analysis (Gage R&R) — those have their own tools on the same server. Nor
+is it the skill for a question about what a standard itself says or why a threshold exists
+("does AIAG publish an RPN action threshold?") — that is `quality-research`.
 
 ## Steps
 

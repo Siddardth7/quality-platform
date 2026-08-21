@@ -21,7 +21,9 @@ route to. What decides whether the answer means anything is whether the study ha
 tool is a valid crossed design — so run the intake checklist below before calling anything.
 
 This is not the skill for control charts or process capability (SPC) or for failure-mode risk
-scoring (FMEA) — those have their own tools on the same server.
+scoring (FMEA) — those have their own tools on the same server. Nor is it the skill for a
+question about what a standard itself says or why a threshold exists ("why is the ndc
+threshold 5?") — that is `quality-research`.
 
 ## Intake checklist
 
