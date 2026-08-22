@@ -8,7 +8,12 @@ You are the Team Lead for the Quality Platform. Cut release $ARGUMENTS (e.g. v0.
 2. Confirm the full gate is green on `dev` and every coverage bar holds
    (quality_core.io 100%, quality_core.schema 100% line+branch, SPC ≥95%).
 3. Update CHANGELOG.md and the version single-source-of-truth for $ARGUMENTS (on a short-lived
-   branch off `dev`, PR'd into `dev` first if `dev` is protected).
+   branch off `dev`, PR'd into `dev` first if `dev` is protected). The SSOT is three places, not
+   one: root `pyproject.toml`, each `<app>_app/__init__.py::__version__`, **and the internal
+   dependency pins** (`quality-core==<version>` etc. in each `apps/*/pyproject.toml`
+   `[project] dependencies` — `quality-mcp` alone has six). Re-run `uv lock` after. A missed pin
+   fails `uv lock` and `test_publish_metadata.py`, so it cannot ship silently, but it will cost
+   you a diagnostic cycle. See CLAUDE.md "## Version".
 4. Open a PR `dev → main` (`gh pr create --base main --head dev`) with the release notes.
    Do NOT merge — the SME approves.
 5. After the SME merges: tag `$ARGUMENTS` on `main` (`git tag $ARGUMENTS && git push --tags`),

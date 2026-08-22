@@ -1,12 +1,20 @@
 [project]
-name = "spc-app"
+name = "quality-spc"
 version = "0.15.0"
 description = "Manufacturing SPC Dashboard — Streamlit app (control charts + process capability)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Manufacturing",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
-    "quality-core",
+    "quality-core==0.15.0",  # exact pin: one version across the workspace (#292)
     "streamlit>=1.56.0",
     "plotly>=6.6.0",
     "pandas>=3.0.2",
@@ -15,6 +23,10 @@ dependencies = [
     "openpyxl>=3.1.5",  # spc_app.exporter writes .xlsx via openpyxl
     "fpdf2>=2.8.7",     # spc_app.exporter renders .pdf via fpdf2
 ]
+
+[project.urls]
+Homepage = "https://github.com/Siddardth7/quality-platform"
+Repository = "https://github.com/Siddardth7/quality-platform"
 
 [tool.uv.sources]
 quality-core = { workspace = true }

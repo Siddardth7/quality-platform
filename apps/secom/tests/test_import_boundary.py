@@ -5,11 +5,11 @@ retargeted by #205 PR 3, extended by #231).
 ``quality_core.spc``; no ``spc_app`` import survives anywhere in this app (#205). Before
 #204, the engine import only worked under pytest because ``apps/secom/conftest.py``
 path-hacked the engine onto ``sys.path`` — which is why this test exists at all. That
-conftest survived only to path-hack ``apps/msa``; #231 made ``msa-app`` installable and
+conftest survived only to path-hack ``apps/msa``; #231 made ``quality-msa`` installable and
 deleted it, so ``apps/secom`` now has **no ``conftest.py`` at all**.
 
 These tests run a clean, non-pytest interpreter to prove the imports resolve via the
-installed (editable) ``quality-core`` / ``secom-app`` / ``msa-app`` workspace packages,
+installed (editable) ``quality-core`` / ``quality-secom`` / ``quality-msa`` workspace packages,
 not the hack.
 """
 
@@ -70,7 +70,7 @@ def test_secom_app_has_no_spc_app_import() -> None:
 
 
 def test_secom_app_is_an_installed_distribution() -> None:
-    """secom-app must be installed (editable), not just importable via cwd (#204, OQ2).
+    """quality-secom must be installed (editable), not just importable via cwd (#204, OQ2).
 
     Runs from the workspace root (not ``apps/secom``) so ``secom_app`` can only
     resolve through the editable install, never through a cwd sys.path[0] hack.
@@ -93,7 +93,7 @@ def test_secom_app_is_an_installed_distribution() -> None:
 
 
 def test_msa_app_is_an_installed_distribution() -> None:
-    """msa-app must be installed (editable), not reachable via a conftest sys.path hack (#231).
+    """quality-msa must be installed (editable), not reachable via a conftest sys.path hack (#231).
 
     tests/test_msa.py imports ``msa_app.gage_rr_engine`` (#68); until #231 that only
     worked because ``apps/secom/conftest.py`` inserted ``apps/msa`` onto ``sys.path`` —

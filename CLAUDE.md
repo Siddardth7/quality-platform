@@ -156,9 +156,17 @@ Violating these has cost real rework.
 
 ## Version
 
-One version across the workspace: `0.13.0` in root `pyproject.toml` and in each
+One version across the workspace: `0.15.0` in root `pyproject.toml` and in each
 `<app>_app/__init__.py::__version__`. Each app has a `tests/test_version.py` pinning it.
 Bump together at release.
+
+**A release bump must also update the internal dependency pins.** Since #292, every
+workspace-internal dependency is pinned exactly (`quality-core==0.15.0`) in the depending
+package's `[project] dependencies`, so the published wheels resolve to one coherent set.
+Those pins live in `apps/*/pyproject.toml` — `quality-mcp` alone carries six. They are
+self-enforcing (a stale pin fails `uv lock` and
+`packages/quality-core/tests/test_publish_metadata.py`), so a miss cannot ship silently —
+but bump them in the same commit or the gate will tell you the hard way.
 
 ## Documentation map
 

@@ -1,4 +1,4 @@
-# `controlplan-app` — stable API
+# `quality-controlplan` — stable API
 
 The FMEA → Control Plan connector engine. One published module,
 `controlplan_app.connector`: it maps a relational FMEA into the Control Plan output

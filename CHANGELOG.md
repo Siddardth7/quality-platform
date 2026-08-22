@@ -8,6 +8,41 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **TestPyPI publish workflow (#292, M6-1).** `.github/workflows/publish.yml` builds all eight
+  distributions and uploads them to TestPyPI over PyPI Trusted Publishing (OIDC, no stored
+  token), `quality-core` first and the seven that pin it second. It is `workflow_dispatch`-only
+  with TestPyPI as the sole target — no push, merge or tag can publish as a side effect, and
+  the real-PyPI path is deferred to the v1.0.0 release issue. `CI / gate` (`ci.yml`) is
+  untouched. **Nothing has been uploaded and `uvx quality-mcp` is not yet verified against a
+  live index**: Trusted Publishing is registered index-side per project, so the SME must first
+  register a "pending" publisher for each of the eight names on TestPyPI and run the workflow
+  once. The manual step and the verification command are in `apps/mcp/README.md`.
+- **PyPI metadata on all eight distributions (#292, M6-1).** `classifiers` and `[project.urls]`
+  — the half of #261's metadata deferred to M6 — plus the missing `authors` on `quality-mcp`.
+  `license` is still deliberately absent, and no `License ::` classifier was added: the repo
+  still has no LICENSE file, and an identifier without one would be the same false claim #261
+  rejected. Both land together before the real-PyPI publish.
+
+### Changed
+
+- **The eight distributions are renamed to the `quality-*` namespace (#292, M6-1):**
+  `fmea-app` → `quality-fmea`, `spc-app` → `quality-spc`, `msa-app` → `quality-msa`,
+  `controlplan-app` → `quality-controlplan`, `secom-app` → `quality-secom`,
+  `quality-database-app` → `quality-database`, `mcp-app` → `quality-mcp` (`quality-core` was
+  already correct). **Only the distribution names changed — no import package name and no
+  `import` statement anywhere in the repo** (`mcp_app`, `fmea_app`, `spc_app`, … are
+  untouched). The rename is what makes `uvx quality-mcp` resolvable once published: `uvx X`
+  resolves the *distribution* named `X`, and the console script inside was already
+  `quality-mcp`. `uv.lock` was regenerated; `uv sync --frozen` is unaffected.
+- **Internal dependencies are pinned exactly (#292, M6-1).** Every internal entry in a
+  `[project] dependencies` list is now `<name>==<workspace version>` rather than a bare name,
+  so a published wheel's `Requires-Dist` states the lockstep the workspace already releases in
+  (one version across all eight, bumped together). `[tool.uv.sources] { workspace = true }` is
+  unchanged and still decides *where* uv resolves them from locally.
+  `packages/quality-core/tests/test_publish_metadata.py` asserts both the new distribution
+  names (and that the import names did not move) and the pins, read from installed
+  distribution metadata.
+
 - **Citation-accuracy CI gate for the Quality Knowledge Base (#290, M5-4).** Four named
   thresholds in `quality_database_app/generation_metrics.py` — `MIN_CITATION_ACCURACY`,
   `MIN_GROUNDEDNESS`, `MIN_REFUSAL_CORRECTNESS` (floors, `1.0`) and `MAX_HALLUCINATION_RATE`

@@ -5,6 +5,17 @@ description = "Shared core for the Quality Platform: schema, IO, theme, and doma
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
+# No `license` field and no `License ::` classifier: the repo has no LICENSE file yet,
+# and an identifier without one would be a false claim (#261, CHANGELOG "Minimal PyPI
+# metadata"). Add both together when a LICENSE lands, before the real-PyPI publish.
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Manufacturing",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "pandas>=3.0.2",
     "pydantic>=2.13.4",
@@ -27,6 +38,10 @@ dependencies = [
 # quality_core.theme.style only (apply_theme injects CSS via st.markdown). The core's
 # data path — schema, io, scoring — must not require a UI framework (audit A11, #202).
 streamlit = ["streamlit>=1.56.0"]
+
+[project.urls]
+Homepage = "https://github.com/Siddardth7/quality-platform"
+Repository = "https://github.com/Siddardth7/quality-platform"
 
 [build-system]
 requires = ["hatchling"]

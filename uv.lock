@@ -21,15 +21,15 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "controlplan-app",
-    "fmea-app",
-    "mcp-app",
-    "msa-app",
+    "quality-controlplan",
     "quality-core",
-    "quality-database-app",
+    "quality-database",
+    "quality-fmea",
+    "quality-mcp",
+    "quality-msa",
     "quality-platform",
-    "secom-app",
-    "spc-app",
+    "quality-secom",
+    "quality-spc",
 ]
 overrides = [
     { name = "gitpython", specifier = ">=3.1.55" },
@@ -546,29 +546,6 @@ wheels = [
 ]
 
 [[package]]
-name = "controlplan-app"
-version = "0.15.0"
-source = { editable = "apps/controlplan" }
-dependencies = [
-    { name = "fpdf2" },
-    { name = "openpyxl" },
-    { name = "pandas" },
-    { name = "pydantic" },
-    { name = "quality-core" },
-    { name = "streamlit" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fpdf2", specifier = ">=2.8.7" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pandas", specifier = ">=3.0.2" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "quality-core", editable = "packages/quality-core" },
-    { name = "streamlit", specifier = ">=1.56.0" },
-]
-
-[[package]]
 name = "coverage"
 version = "7.14.1"
 source = { registry = "https://pypi.org/simple" }
@@ -928,35 +905,6 @@ version = "25.12.19"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e8/2d/d2a548598be01649e2d46231d151a6c56d10b964d94043a335ae56ea2d92/flatbuffers-25.12.19-py2.py3-none-any.whl", hash = "sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4", size = 26661, upload-time = "2025-12-19T23:16:13.622Z" },
-]
-
-[[package]]
-name = "fmea-app"
-version = "0.15.0"
-source = { editable = "apps/fmea" }
-dependencies = [
-    { name = "fpdf2" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "openpyxl" },
-    { name = "pandas" },
-    { name = "plotly" },
-    { name = "pydantic" },
-    { name = "quality-core" },
-    { name = "streamlit" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fpdf2", specifier = ">=2.8.7" },
-    { name = "matplotlib", specifier = ">=3.10.8" },
-    { name = "numpy", specifier = ">=2.4.4" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pandas", specifier = ">=3.0.2" },
-    { name = "plotly", specifier = ">=6.6.0" },
-    { name = "pydantic", specifier = ">=2.13.4" },
-    { name = "quality-core", editable = "packages/quality-core" },
-    { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
 [[package]]
@@ -1702,31 +1650,6 @@ wheels = [
 ]
 
 [[package]]
-name = "mcp-app"
-version = "0.15.0"
-source = { editable = "apps/mcp" }
-dependencies = [
-    { name = "controlplan-app" },
-    { name = "fastmcp" },
-    { name = "fmea-app" },
-    { name = "msa-app" },
-    { name = "quality-core" },
-    { name = "quality-database-app" },
-    { name = "spc-app" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "controlplan-app", editable = "apps/controlplan" },
-    { name = "fastmcp", specifier = "==3.4.6" },
-    { name = "fmea-app", editable = "apps/fmea" },
-    { name = "msa-app", editable = "apps/msa" },
-    { name = "quality-core", editable = "packages/quality-core" },
-    { name = "quality-database-app", editable = "apps/quality_database" },
-    { name = "spc-app", editable = "apps/spc" },
-]
-
-[[package]]
 name = "mdurl"
 version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1840,31 +1763,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/de/1d/f4da6f02cdffe04d6362210b807146a26044c88d839208aec273bb0d9184/more_itertools-11.1.0.tar.gz", hash = "sha256:48e8f4d9e7e5878571ecf6f2b4e57634f93cd474cc8cfbd2376f2d11b396e30d", size = 145772, upload-time = "2026-05-22T14:14:29.909Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e8/3d/1087453384dbde46a8c7f9356eead2c58be8a7bf156bca40243377c85715/more_itertools-11.1.0-py3-none-any.whl", hash = "sha256:4b65538ae22f6fed0ce4874efd317463a7489796a0939fa66824dd542125a192", size = 72226, upload-time = "2026-05-22T14:14:28.824Z" },
-]
-
-[[package]]
-name = "msa-app"
-version = "0.15.0"
-source = { editable = "apps/msa" }
-dependencies = [
-    { name = "fpdf2" },
-    { name = "openpyxl" },
-    { name = "pandas" },
-    { name = "pydantic" },
-    { name = "quality-core" },
-    { name = "scipy" },
-    { name = "streamlit" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fpdf2", specifier = ">=2.8.7" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pandas", specifier = ">=3.0.2" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "quality-core", editable = "packages/quality-core" },
-    { name = "scipy", specifier = ">=1.17.1" },
-    { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
 [[package]]
@@ -2970,6 +2868,29 @@ wheels = [
 ]
 
 [[package]]
+name = "quality-controlplan"
+version = "0.15.0"
+source = { editable = "apps/controlplan" }
+dependencies = [
+    { name = "fpdf2" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "quality-core" },
+    { name = "streamlit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fpdf2", specifier = ">=2.8.7" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "quality-core", editable = "packages/quality-core" },
+    { name = "streamlit", specifier = ">=1.56.0" },
+]
+
+[[package]]
 name = "quality-core"
 version = "0.15.0"
 source = { editable = "packages/quality-core" }
@@ -3002,7 +2923,7 @@ requires-dist = [
 provides-extras = ["streamlit"]
 
 [[package]]
-name = "quality-database-app"
+name = "quality-database"
 version = "0.15.0"
 source = { editable = "apps/quality_database" }
 dependencies = [
@@ -3034,18 +2955,97 @@ requires-dist = [
 provides-extras = ["embed", "ocr"]
 
 [[package]]
+name = "quality-fmea"
+version = "0.15.0"
+source = { editable = "apps/fmea" }
+dependencies = [
+    { name = "fpdf2" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "plotly" },
+    { name = "pydantic" },
+    { name = "quality-core" },
+    { name = "streamlit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fpdf2", specifier = ">=2.8.7" },
+    { name = "matplotlib", specifier = ">=3.10.8" },
+    { name = "numpy", specifier = ">=2.4.4" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "plotly", specifier = ">=6.6.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "quality-core", editable = "packages/quality-core" },
+    { name = "streamlit", specifier = ">=1.56.0" },
+]
+
+[[package]]
+name = "quality-mcp"
+version = "0.15.0"
+source = { editable = "apps/mcp" }
+dependencies = [
+    { name = "fastmcp" },
+    { name = "quality-controlplan" },
+    { name = "quality-core" },
+    { name = "quality-database" },
+    { name = "quality-fmea" },
+    { name = "quality-msa" },
+    { name = "quality-spc" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastmcp", specifier = "==3.4.6" },
+    { name = "quality-controlplan", editable = "apps/controlplan" },
+    { name = "quality-core", editable = "packages/quality-core" },
+    { name = "quality-database", editable = "apps/quality_database" },
+    { name = "quality-fmea", editable = "apps/fmea" },
+    { name = "quality-msa", editable = "apps/msa" },
+    { name = "quality-spc", editable = "apps/spc" },
+]
+
+[[package]]
+name = "quality-msa"
+version = "0.15.0"
+source = { editable = "apps/msa" }
+dependencies = [
+    { name = "fpdf2" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "quality-core" },
+    { name = "scipy" },
+    { name = "streamlit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fpdf2", specifier = ">=2.8.7" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "quality-core", editable = "packages/quality-core" },
+    { name = "scipy", specifier = ">=1.17.1" },
+    { name = "streamlit", specifier = ">=1.56.0" },
+]
+
+[[package]]
 name = "quality-platform"
 version = "0.15.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "controlplan-app" },
-    { name = "fmea-app" },
-    { name = "mcp-app" },
-    { name = "msa-app" },
+    { name = "quality-controlplan" },
     { name = "quality-core" },
-    { name = "quality-database-app" },
-    { name = "secom-app" },
-    { name = "spc-app" },
+    { name = "quality-database" },
+    { name = "quality-fmea" },
+    { name = "quality-mcp" },
+    { name = "quality-msa" },
+    { name = "quality-secom" },
+    { name = "quality-spc" },
 ]
 
 [package.dev-dependencies]
@@ -3061,14 +3061,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "controlplan-app", editable = "apps/controlplan" },
-    { name = "fmea-app", editable = "apps/fmea" },
-    { name = "mcp-app", editable = "apps/mcp" },
-    { name = "msa-app", editable = "apps/msa" },
+    { name = "quality-controlplan", editable = "apps/controlplan" },
     { name = "quality-core", editable = "packages/quality-core" },
-    { name = "quality-database-app", editable = "apps/quality_database" },
-    { name = "secom-app", editable = "apps/secom" },
-    { name = "spc-app", editable = "apps/spc" },
+    { name = "quality-database", editable = "apps/quality_database" },
+    { name = "quality-fmea", editable = "apps/fmea" },
+    { name = "quality-mcp", editable = "apps/mcp" },
+    { name = "quality-msa", editable = "apps/msa" },
+    { name = "quality-secom", editable = "apps/secom" },
+    { name = "quality-spc", editable = "apps/spc" },
 ]
 
 [package.metadata.requires-dev]
@@ -3080,6 +3080,64 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.15.17" },
     { name = "types-openpyxl", specifier = ">=3.1.5" },
+]
+
+[[package]]
+name = "quality-secom"
+version = "0.15.0"
+source = { editable = "apps/secom" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "quality-core" },
+    { name = "scipy" },
+    { name = "streamlit" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "quality-msa" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=2.4.4" },
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "quality-core", editable = "packages/quality-core" },
+    { name = "scipy", specifier = ">=1.17.1" },
+    { name = "streamlit", specifier = ">=1.56.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "quality-msa", editable = "apps/msa" }]
+
+[[package]]
+name = "quality-spc"
+version = "0.15.0"
+source = { editable = "apps/spc" }
+dependencies = [
+    { name = "fpdf2" },
+    { name = "numpy" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "plotly" },
+    { name = "quality-core" },
+    { name = "scipy" },
+    { name = "streamlit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fpdf2", specifier = ">=2.8.7" },
+    { name = "numpy", specifier = ">=2.4.4" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=3.0.2" },
+    { name = "plotly", specifier = ">=6.6.0" },
+    { name = "quality-core", editable = "packages/quality-core" },
+    { name = "scipy", specifier = ">=1.17.1" },
+    { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
 [[package]]
@@ -3371,37 +3429,6 @@ wheels = [
 ]
 
 [[package]]
-name = "secom-app"
-version = "0.15.0"
-source = { editable = "apps/secom" }
-dependencies = [
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "pydantic" },
-    { name = "quality-core" },
-    { name = "scipy" },
-    { name = "streamlit" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "msa-app" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "numpy", specifier = ">=2.4.4" },
-    { name = "pandas", specifier = ">=3.0.2" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "quality-core", editable = "packages/quality-core" },
-    { name = "scipy", specifier = ">=1.17.1" },
-    { name = "streamlit", specifier = ">=1.56.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "msa-app", editable = "apps/msa" }]
-
-[[package]]
 name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3439,33 +3466,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e8/c4/ba2f8066cceb6f23394729afe52f3bf7adec04bf9ed2c820b39e19299111/sortedcontainers-2.4.0.tar.gz", hash = "sha256:25caa5a06cc30b6b83d11423433f65d1f9d76c4c6a0c90e3379eaa43b9bfdb88", size = 30594, upload-time = "2021-05-16T22:03:42.897Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl", hash = "sha256:a163dcaede0f1c021485e957a39245190e74249897e2ae4b2aa38595db237ee0", size = 29575, upload-time = "2021-05-16T22:03:41.177Z" },
-]
-
-[[package]]
-name = "spc-app"
-version = "0.15.0"
-source = { editable = "apps/spc" }
-dependencies = [
-    { name = "fpdf2" },
-    { name = "numpy" },
-    { name = "openpyxl" },
-    { name = "pandas" },
-    { name = "plotly" },
-    { name = "quality-core" },
-    { name = "scipy" },
-    { name = "streamlit" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fpdf2", specifier = ">=2.8.7" },
-    { name = "numpy", specifier = ">=2.4.4" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pandas", specifier = ">=3.0.2" },
-    { name = "plotly", specifier = ">=6.6.0" },
-    { name = "quality-core", editable = "packages/quality-core" },
-    { name = "scipy", specifier = ">=1.17.1" },
-    { name = "streamlit", specifier = ">=1.56.0" },
 ]
 
 [[package]]
