@@ -8,6 +8,16 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Opt-in OAuth transport mode for web MCP hosts (#355).** The M1-8 HTTP transport gains an
+  `MCP_AUTH_MODE=oauth` mode that validates WorkOS AuthKit-issued tokens, reusing FastMCP's
+  `AuthKitProvider` (RFC 9728 protected-resource metadata + JWT verification) — no new
+  dependency. The shared-secret bearer mode stays the zero-config default (unset/`bearer`,
+  unchanged); OAuth is configured by `MCP_OAUTH_AUTHKIT_DOMAIN` + `MCP_OAUTH_BASE_URL` and
+  fails closed (a missing var or unknown mode raises, naming the variable). Resource-server
+  support only: a live Claude.ai/ChatGPT handshake still needs a provisioned public endpoint
+  and a configured WorkOS account, so the `apps/mcp/docs/HOSTS.md` rows stay PENDING. Tests
+  are hermetic (`RSAKeyPair` self-signed JWT over in-process ASGI, no live JWKS);
+  `mcp_app.transport` stays at 100% line+branch.
 - **Per-host MCP configuration matrix (#295, M6-4).** `apps/mcp/docs/HOSTS.md` gives
   copy-paste config for the six named MCP hosts — Claude Desktop, Cursor, VS Code, Gemini CLI
   (stdio) and Claude.ai, ChatGPT (HTTP) — plus a runbook for turning a `PENDING` cell green,
