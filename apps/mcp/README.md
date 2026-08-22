@@ -153,6 +153,10 @@ HTTP with a bearer token can connect. The default loopback bind means "remote" m
 process supervision, secret management) — do not expose this port publicly with the
 single shared token as the only control. Per-client tokens / OAuth are deferred to M6.
 
+See [`docs/HOSTS.md`](docs/HOSTS.md) for per-host copy-paste config (#295, M6-4) — stdio
+blocks for Claude Desktop, Cursor, VS Code and Gemini CLI, and the HTTP shape plus its two
+open blockers for Claude.ai and ChatGPT.
+
 ## Serving the private corpus (#288, M5-2)
 
 `qdb_answer_question` is the one tool that reads private data, so it is the one tool
