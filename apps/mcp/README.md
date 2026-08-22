@@ -137,21 +137,54 @@ MCP_TRANSPORT=http MCP_AUTH_TOKEN="$(openssl rand -hex 32)" uv run python -m mcp
 | `MCP_TRANSPORT` | `stdio` | `stdio` or `http`; any other value is a startup error |
 | `MCP_HOST` | `127.0.0.1` | bind address — loopback only unless you opt into `0.0.0.0` |
 | `MCP_PORT` | `8000` | bind port |
-| `MCP_AUTH_TOKEN` | *(none)* | shared secret, **required** in `http` mode |
+| `MCP_AUTH_MODE` | `bearer` | `bearer` or `oauth`; any other value is a startup error |
+| `MCP_AUTH_TOKEN` | *(none)* | shared secret, **required** in `bearer` mode over `http` |
+| `MCP_OAUTH_AUTHKIT_DOMAIN` | *(none)* | WorkOS AuthKit domain, **required** in `oauth` mode |
+| `MCP_OAUTH_BASE_URL` | *(none)* | this server's public URL, **required** in `oauth` mode |
 
 HTTP mode fails closed: with no `MCP_AUTH_TOKEN` the server refuses to start rather
 than binding an open port, and there is no way to serve HTTP unauthenticated. Clients
 send `Authorization: Bearer <token>`; a missing, malformed or wrong token gets a 401.
 The token is compared in constant time and is never logged.
 
+### OAuth mode (#355, M6)
+
+Web hosts (Claude.ai and ChatGPT connectors) cannot hold a shared secret, so `http` mode
+also accepts OAuth 2.1 tokens — opt in with `MCP_AUTH_MODE=oauth`:
+
+```bash
+MCP_TRANSPORT=http MCP_AUTH_MODE=oauth \
+  MCP_OAUTH_AUTHKIT_DOMAIN="https://your-app.authkit.app" \
+  MCP_OAUTH_BASE_URL="https://your-public-host.example.com" \
+  uv run python -m mcp_app.server
+```
+
+This server is only an OAuth **resource server**: FastMCP's `AuthKitProvider` validates
+JWTs issued by [WorkOS AuthKit](https://workos.com/docs/authkit/mcp/integrating/token-verification)
+against the AuthKit JWKS and serves RFC 9728 protected-resource metadata at
+`/.well-known/oauth-protected-resource`. Token issuance, Dynamic Client Registration and
+the auth-code/PKCE flow all stay with WorkOS — no authorization server is implemented here.
+In the WorkOS dashboard you must enable Dynamic Client Registration (Claude.ai requires it),
+add this server's URL as a redirect, and list the advertised resource URL as a Resource
+Indicator (RFC 8707) so minted tokens carry the matching `aud` claim.
+
+The two modes are mutually exclusive: `oauth` mode does not accept `MCP_AUTH_TOKEN`, and
+`bearer` remains the zero-config default. Both fail closed — missing or empty OAuth config
+refuses to start, and an unrecognised `MCP_AUTH_MODE` is a startup error.
+
+**Status:** the resource-server code and its hermetic tests ship here; a live Claude.ai /
+ChatGPT connector handshake is still PENDING a publicly hosted endpoint and a provisioned
+WorkOS AuthKit account.
+
 ### Connecting a remote host
 
-*Stub — full instructions land in M6, when hosting/deployment is decided.* Today the
-endpoint is `http://<host>:<port>/mcp` and any MCP client that supports Streamable
-HTTP with a bearer token can connect. The default loopback bind means "remote" means
-"another process on this machine" until M6 adds a real deployment (TLS termination,
-process supervision, secret management) — do not expose this port publicly with the
-single shared token as the only control. Per-client tokens / OAuth are deferred to M6.
+*Stub — full instructions land with hosting/deployment.* Today the endpoint is
+`http://<host>:<port>/mcp` and any MCP client that supports Streamable HTTP with a bearer
+token can connect. The default loopback bind means "remote" means "another process on this
+machine" until a real deployment exists (TLS termination, process supervision, secret
+management) — do not expose this port publicly with the single shared token as the only
+control. For a public, web-host-facing deployment use OAuth mode above; per-client tokens,
+scopes and rotation remain WorkOS's job, not this server's.
 
 See [`docs/HOSTS.md`](docs/HOSTS.md) for per-host copy-paste config (#295, M6-4) — stdio
 blocks for Claude Desktop, Cursor, VS Code and Gemini CLI, and the HTTP shape plus its two
