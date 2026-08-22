@@ -1,4 +1,4 @@
-# `secom-app` — stable API
+# `quality-secom` — stable API
 
 The SECOM semiconductor case-study engine: honest ingest of the vendored SECOM dataset,
 signal selection, yield/DPPM, control charts, capability, an observational effect screen,

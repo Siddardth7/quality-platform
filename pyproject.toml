@@ -6,13 +6,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "quality-core",
-    "fmea-app",
-    "spc-app",
-    "msa-app",
-    "controlplan-app",
-    "secom-app",
-    "mcp-app",
-    "quality-database-app",
+    "quality-fmea",
+    "quality-spc",
+    "quality-msa",
+    "quality-controlplan",
+    "quality-secom",
+    "quality-mcp",
+    "quality-database",
 ]
 
 [tool.uv.workspace]
@@ -20,13 +20,13 @@ members = ["packages/*", "apps/*"]
 
 [tool.uv.sources]
 quality-core = { workspace = true }
-fmea-app = { workspace = true }
-spc-app = { workspace = true }
-msa-app = { workspace = true }
-controlplan-app = { workspace = true }
-secom-app = { workspace = true }
-mcp-app = { workspace = true }
-quality-database-app = { workspace = true }
+quality-fmea = { workspace = true }
+quality-spc = { workspace = true }
+quality-msa = { workspace = true }
+quality-controlplan = { workspace = true }
+quality-secom = { workspace = true }
+quality-mcp = { workspace = true }
+quality-database = { workspace = true }
 
 # The workspace root is a coordinator, not an installable package.
 [tool.uv]

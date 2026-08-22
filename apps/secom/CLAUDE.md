@@ -95,7 +95,7 @@ secom_app/selection.py     select_signals(SelectionCriteria) — three filters i
   `tests/test_import_boundary.py` runs a **clean non-pytest interpreter** to prove both
   `secom_app` and `msa_app` resolve through the installed workspace packages — not through
   a `sys.path` hack. This app has **no `conftest.py` at all** since #231, which made
-  `msa-app` installable and let the last shim go. No `spc_app` import survives anywhere in
+  `quality-msa` installable and let the last shim go. No `spc_app` import survives anywhere in
   this app (#204, retargeted by #205 PR 3). If you find yourself importing another app, stop.
 - **Reuse, never reimplement.** `charts.py` and `capability.py` are adapters over
   `quality_core.spc`; `msa.py` computes no math at all. Re-deriving I-MR limits or Cp/Cpk

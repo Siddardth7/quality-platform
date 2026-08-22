@@ -1,12 +1,20 @@
 [project]
-name = "fmea-app"
+name = "quality-fmea"
 version = "0.15.0"
 description = "FMEA Risk Analyzer — Streamlit app (RPN / AIAG-VDA Action Priority)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Manufacturing",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
-    "quality-core",
+    "quality-core==0.15.0",  # exact pin: one version across the workspace (#292)
     "streamlit>=1.56.0",
     "pandas>=3.0.2",
     "plotly>=6.6.0",
@@ -16,6 +24,10 @@ dependencies = [
     "matplotlib>=3.10.8",
     "pydantic>=2.13.4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Siddardth7/quality-platform"
+Repository = "https://github.com/Siddardth7/quality-platform"
 
 [tool.uv.sources]
 quality-core = { workspace = true }

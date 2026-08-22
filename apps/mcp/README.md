@@ -69,6 +69,56 @@ cd apps/mcp && uvx --from . quality-mcp   # via the console entry point
 `uvx --from .` must run from `apps/mcp` — the workspace root is a coordinator
 (`package = false`) and has no distribution to build.
 
+## Publishing to TestPyPI (#292, M6-1)
+
+This app is published as the distribution **`quality-mcp`** (renamed from `mcp-app` in
+#292), which is also the console-script name — that pairing is what lets a published
+release be run as `uvx quality-mcp`, with no `--from`. The import package is still
+`mcp_app`; nothing about `import mcp_app` changed.
+
+`.github/workflows/publish.yml` builds all eight workspace distributions and uploads them
+to TestPyPI over PyPI Trusted Publishing (OIDC — no stored token). It is
+`workflow_dispatch`-only: nothing publishes on push, on merge or on a tag, and TestPyPI is
+the only target offered. Real PyPI comes at v1.0.0, in its own issue.
+
+**Nothing has been uploaded yet, and `uvx quality-mcp` has not been verified against a live
+index.** Trusted Publishing is registered index-side, per project, and none of the eight
+names exist on TestPyPI. Two manual steps, in order:
+
+1. **Register a "pending" publisher for each of the eight project names** on
+   <https://test.pypi.org/manage/account/publishing/> (account sidebar → *Publishing*, not
+   a project page — the projects do not exist yet; a pending publisher is converted to a
+   normal one on first upload). Per PyPI's
+   [docs](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/), the
+   GitHub Actions form takes the PyPI project name to be created, the repository owner's
+   name, the repository's name, the filename of the workflow authorized to upload, and an
+   optional GitHub Actions environment name. For this repo those are:
+
+   | Field | Value |
+   |---|---|
+   | PyPI project name | one of `quality-core`, `quality-fmea`, `quality-spc`, `quality-msa`, `quality-controlplan`, `quality-secom`, `quality-database`, `quality-mcp` |
+   | Owner | `Siddardth7` |
+   | Repository name | `quality-platform` |
+   | Workflow name | `publish.yml` |
+   | Environment name | `testpypi` |
+
+   A pending publisher reserves nothing until it is used — if someone else registers the
+   name first, it is invalidated.
+
+2. **Run the workflow once** (Actions → *Publish (TestPyPI)* → *Run workflow*), then verify
+   the acceptance criterion from a clean environment:
+
+   ```bash
+   uvx --index https://test.pypi.org/simple/ \
+       --index https://pypi.org/simple/ \
+       --index-strategy unsafe-best-match \
+       quality-mcp
+   ```
+
+   Both indexes are needed: TestPyPI does not mirror third-party dependencies
+   (`fastmcp`, `pandas`, `scipy`, …), and `unsafe-best-match` lets one resolution span
+   both indexes instead of the default first-index-wins-per-package.
+
 ## Transport (#267, M1-8)
 
 stdio is the default and is unauthenticated — a local host launching `quality-mcp`

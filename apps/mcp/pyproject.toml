@@ -1,33 +1,52 @@
 [project]
-name = "mcp-app"
+name = "quality-mcp"
 version = "0.15.0"
 description = "MCP server exposing the quality-platform engines as tools (FastMCP, stdio)."
+authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Manufacturing",
+    "Topic :: Scientific/Engineering",
+]
+# Internal deps are pinned exactly (`==`), not ranged: the workspace ships as one
+# version across all eight distributions, bumped together at release (CLAUDE.md
+# "## Version"). `[tool.uv.sources]` below only decides *where* uv resolves them from
+# during local dev; the constraint here is what hatchling stamps into Requires-Dist.
 dependencies = [
-    "quality-core",
+    "quality-core==0.15.0",
     "fastmcp==3.4.6",
-    "fmea-app",
-    "spc-app",
-    "msa-app",
-    "controlplan-app",
-    "quality-database-app",
+    "quality-fmea==0.15.0",
+    "quality-spc==0.15.0",
+    "quality-msa==0.15.0",
+    "quality-controlplan==0.15.0",
+    "quality-database==0.15.0",
 ]
 
+# The distribution name and the console-script name are deliberately the same string:
+# that is what makes `uvx quality-mcp` (no `--from`) resolve once published (#292).
 [project.scripts]
 quality-mcp = "mcp_app.server:main"
 
-# mcp-app is the aggregator: it is the one intentional exception to the
+[project.urls]
+Homepage = "https://github.com/Siddardth7/quality-platform"
+Repository = "https://github.com/Siddardth7/quality-platform"
+
+# quality-mcp is the aggregator: it is the one intentional exception to the
 # "apps never import each other" rule (SME sign-off, #262) — wrapping domain-app
 # engines as MCP tools is its whole purpose. Peer apps still never import peers;
 # tests/test_import_boundary.py documents and enforces the exception's limits.
 [tool.uv.sources]
 quality-core = { workspace = true }
-fmea-app = { workspace = true }
-spc-app = { workspace = true }
-msa-app = { workspace = true }
-controlplan-app = { workspace = true }
-quality-database-app = { workspace = true }
+quality-fmea = { workspace = true }
+quality-spc = { workspace = true }
+quality-msa = { workspace = true }
+quality-controlplan = { workspace = true }
+quality-database = { workspace = true }
 
 # Installed (editable wheel), like msa/secom rather than the `package = false`
 # Streamlit apps: a console-script entry point (`uvx --from . quality-mcp`) only

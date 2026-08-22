@@ -1,4 +1,4 @@
-# `msa-app` — stable API
+# `quality-msa` — stable API
 
 The Measurement System Analysis engine: crossed Gage R&R by the AIAG Average-and-Range
 method (default) or ANOVA. One published module, `msa_app.gage_rr_engine`; it is UI-free

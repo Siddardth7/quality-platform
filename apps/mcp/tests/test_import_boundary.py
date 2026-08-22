@@ -10,7 +10,7 @@ The exception has a limit, and that limit is what these tests pin down:
 
 1. the dependency must resolve as an installed (editable) workspace distribution, not
    through a ``sys.path``/cwd accident — so ``uvx --from . quality-mcp`` works; and
-2. no Streamlit chain may leak in. ``fmea-app`` depends on Streamlit for its UI, so
+2. no Streamlit chain may leak in. ``quality-fmea`` depends on Streamlit for its UI, so
    importing an FMEA *engine* module could quietly drag a UI runtime into a stdio server
    process. The engine modules must stay UI-free, in the spirit of the audit A11 core
    dependency contract.
