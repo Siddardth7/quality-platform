@@ -186,6 +186,10 @@ management) — do not expose this port publicly with the single shared token as
 control. For a public, web-host-facing deployment use OAuth mode above; per-client tokens,
 scopes and rotation remain WorkOS's job, not this server's.
 
+See [`docs/HOSTS.md`](docs/HOSTS.md) for per-host copy-paste config (#295, M6-4) — stdio
+blocks for Claude Desktop, Cursor, VS Code and Gemini CLI, and the HTTP shape plus its two
+open blockers for Claude.ai and ChatGPT.
+
 ## Serving the private corpus (#288, M5-2)
 
 `qdb_answer_question` is the one tool that reads private data, so it is the one tool

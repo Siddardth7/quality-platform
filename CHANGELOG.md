@@ -18,6 +18,20 @@ All notable changes to the Quality Platform are documented here. The format foll
   and a configured WorkOS account, so the `apps/mcp/docs/HOSTS.md` rows stay PENDING. Tests
   are hermetic (`RSAKeyPair` self-signed JWT over in-process ASGI, no live JWKS);
   `mcp_app.transport` stays at 100% line+branch.
+- **Per-host MCP configuration matrix (#295, M6-4).** `apps/mcp/docs/HOSTS.md` gives
+  copy-paste config for the six named MCP hosts — Claude Desktop, Cursor, VS Code, Gemini CLI
+  (stdio) and Claude.ai, ChatGPT (HTTP) — plus a runbook for turning a `PENDING` cell green,
+  a per-host quirks table and the reference calls (`health`, `version`, `fmea_score(8, 5, 6)`
+  → `rpn 240`) shared with `skills/COMPATIBILITY.md`. This is the **native MCP-server
+  registration** layer that M2-6 (#275) explicitly did not attempt; COMPATIBILITY.md's
+  skill-script results are referenced, not re-derived. Docs-only — no code, no `CI / gate`
+  impact. **Only Gemini CLI was actually registered** ([evidence](apps/mcp/docs/host-evidence/gemini-cli.txt)):
+  the host spawned the server and enumerated its tools, but the call itself was denied by the
+  host's non-interactive permission gate, so its worked-example cell stays `PENDING` — as do
+  the three GUI hosts (not launchable headless) and both web hosts, which are blocked twice
+  over: no hosted endpoint is provisioned, and the M1-8 bearer-only transport has no path
+  through connector UIs that expose OAuth only (#355). No cell claims `PASS ✓` for a config
+  that was never invoked.
 - **MCP registry listing manifests (#294, M6-3).** `apps/mcp/server.json` (official MCP
   registry — name `io.github.siddardth7/quality-platform-mcp`, one `pypi` package entry for
   `quality-mcp` 0.15.0 over stdio), `apps/mcp/smithery.yaml` (stdio `startCommand` reusing
