@@ -1,6 +1,6 @@
 [project]
 name = "controlplan-app"
-version = "0.15.0"
+version = "0.16.0"
 description = "Control Plan — Streamlit app (validated ingest scaffold; FMEA mapping and authoring UI land later)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"

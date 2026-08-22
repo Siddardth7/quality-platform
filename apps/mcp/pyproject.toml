@@ -1,6 +1,6 @@
 [project]
 name = "mcp-app"
-version = "0.15.0"
+version = "0.16.0"
 description = "MCP server exposing the quality-platform engines as tools (FastMCP, stdio)."
 readme = "README.md"
 requires-python = ">=3.11"
