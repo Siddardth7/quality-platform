@@ -566,7 +566,12 @@ def test_round_trip_table_covers_every_non_export_tool() -> None:
     # Tripwire: a new JSON-returning tool must gain a client-level round trip here,
     # not merely a direct-call test in test_server.py.
     export_tools = {name for name, *_ in _FILE_EXPORTS} | {name for name, *_ in _IMAGE_EXPORTS}
-    assert {name for name, *_ in _ROUND_TRIPS} == set(_TOOLS) - export_tools
+    # `qdb_answer_question` (M5-2, #288) cannot take a static table entry: it needs a
+    # private corpus, a real embedding model and a configured generator, none of which
+    # exist on CI. Its client-level round trip is a dedicated test with the three loaders
+    # monkeypatched — the tripwire's obligation is met there, not waived.
+    corpus_tools = {"qdb_answer_question"}
+    assert {name for name, *_ in _ROUND_TRIPS} == set(_TOOLS) - export_tools - corpus_tools
 
 
 def test_structured_content_carries_the_same_payload_as_data() -> None:
@@ -673,3 +678,61 @@ def test_unknown_argument_is_rejected_before_the_tool_body_runs() -> None:
 def test_unknown_tool_name_is_rejected_by_the_client() -> None:
     with pytest.raises(ToolError, match="Unknown tool"):
         _call_tool("fmea_scoer", severity=1, occurrence=1, detection=1)
+
+
+# ---------------------------------------------------------------------------
+# qdb_answer_question (M5-2, #288) — the client round trip the static table waives.
+# The three loaders are monkeypatched with an in-memory store, the offline FakeEmbedder
+# and a fake generator, so this exercises the real protocol path (schema, argument
+# binding, content-block serialization) with no corpus, model or LLM.
+# ---------------------------------------------------------------------------
+
+
+def test_qdb_answer_question_round_trips_through_the_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from quality_database_app.chunk import Chunk
+    from quality_database_app.embed import FakeEmbedder
+    from quality_database_app.index import build_index
+
+    chunk = Chunk(
+        chunk_id="00000-00",
+        chunk_index=0,
+        source_id="msa-4th",
+        region="whole-document",
+        standard="MSA Reference Manual",
+        page=78,
+        text="gage r and r separates repeatability from reproducibility",
+        confidence="high",
+        low_confidence=False,
+        extraction_quality="clean",
+        serving_flag="paraphrase-and-point",
+        license_class="licensed-commercial",
+    )
+    store = build_index([chunk], FakeEmbedder())
+    for loader in (
+        server_module._load_qdb_store,
+        server_module._load_qdb_embedder,
+        server_module._resolve_qdb_generator,
+    ):
+        loader.cache_clear()
+    monkeypatch.setattr(server_module, "_load_qdb_store", lambda: store)
+    monkeypatch.setattr(server_module, "_load_qdb_embedder", FakeEmbedder)
+    monkeypatch.setattr(
+        server_module,
+        "_resolve_qdb_generator",
+        lambda: (lambda q, c: "Paraphrased answer. [msa-4th:whole-document:78]"),
+    )
+
+    result = _call_tool("qdb_answer_question", question=chunk.text)
+
+    assert set(result.data) == {
+        "item_id",
+        "text",
+        "cited_source_id",
+        "cited_region",
+        "cited_page",
+        "refused",
+    }
+    assert result.data["refused"] is False
+    assert result.data["cited_source_id"] == "msa-4th"

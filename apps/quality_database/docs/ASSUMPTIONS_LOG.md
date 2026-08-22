@@ -1,8 +1,9 @@
 # Engineering Assumptions Log
 **Project:** Quality Database — Corpus Ingestion + Cleaning (M4-2, #283) and Chunking +
 Embedding + Vector Store (M4-3, #284), Citation Eval (M4-4, #285), Private Storage +
-Access Boundary (M4-5, #286), OCR Fallback (M4-2c, #335)
-**Last Updated:** August 17, 2026
+Access Boundary (M4-5, #286), OCR Fallback (M4-2c, #335), RAG Query Engine (M5-1, #287),
+Citation-Accuracy CI Gate (M5-4, #290)
+**Last Updated:** August 21, 2026
 
 **No AIAG/ISO constant, threshold, or quotation is introduced by this app.** It moves
 text; it does not compute or restate a standard. Provenance and licensing for every
@@ -390,3 +391,108 @@ across versions or DPI, which is why the *seam* is on the deterministic CI path 
 `quality_database_app/pipeline.py` -> `read_segments()`, `run()`,
 `apps/quality_database/pyproject.toml` -> `[project.optional-dependencies] ocr`,
 `.github/workflows/ci.yml` -> Quality Database coverage gate
+
+---
+
+## RULE 16 — Refusal threshold is measured from a real embedder run; citations are verified, not trusted (SME-locked, #287)
+
+**Decision:** Three parts.
+
+(a) **Refusal threshold, measured, not placeholder.**
+`query.answer_question()` computes `passes_retrieval_gate()` from
+`VectorStore.search()`'s own top-1 cosine score *before* any generator call:
+`REFUSAL_SCORE_THRESHOLD = 0.6383290503624621`.
+Below it (or zero hits), the engine returns a refused `CandidateAnswer` and the generator
+is never invoked.
+
+**Source:** `quality_database_app/calibrate_refusal_threshold.py`, run
+2026-08-19 against model `BAAI/bge-small-en-v1.5` over the real ingested corpus
+(1157 chunks). In-corpus side: every `answerable=True` question in
+`docs/eval/gold_set.json` (11 questions, top-1 score range 0.6647-0.8670).
+Out-of-corpus side: `docs/eval/out_of_corpus_questions.json` (12 questions, top-1 score
+range 0.4422-0.6120). Branch taken: `clean_separation` — the two distributions do not
+overlap (weakest in-corpus 0.6647 > strongest out-of-corpus 0.6120), so the threshold is
+their midpoint, and at that cutoff **zero** questions are misclassified on either side
+(0/11 in-corpus below, 0/12 out-of-corpus at-or-above). The run is deterministic and was
+reproduced twice with identical output. SME direction, 2026-08-19 (#287): calibrate now
+with a real hand-run rather
+than ship an unmeasured placeholder, matching the standing preference for
+standards-anchored fidelity over the lean default.
+
+**Rationale:** `FakeEmbedder` (RULE 10) carries no semantic similarity, so no CI run can
+ever validate a real cosine cutoff — this is why the number is derived by a hand-run
+script against the real backend and the real corpus, exactly like M4-3's real indexing
+run and M4-4's real-embedder retrieval numbers, rather than guessed and shipped
+unmeasured (contrast RULE 9's `MAX_CHARS`, an explicitly unmeasured tunable). If a later
+corpus or model change moves the score distributions, re-run
+`calibrate_refusal_threshold.py` and update this rule and the constant together — never
+hand-edit the number without a fresh run backing it.
+
+(b) **Citations are parsed from generated text and verified against retrieval, never
+trusted from the model.** A generator emits inline `[source_id:region:page]` tokens; the
+engine accepts an answer only if every cited token matches a retrieved
+`SearchResult`'s locator. Zero cited tokens, or any token not present in retrieval, is
+treated identically to a retrieval-gate failure: refuse.
+
+**Source:** SME-locked issue framing (#287): "Citations must be verified programmatically
+against the retrieved chunks (a cited locator not present in retrieval = failure)."
+
+(c) **Quote-cap enforcement is fail-closed across the whole retrieved set, not
+per-chunk.** `evalset.QUOTABLE_FLAGS`/`within_quote_cap` (docs/CORPUS_LEDGER.md's quote
+cap) are reused verbatim. If any retrieved hit's `serving_flag` is not in
+`QUOTABLE_FLAGS`, no quoted span is allowed anywhere in the answer; otherwise every
+quoted span must satisfy `within_quote_cap`.
+
+**Rationale:** The engine cannot attribute a specific quoted span in generated text to a
+specific retrieved chunk without a second parsing layer this issue does not build, so the
+safe rule is the most restrictive hit in the retrieved set governs the whole answer —
+consistent with "refuse rather than guess." A second, code-derived confidence/attribution
+heuristic here would repeat the mistake RULE 1 exists to prevent.
+
+**Applied In:** `quality_database_app/query.py` -> `REFUSAL_SCORE_THRESHOLD`,
+`passes_retrieval_gate()`, `extract_locators()`, `_verified_locator()`,
+`violates_quote_policy()`, `answer_question()`;
+`quality_database_app/calibrate_refusal_threshold.py` (the measurement itself);
+`docs/eval/out_of_corpus_questions.json` (the out-of-corpus fixture)
+
+---
+
+## RULE 17 — The citation-accuracy gate is a structural floor over a known-correct fixture, not a measured generator score (SME-locked, #290)
+
+**Decision:** Four named constants gate every
+`eval.run_generation_eval()` report the CI suite produces
+(`quality_database_app/generation_metrics.py:59-62`):
+
+| Constant | Value | Metric gated |
+|---|---|---|
+| `MIN_CITATION_ACCURACY` | `1.0` | `GenerationReport.citation_accuracy_mean` (floor) |
+| `MIN_GROUNDEDNESS` | `1.0` | `GenerationReport.groundedness_mean` (floor) |
+| `MIN_REFUSAL_CORRECTNESS` | `1.0` | `GenerationReport.refusal_correctness_mean` (floor) |
+| `MAX_HALLUCINATION_RATE` | `0.0` | `GenerationReport.hallucination_rate` (ceiling) |
+
+**Source:** SME resolution, 2026-08-21 (#290, M5-4): build the **structural gate now**, defer a
+real-backend-calibrated gate to M6 when a live generator is wired end to end. `1.0`/`0.0` is not
+a calibration — it is the only value the fixture's construction implies. `tests/test_citation_gate.py`
+scores one hand-authored answer per item of the committed `docs/eval/gold_set.json` (13 items:
+11 answerable, cited at their own `(source_id, region, page)`; 2 `never-ship`, refused), so the
+correct report is *exactly* all-1.0 means and a 0.0 hallucination rate. Any other value would be
+inventing slack for a fixture that has none.
+
+**Ceiling — state it plainly:** these constants say **nothing** about a real generator's citation
+quality. The scored answers are correct by construction, so the gate proves the *scoring and
+serving-policy machinery plus the gold set* are intact — a fabricated citation, an answered
+`never-ship` question, or a barred/over-cap verbatim excerpt each move a metric across its
+threshold (the three permanent negative controls in that module). It does not prove a model
+cites well. CI has no model and no network (RULE 10, RULE 16(a)), and no real-generator eval
+report is committed anywhere in this repo to derive a non-trivial floor such as "≥ 0.9" from.
+Deriving one requires a hand-run against a real backend written out through `eval.write_report()`
+and refreshed with the constant together, RULE 16(a)-style — deferred to M6. This is the same
+posture as RULE 9's explicitly unmeasured tunable: an honest label beats an implied measurement.
+
+**Also note:** `refusal_correctness` here is *not* `query.REFUSAL_SCORE_THRESHOLD` (RULE 16(a)).
+That one is a retrieval-gate cosine cutoff; this one scores whether a `CandidateAnswer` refused
+exactly when `GoldItem.answerable` said it must. The two "refusal" concepts are never conflated.
+
+**Applied In:** `quality_database_app/generation_metrics.py` -> `MIN_CITATION_ACCURACY`,
+`MIN_GROUNDEDNESS`, `MIN_REFUSAL_CORRECTNESS`, `MAX_HALLUCINATION_RATE`;
+`tests/test_citation_gate.py` (the gate and its negative controls)
