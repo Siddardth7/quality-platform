@@ -1,0 +1,16 @@
+# Smithery listing manifest for the quality-platform MCP server (M6-3, #294).
+# The command below must stay byte-identical to the documented invocation in
+# README.md ("uv run python -m mcp_app.server") — a divergent command (e.g. bare
+# `python`) breaks the FastMCP import, which is exactly what bit the skills
+# host-compat work (skills/COMPATIBILITY.md, Codex CLI row).
+#
+# configSchema is empty because stdio mode needs no session configuration. That
+# covers 48 of the 49 registered tools; `qdb_answer_question` additionally needs
+# a built private-corpus index and a configured generator (env vars documented in
+# README.md, "Serving the private corpus"). Empty config is not a zero-config
+# claim for that tool.
+startCommand:
+  type: stdio
+  configSchema: {}
+  commandFunction: |
+    config => ({ command: 'uv', args: ['run', 'python', '-m', 'mcp_app.server'] })

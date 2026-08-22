@@ -8,6 +8,20 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **MCP registry listing manifests (#294, M6-3).** `apps/mcp/server.json` (official MCP
+  registry — name `io.github.siddardth7/quality-platform-mcp`, one `pypi` package entry for
+  `quality-mcp` 0.15.0 over stdio), `apps/mcp/smithery.yaml` (stdio `startCommand` reusing
+  the already-documented `uv run python -m mcp_app.server` verbatim), and root `glama.json`
+  (`maintainers: ["Siddardth7"]`, for claiming Glama's auto-created listing).
+  `apps/mcp/README.md` gains the `<!-- mcp-name: ... -->` ownership marker the registry
+  looks for in the published package's long_description — it must match `server.json`'s
+  `name` exactly — plus a "Registry listings" pointer. The new `apps/mcp/docs/REGISTRIES.md`
+  tracks all three registries, the canonical tag list, a per-registry runbook and the
+  release-checklist note that `server.json` carries the workspace version in two places.
+  **All three rows are PENDING and no listing exists yet**: the MCP registry verifies
+  against real PyPI only, and `quality-mcp` is on TestPyPI alone until the v1.0.0 release
+  (#292); Smithery and Glama are blocked on an SME account action. Metadata only — no
+  Python code, no new dependency, no coverage-gate surface touched.
 - **`npx skills add` publish path verified against the current agentskills.io spec (#293,
   M6-2).** Re-checked `npx skills add Siddardth7/quality-platform` against the live
   specification and the `vercel-labs/skills` CLI behind it: **no packaging change is
