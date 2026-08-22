@@ -2869,7 +2869,7 @@ wheels = [
 
 [[package]]
 name = "quality-controlplan"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "apps/controlplan" }
 dependencies = [
     { name = "fpdf2" },
@@ -2892,7 +2892,7 @@ requires-dist = [
 
 [[package]]
 name = "quality-core"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "packages/quality-core" }
 dependencies = [
     { name = "defusedxml" },
@@ -2924,7 +2924,7 @@ provides-extras = ["streamlit"]
 
 [[package]]
 name = "quality-database"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "apps/quality_database" }
 dependencies = [
     { name = "numpy" },
@@ -2956,7 +2956,7 @@ provides-extras = ["embed", "ocr"]
 
 [[package]]
 name = "quality-fmea"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "apps/fmea" }
 dependencies = [
     { name = "fpdf2" },
@@ -2985,7 +2985,7 @@ requires-dist = [
 
 [[package]]
 name = "quality-mcp"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "apps/mcp" }
 dependencies = [
     { name = "fastmcp" },
@@ -3010,7 +3010,7 @@ requires-dist = [
 
 [[package]]
 name = "quality-msa"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "apps/msa" }
 dependencies = [
     { name = "fpdf2" },
@@ -3035,7 +3035,7 @@ requires-dist = [
 
 [[package]]
 name = "quality-platform"
-version = "0.15.0"
+version = "0.16.0"
 source = { virtual = "." }
 dependencies = [
     { name = "quality-controlplan" },
@@ -3084,7 +3084,7 @@ dev = [
 
 [[package]]
 name = "quality-secom"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "apps/secom" }
 dependencies = [
     { name = "numpy" },
@@ -3115,7 +3115,7 @@ dev = [{ name = "quality-msa", editable = "apps/msa" }]
 
 [[package]]
 name = "quality-spc"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "apps/spc" }
 dependencies = [
     { name = "fpdf2" },

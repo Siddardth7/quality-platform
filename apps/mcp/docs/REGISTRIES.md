@@ -17,7 +17,7 @@ One string has to match in three places, exactly and case-sensitively:
 |---|---|
 | `apps/mcp/server.json` → `name` | `io.github.siddardth7/quality-platform-mcp` |
 | `apps/mcp/README.md` → ownership marker | `<!-- mcp-name: io.github.siddardth7/quality-platform-mcp -->` |
-| PyPI distribution (`apps/mcp/pyproject.toml`) | `quality-mcp`, version `0.15.0` |
+| PyPI distribution (`apps/mcp/pyproject.toml`) | `quality-mcp`, version `0.16.0` |
 
 The registry verifies PyPI ownership by fetching the published package's
 `long_description` — which *is* `apps/mcp/README.md`, per `readme = "README.md"` in

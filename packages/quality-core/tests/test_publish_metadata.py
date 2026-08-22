@@ -58,7 +58,7 @@ _DISTRIBUTIONS: dict[str, str] = {
     "quality-mcp": "mcp_app",
 }
 
-# PEP 508 requirement strings ("quality-core==0.15.0", "streamlit>=1.56.0 ; extra == …").
+# PEP 508 requirement strings ("quality-core==0.16.0", "streamlit>=1.56.0 ; extra == …").
 # Split on the first version/marker/extras delimiter to get the bare name — same cheap,
 # dependency-free approach test_packaging.py uses.
 _NAME_DELIMITERS = re.compile(r"[<>=!~;[ ]")

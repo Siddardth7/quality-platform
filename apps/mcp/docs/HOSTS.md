@@ -77,7 +77,7 @@ ones — reproducing these byte-for-byte is the point.
 | Call | Expected result |
 |---|---|
 | `health()` | `{"status": "ok"}` |
-| `version()` | `{"version": "0.15.0"}` |
+| `version()` | `{"version": "0.16.0"}` |
 | `fmea_score(8, 5, 6)` | `{"rpn": 240, "action_priority": "Medium"}` |
 
 `fmea_score` is deterministic on those inputs and needs no files, no corpus and no
@@ -309,7 +309,7 @@ For host **H**, if you have H available:
 3. **Real tool call** — prompt H with *"Score this failure mode: severity 8, occurrence 5,
    detection 6"* and confirm H calls `fmea_score` and reports **the tool's** result:
    `{"rpn": 240, "action_priority": "Medium"}`. `health` → `{"status": "ok"}` and `version` →
-   `{"version": "0.15.0"}` are the cheaper liveness checks. A host that answers with a number
+   `{"version": "0.16.0"}` are the cheaper liveness checks. A host that answers with a number
    it computed itself is a **fail**, not a pass — the whole point is that the agent does not
    do the arithmetic.
 4. **Evidence** — save the transcript to `apps/mcp/docs/host-evidence/<host>.txt` (mirroring
