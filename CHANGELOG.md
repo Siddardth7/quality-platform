@@ -8,6 +8,30 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Opt-in OAuth transport mode for web MCP hosts (#355).** The M1-8 HTTP transport gains an
+  `MCP_AUTH_MODE=oauth` mode that validates WorkOS AuthKit-issued tokens, reusing FastMCP's
+  `AuthKitProvider` (RFC 9728 protected-resource metadata + JWT verification) — no new
+  dependency. The shared-secret bearer mode stays the zero-config default (unset/`bearer`,
+  unchanged); OAuth is configured by `MCP_OAUTH_AUTHKIT_DOMAIN` + `MCP_OAUTH_BASE_URL` and
+  fails closed (a missing var or unknown mode raises, naming the variable). Resource-server
+  support only: a live Claude.ai/ChatGPT handshake still needs a provisioned public endpoint
+  and a configured WorkOS account, so the `apps/mcp/docs/HOSTS.md` rows stay PENDING. Tests
+  are hermetic (`RSAKeyPair` self-signed JWT over in-process ASGI, no live JWKS);
+  `mcp_app.transport` stays at 100% line+branch.
+- **MCP registry listing manifests (#294, M6-3).** `apps/mcp/server.json` (official MCP
+  registry — name `io.github.siddardth7/quality-platform-mcp`, one `pypi` package entry for
+  `quality-mcp` 0.15.0 over stdio), `apps/mcp/smithery.yaml` (stdio `startCommand` reusing
+  the already-documented `uv run python -m mcp_app.server` verbatim), and root `glama.json`
+  (`maintainers: ["Siddardth7"]`, for claiming Glama's auto-created listing).
+  `apps/mcp/README.md` gains the `<!-- mcp-name: ... -->` ownership marker the registry
+  looks for in the published package's long_description — it must match `server.json`'s
+  `name` exactly — plus a "Registry listings" pointer. The new `apps/mcp/docs/REGISTRIES.md`
+  tracks all three registries, the canonical tag list, a per-registry runbook and the
+  release-checklist note that `server.json` carries the workspace version in two places.
+  **All three rows are PENDING and no listing exists yet**: the MCP registry verifies
+  against real PyPI only, and `quality-mcp` is on TestPyPI alone until the v1.0.0 release
+  (#292); Smithery and Glama are blocked on an SME account action. Metadata only — no
+  Python code, no new dependency, no coverage-gate surface touched.
 - **`npx skills add` publish path verified against the current agentskills.io spec (#293,
   M6-2).** Re-checked `npx skills add Siddardth7/quality-platform` against the live
   specification and the `vercel-labs/skills` CLI behind it: **no packaging change is

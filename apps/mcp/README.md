@@ -1,5 +1,7 @@
 # MCP Server
 
+<!-- mcp-name: io.github.siddardth7/quality-platform-mcp -->
+
 The quality-platform MCP server (#260, M1-1). It is a FastMCP app served over
 stdio. Two meta tools describe the server process itself — `health` and
 `version` — the FMEA (#262, M1-3), SPC (#263, M1-4), MSA (#264, M1-5) and Control Plan (#265, M1-6) engines are exposed, and M1-7 (#266) adds the export/report tools:
@@ -247,6 +249,14 @@ fronted by Fly's built-in TLS.
   `MCP_AUTH_TOKEN` and the generator's credentials in Fly secrets (never in `fly.toml`),
   choose `auto_stop_machines` vs always-on, pick the generator vendor and a budget, and
   write the `fly.toml` itself — no deployment manifest exists in this repo yet, by design.
+
+## Registry listings
+
+Which public MCP registries this server is listed in — the manifests (`server.json`,
+`smithery.yaml`, root `glama.json`), the per-registry submission runbook, and the current
+status of each — lives in [`docs/REGISTRIES.md`](docs/REGISTRIES.md) (M6-3, #294). All
+three are **PENDING**: the MCP registry needs `quality-mcp` on real PyPI (see above), and
+Smithery and Glama need an SME account action.
 
 Coverage for `mcp_app.server` and `mcp_app.transport` is gated at 100% line+branch in
 CI — see the gate table in the root `CLAUDE.md`.
