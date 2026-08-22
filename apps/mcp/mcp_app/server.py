@@ -23,7 +23,10 @@ stays legible when a host also has other MCP servers connected.
 from __future__ import annotations
 
 import io
+import os
 from collections.abc import Callable
+from functools import lru_cache
+from importlib import import_module
 from typing import Any, Literal, TypeVar, cast
 
 import pandas as pd
@@ -70,6 +73,11 @@ from quality_core.spc import (
     freeze_xbar_s,
     normality_test,
 )
+from quality_database_app.embed import Embedder
+from quality_database_app.embed_fastembed import FastEmbedEmbedder
+from quality_database_app.query import DEFAULT_K, Generator, answer_question
+from quality_database_app.storage import load_index
+from quality_database_app.store import VectorStore
 
 from fmea_app.exporter import export_excel as fmea_export_excel_bytes
 from fmea_app.exporter import export_pdf as fmea_export_pdf_bytes
@@ -1208,6 +1216,140 @@ def msa_gage_rr(
     an unknown ``method``.
     """
     return dict(_call(compute_gage_rr, study, tolerance=tolerance, method=method))
+
+
+# ---------------------------------------------------------------------------
+# Quality Database — the private hosted RAG endpoint (M5-2, #288)
+#
+# One tool wrapping M5-1's ``query.answer_question``. Nothing about retrieval, the
+# refusal gate, citation verification or the ``docs/CORPUS_LEDGER.md`` quote cap is
+# reimplemented here — this is transport, not engine.
+#
+# Auth is not added here on purpose (#288 decision 7): M1-8's transport-level
+# ``SharedSecretVerifier`` already gates every ``@app.tool`` on this ``app`` object the
+# moment ``MCP_TRANSPORT=http`` is set. A second per-tool check would be a second trust
+# boundary to keep correct, not extra safety.
+#
+# The three loaders below are ``lru_cache``d so the store, the embedding model and the
+# generator are each resolved once per process, on the first *call* — never at import
+# time. That is what keeps importing this module hermetic on CI, which has no corpus
+# (``load_index`` fails closed, M4-5) and no ``embed`` extra installed.
+# ---------------------------------------------------------------------------
+
+#: ``"module:function"`` naming the deploy-configured generator. No default and no
+#: bundled model: M5-1's "there is no LLM here either" holds for M5-2 too, so wiring a
+#: real backend is an operator's deploy-time choice (write a small module, point this at
+#: it), not a vendor this repo picks. Resolution is ``importlib`` only — inert until a
+#: real path is configured, so nothing importable or testable here can make an API call.
+GENERATOR_IMPORT_ENV = "QDB_GENERATOR_IMPORT_PATH"
+
+
+@lru_cache(maxsize=1)
+def _load_qdb_store() -> VectorStore:
+    """Load the private corpus index once, through M4-5's fail-closed ``load_index``.
+
+    Located by ``QUALITY_DATABASE_CORPUS_OUT`` (or the default ``.corpus_out``). A missing
+    or corrupt index raises ``IngestionError`` — a ``ValueError``, so ``_call`` turns it
+    into a structured tool error. There is deliberately no empty-store fallback.
+    """
+    return load_index()
+
+
+@lru_cache(maxsize=1)
+def _load_qdb_embedder() -> Embedder:
+    """The real local embedder, loaded once — needs the ``embed`` extra at deploy time.
+
+    Queries must be embedded with the same model that built the index, so there is no
+    ``FakeEmbedder`` fallback: a serving process without ``uv sync --extra embed``
+    raises ``FastEmbedEmbedder``'s own install-instruction ``ImportError`` rather than
+    answering from meaningless vectors.
+    """
+    return FastEmbedEmbedder()
+
+
+@lru_cache(maxsize=1)
+def _resolve_qdb_generator() -> Generator:
+    """Import the deploy-configured generator named by ``QDB_GENERATOR_IMPORT_PATH``.
+
+    Raises a structured tool error naming the variable — never its value, and never the
+    underlying traceback — when it is unset, has no ``module:function`` shape, or names a
+    module/attribute that does not exist. Same "the message names the variable, not a
+    value" convention as ``transport.build_auth_provider``.
+    """
+    module_name, _, attribute = os.environ.get(GENERATOR_IMPORT_ENV, "").partition(":")
+    if not module_name or not attribute:
+        raise ToolError(
+            f"{GENERATOR_IMPORT_ENV} must be set to \"module:function\" naming the "
+            f"generator this deployment answers with; there is no default generator."
+        )
+    try:
+        generate = getattr(import_module(module_name), attribute)
+    except (ImportError, AttributeError) as exc:
+        raise ToolError(
+            f"{GENERATOR_IMPORT_ENV} could not be resolved ({type(exc).__name__})."
+        ) from exc
+    return cast("Generator", generate)
+
+
+@app.tool
+def qdb_answer_question(
+    question: str,
+    k: int = DEFAULT_K,
+    standard: str | None = None,
+    source_id: str | None = None,
+    region: str | None = None,
+) -> dict[str, Any]:
+    """Answer a question against the private corpus: retrieve, ground, cite — or refuse.
+
+    Wraps ``quality_database_app.query.answer_question`` verbatim (M5-1, #287): retrieve
+    through the M4-3 store, refuse deterministically when the top-1 cosine score misses
+    the measured threshold (before any generator runs), verify every cited locator
+    against what was actually retrieved, and enforce the corpus ledger's quote cap.
+    ``standard``/``source_id``/``region`` narrow retrieval; ``k`` is the number of chunks
+    retrieved.
+
+    **The corpus never leaves this process.** The return value is exactly M5-1's
+    ``CandidateAnswer``: ``item_id``, ``text`` (the generator's own words, already
+    quote-cap-enforced), the single verified ``cited_source_id``/``cited_region``/
+    ``cited_page`` locator, and ``refused``. Never a retrieval hit list, never a raw
+    chunk, never the rendered prompt context, never a vector. A refusal comes back as
+    ``refused=True`` with ``text`` set to the fixed "Not found in the corpus." string.
+
+    Raises a structured tool error if no index has been built (or
+    ``QUALITY_DATABASE_CORPUS_OUT`` points somewhere without one), or if
+    ``QDB_GENERATOR_IMPORT_PATH`` is unset or unresolvable.
+
+    **Known limitation, stated rather than silently worked around:** the generator is
+    resolved as a call argument, so it is resolved even for a question that the retrieval
+    gate would have refused without ever calling it. An operator therefore has to
+    configure ``QDB_GENERATOR_IMPORT_PATH`` to get refusals as well as answers. Fixing it
+    would mean passing a lazy thunk through ``answer_question``'s ``Generator`` seam,
+    which is M5-1's contract and is not changed from here.
+    """
+    # The loaders are resolved here, not passed as arguments to `_call`, so their
+    # failures become a structured `ToolError` too: as call arguments they would run
+    # *before* `_call`'s try/except and escape raw. `_load_qdb_store`'s `IngestionError`
+    # is a `ValueError`; `_load_qdb_embedder`'s missing-extra error is a plain
+    # `ImportError` (not a `ValueError`), so both must be caught. `_resolve_qdb_generator`
+    # already raises `ToolError`, which propagates through untouched.
+    try:
+        store = _load_qdb_store()
+        embedder = _load_qdb_embedder()
+        generator = _resolve_qdb_generator()
+    except (ValueError, ImportError) as exc:
+        raise ToolError(str(exc)) from exc
+    answer = _call(
+        answer_question,
+        question,
+        store,
+        embedder,
+        generator,
+        k=k,
+        standard=standard,
+        source_id=source_id,
+        region=region,
+    )
+    return answer.model_dump()
 
 
 def main() -> None:

@@ -1,6 +1,6 @@
 [project]
 name = "msa-app"
-version = "0.15.0"
+version = "0.16.0"
 description = "Measurement System Analysis — Streamlit app (gage-study ingest; Gage R&R math lands later)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"

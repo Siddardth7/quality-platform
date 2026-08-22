@@ -46,6 +46,19 @@ stdio. Two meta tools describe the server process itself — `health` and
 - `controlplan_source_index(fmea_model)` — trace every Control Plan row back to its source FMEA failure mode and cause.
 - `controlplan_build_from_project(project_root)` — the project-file (#276) face of `controlplan_build`: read `<project_root>/fmea/fmea.json`, write `<project_root>/control-plan/plan.json` (overwritten in place on a re-run), return the written artifact.
 
+**Private corpus RAG (#288, M5-2)** — one tool over M5-1's query engine:
+
+- `qdb_answer_question(question, k=5, standard=None, source_id=None, region=None)` —
+  answer a question against the private corpus: retrieve → refuse-or-generate → verify
+  every cited locator → enforce the corpus ledger's quote cap. Returns exactly the
+  `CandidateAnswer` fields — `item_id`, `text`, `cited_source_id`, `cited_region`,
+  `cited_page`, `refused` — and nothing else: **the corpus never leaves the server**, only
+  the answer and its locator do. No retrieval hit list, no raw chunk text, no prompt
+  context, no vectors. A refusal comes back as `refused=true` with the fixed
+  `"Not found in the corpus."` text. Needs a built index and a configured generator (see
+  the env vars below); a structured tool error otherwise. The corpus, the index and the
+  generator's own credentials stay server-side — see "Serving the private corpus" below.
+
 The SECOM tools arrive in a later M1 issue on the same `app` object in `mcp_app/server.py`. (SPC-chart PNGs are deferred to a future issue — they need a headless image renderer beyond the existing exporters.)
 
 ```bash
@@ -87,6 +100,70 @@ HTTP with a bearer token can connect. The default loopback bind means "remote" m
 "another process on this machine" until M6 adds a real deployment (TLS termination,
 process supervision, secret management) — do not expose this port publicly with the
 single shared token as the only control. Per-client tokens / OAuth are deferred to M6.
+
+## Serving the private corpus (#288, M5-2)
+
+`qdb_answer_question` is the one tool that reads private data, so it is the one tool
+with deployment prerequisites. Auth is **not** separate: it is M1-8's transport bearer
+token above — with `MCP_TRANSPORT=http` the shared secret gates every tool on this
+server, this one included. There is no second auth scheme and no per-tool check.
+
+```bash
+# from apps/mcp, with the corpus already indexed locally
+# (quality_database_app.index.run()) and a generator module of your own to point at:
+uv sync --extra embed
+MCP_TRANSPORT=http \
+MCP_HOST=0.0.0.0 \
+MCP_PORT=8000 \
+MCP_AUTH_TOKEN="$(openssl rand -hex 32)" \
+QUALITY_DATABASE_CORPUS_OUT=/path/to/private/.corpus_out \
+QDB_GENERATOR_IMPORT_PATH="my_deploy_module:generate" \
+uv run python -m mcp_app.server
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `QUALITY_DATABASE_CORPUS_OUT` | `apps/quality_database/.corpus_out` | private corpus store location (M4-5) |
+| `QDB_GENERATOR_IMPORT_PATH` | *(none — required)* | `"module:function"` resolved with `importlib`; the callable is `(question, context) -> str`, answer text carrying inline `[source_id:region:page]` locators |
+
+`uv sync --extra embed` is required at deploy time only: queries must be embedded with
+the same real model that built the index. CI installs neither the extra nor a corpus,
+and nothing above is touched at import time — the store, the embedding model and the
+generator are each loaded once, lazily, on the first tool call.
+
+**No LLM ships with this repo.** `QDB_GENERATOR_IMPORT_PATH` has no default and no
+bundled vendor client: the operator writes a small module wrapping whichever backend
+they chose and points the variable at it. Its API key is that module's business and
+lives in the host's secret store, never here.
+
+Secrets and paths are environment-only — nothing above is committed, and neither the
+corpus nor the index is ever in git (`.corpus_out/` is gitignored; `tests/test_no_corpus_content.py`
+is the machine check).
+
+**Known limitation:** the generator is resolved even for a question that would be
+refused, so `QDB_GENERATOR_IMPORT_PATH` must be configured to get refusals as well as
+answers. Fixing that would mean changing M5-1's `Generator` seam, which #288 does not
+touch.
+
+### Hosting recommendation (on paper — nothing is provisioned)
+
+**Fly.io, one `shared-cpu-1x` / 256–512MB machine**, bound with `MCP_HOST=0.0.0.0` and
+fronted by Fly's built-in TLS.
+
+- *Why Fly rather than a serverless platform*: FastMCP's Streamable HTTP session manager
+  wants a persistent process, which Fly's always-on machine model gives directly. On a
+  request-scoped serverless runtime every cold start would re-run the lazy loads —
+  re-reading the whole index per invocation.
+- *Rough cost*: `shared-cpu-1x`/256MB is Fly's smallest paid tier — single-digit dollars
+  a month run continuously, near zero with `auto_stop_machines` (M5's traffic is a
+  handful of skill-triggered queries, not sustained load). The index ships to the VM as a
+  Fly Volume, never baked into an image and never committed.
+- *Not decided here*: which generator backend is deployed and what its per-token API cost
+  is — that is the real recurring spend, and it is the operator's call.
+- *Open SME action items* (deliberately not done in #288): create the Fly app, store
+  `MCP_AUTH_TOKEN` and the generator's credentials in Fly secrets (never in `fly.toml`),
+  choose `auto_stop_machines` vs always-on, pick the generator vendor and a budget, and
+  write the `fly.toml` itself — no deployment manifest exists in this repo yet, by design.
 
 Coverage for `mcp_app.server` and `mcp_app.transport` is gated at 100% line+branch in
 CI — see the gate table in the root `CLAUDE.md`.

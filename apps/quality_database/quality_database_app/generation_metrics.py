@@ -52,6 +52,15 @@ from quality_database_app.evalset import (
 #: a paraphrase-and-point item is that its source text is not committed anywhere here.
 _QUOTED_SPAN = re.compile(r'"([^"]+)"|“([^”]+)”')
 
+#: CI gate floors/ceiling for a :class:`~quality_database_app.eval.GenerationReport`
+#: (M5-4, #290). These are a **structural** bar over a known-correct scripted fixture,
+#: not a calibrated measurement of a real generator — see ASSUMPTIONS_LOG RULE 17 for
+#: what they do and do not prove. Enforced by ``tests/test_citation_gate.py``.
+MIN_CITATION_ACCURACY = 1.0
+MIN_GROUNDEDNESS = 1.0
+MIN_REFUSAL_CORRECTNESS = 1.0
+MAX_HALLUCINATION_RATE = 0.0
+
 
 class CandidateAnswer(StrictModel):
     """One generated (or, in CI, hand-written) answer to a gold item's question."""

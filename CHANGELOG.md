@@ -4,6 +4,95 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-08-21 — M5 · Quality Research Skill
+
+The Quality Knowledge Base built in M4 becomes something an engineer can ask questions of. A
+query engine turns a question into a grounded, cited answer — or refuses, by a threshold
+computed before any generator runs. That engine ships as a private hosted MCP endpoint rather
+than a local bundle of licensed text, and a `quality-research` skill calls it, degrading to a
+copyright-safe local fallback when the endpoint is unreachable. Answers can also ground in the
+loaded project's own computed artifacts, so "is my %GRR acceptable?" cites both the AIAG band
+and the engineer's own number. A citation-accuracy gate guards the whole path in CI.
+
+### Added
+
+- **RAG query engine — retrieve, ground, cite, refuse (#287, M5-1).** `quality_database_app/query.py`
+  turns a question into a grounded, cited answer: retrieve from the M4-3 store → deterministic
+  refusal gate → ground → verify citations → enforce the quote cap. **The refusal gate is computed
+  from retrieval scores before any generator call, so refusing is never a model decision.**
+  Citations are parsed from generated text and checked for membership against the retrieved
+  chunks — a cited locator absent from retrieval, or zero citations, refuses rather than answers.
+  The ≤50-word quote cap (SME-locked M4 serving policy) is enforced in code and fail-closed,
+  reusing `evalset.QUOTABLE_FLAGS` / `within_quote_cap`. The generator is an injectable
+  `Callable[[str, str], str]` — no SDK, no new dependency, no live API call in importable code.
+  `REFUSAL_SCORE_THRESHOLD` is **measured, not a placeholder**: `calibrate_refusal_threshold.py`,
+  hand-run against `BAAI/bge-small-en-v1.5` over the real 1157-chunk corpus, separated 11
+  in-corpus gold questions (0.6647–0.8670) from 12 out-of-corpus questions (0.4422–0.6120) with
+  no overlap, giving the midpoint `0.6383290503624621` at 0/11 and 0/12 misclassified — recorded
+  as ASSUMPTIONS_LOG RULE 16. The script is hand-run only and stays outside the coverage gate.
+  `query.py` is gated at 100% line+branch; tests are hermetic and do not depend on the calibrated
+  value. Three mutations — refusal gate, citation membership, quote cap — were each proven to
+  fail the suite by the tester and the reviewer independently.
+
+- **Private hosted RAG endpoint — `qdb_answer_question` over the M1-8 HTTP transport (#288, M5-2).**
+  Exposes M5-1's `answer_question` as an MCP tool reading the private corpus, so the research
+  capability ships as a hosted private endpoint rather than a local bundle of copyrighted data.
+  The tool returns **only** the `CandidateAnswer` fields (`item_id`, `text`, the single verified
+  locator, `refused`) — never a hit list, raw chunk, prompt context, or vector. **The corpus never
+  leaves the process.** Auth is not re-implemented: M1-8's transport-level `SharedSecretVerifier`
+  (bearer, fail-closed) already gates every tool, and unauthenticated HTTP calls get 401. Store
+  and embedder load lazily once via `lru_cache(maxsize=1)`, so importing the server stays
+  side-effect-free in CI. The generator is resolved by import path from `QDB_GENERATOR_IMPORT_PATH`
+  (importlib + getattr, inert until called) — wiring a real model is a deploy-time choice. Loader
+  failures are converted to a structured `ToolError` inside the tool rather than escaping raw, so
+  a client never depends on `mask_error_details` staying off. Deploy config is **on paper only**
+  (no provisioning, no spend): `apps/mcp/README.md` carries the run command, env-var table, and a
+  Fly.io hosting recommendation for the SME to action. `mcp_app.server` at 100% line+branch;
+  three negative controls — leak a raw chunk field, refuse→answer, auth accept-any — each proven
+  load-bearing by tester and reviewer independently.
+
+- **`quality-research` skill — "ask the standards" cited Q&A (#289, M5-3).** An engineer-facing
+  skill that answers a quality-standards question with a full, standard-supported answer plus
+  page-accurate citations. **HTTP-first** against the M5-2 `qdb_answer_question` endpoint,
+  degrading cleanly to a **copyright-safe local fallback** sourced from the apps' own cited
+  derivations (`ASSUMPTIONS_LOG.md`) when the endpoint is unreachable. Ships `SKILL.md`,
+  `scripts/call_qdb_answer_question.py`, and references for the tool contract and fallback
+  sources. Four citation-verified worked examples (ndc ≥ 5, FMEA no-RPN-threshold, MSA %GRR
+  bands, SPC stability-before-capability) each preserve the "what the standard publishes vs. what
+  the platform adds" split. Client env vars `QDB_MCP_URL` / `QDB_MCP_TOKEN` ride the M1-8 bearer
+  transport. The engine-decides/skill-orchestrates invariant holds; skill-lint clean, and the ndc
+  denylist was proven load-bearing by negative control.
+
+- **Citation-accuracy CI gate for the Quality Knowledge Base (#290, M5-4).** Four named
+  thresholds in `quality_database_app/generation_metrics.py` — `MIN_CITATION_ACCURACY`,
+  `MIN_GROUNDEDNESS`, `MIN_REFUSAL_CORRECTNESS` (floors, `1.0`) and `MAX_HALLUCINATION_RATE`
+  (ceiling, `0.0`) — are enforced by `apps/quality_database/tests/test_citation_gate.py`, which
+  scores one hand-authored answer per item of the committed 13-item `docs/eval/gold_set.json`
+  and fails `CI / gate` on any regression. Three permanent negative controls prove the gate is
+  load-bearing: a fabricated citation, a `never-ship` question answered instead of refused, and
+  a barred or over-cap verbatim excerpt each push a metric across its threshold. The thresholds
+  are a **structural floor over a correct-by-construction fixture, not a measurement of a real
+  generator** — CI has no model and no network — and ASSUMPTIONS_LOG RULE 17 states that ceiling
+  explicitly; a real-backend-calibrated gate is deferred to M6. No new CI step: the module runs
+  inside the existing full-suite and Quality Database coverage-gate steps. Server-side serving
+  policy (quote cap, cite-and-point, fail-closed refusal) was already shipped in M4-4/M5-1 and
+  is unchanged.
+
+- **In-project artifact grounding for `quality-research` (#291, M5-5).** The skill reads the
+  loaded project's already-computed M3 artifacts **read-only**, so an answer grounds in both the
+  cited corpus standard and the engineer's own value — "is my %GRR acceptable?" reads
+  `msa/gage-rr.json`'s `pgrr_study` / `ndc` / `verdict` verbatim and cites the AIAG band against
+  it. Degrades to the M5-3 standards-only flow when no project is loaded. `SKILL.md` gains an
+  additive project-detection and read-one-artifact step (steps 2–5 unchanged, so
+  `fallback-sources.md`'s cross-reference still resolves), the read-only caveat, and an explicit
+  "running a study is still not this skill's job" boundary. New `references/project-context.md`
+  carries a topic→artifact→field table and a worked %GRR example over the real
+  `examples/secom-quality-loop` fixture, with the AIAG bands and RULE 8 caveat quoted verbatim
+  from `apps/msa`'s ASSUMPTIONS_LOG. `skill_lint.py`'s `FORMULA_PATTERN` gains
+  `pgrr_study|pgrr_tolerance` — the new smuggle surface is the artifact's own lowercase field
+  names — scoped per the per-domain denylist rule, with a mutation-verified negative control.
+  Skill-only: no new engine tool, module, or coverage gate. Write-back is the post-1.0 co-pilot's job.
+
 ## [0.15.0] - 2026-08-18 — M2 · Agent Skills · M3 · Closed-loop contract · M4 · Quality Knowledge Base
 
 Three milestones ship together. **M2** puts an Agent Skills layer over the MCP server shipped in
