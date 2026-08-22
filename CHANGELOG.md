@@ -22,6 +22,18 @@ All notable changes to the Quality Platform are documented here. The format foll
   against real PyPI only, and `quality-mcp` is on TestPyPI alone until the v1.0.0 release
   (#292); Smithery and Glama are blocked on an SME account action. Metadata only — no
   Python code, no new dependency, no coverage-gate surface touched.
+- **`npx skills add` publish path verified against the current agentskills.io spec (#293,
+  M6-2).** Re-checked `npx skills add Siddardth7/quality-platform` against the live
+  specification and the `vercel-labs/skills` CLI behind it: **no packaging change is
+  required** — GitHub is the registry, there is no manifest and no registration step, and the
+  `skills/<name>/SKILL.md` directory *is* the manifest, which is the shape the repo already
+  has. Docs-only diff: `skills/COMPATIBILITY.md` gains the `#test`-ref install caveat (a bare
+  `owner/repo` install pulls the default branch, which does not yet carry `quality-research`)
+  and `PENDING` matrix rows for `project-loop` (`run_project_loop`) and `quality-research`
+  (`qdb_answer_question`) — `PENDING` meaning *not yet run*, with the live multi-host smoke
+  test tracked as a follow-up — plus a runbook note that `quality-research` needs
+  `QDB_MCP_URL` / `QDB_MCP_TOKEN` in the host sandbox. `skills/CONVENTIONS.md` §5 records the
+  re-verification date. No code, CI or dependency change.
 - **TestPyPI publish workflow (#292, M6-1).** `.github/workflows/publish.yml` builds all eight
   distributions and uploads them to TestPyPI over PyPI Trusted Publishing (OIDC, no stored
   token), `quality-core` first and the seven that pin it second. It is `workflow_dispatch`-only

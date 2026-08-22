@@ -18,12 +18,22 @@ Resolves the repo's root `skills/` directory and offers each subfolder with a va
 > These skills land on `test` first and reach the default branch only after promotion, so a
 > host run done before promotion must install from the `test` branch or a local checkout
 > instead. Not a parity assumption — the actual resolution behaviour.
+>
+> **Still true as of #293 (M6-2):** `quality-research` (M5-3) is on `test`/`dev` only, so
+> until the next `dev -> main` promotion lands it on the default branch, a bare
+> `npx skills add Siddardth7/quality-platform` installs only the skills present on `main`.
+> Install from the `#test` ref — `npx skills add Siddardth7/quality-platform#test` — to get
+> all of them (subject to the per-host branch-ref quirks below).
 
 ## The matrix
 
-Skills are the four **shipped** skills. `example-skill/` is the authoring template, not a
+Skills are the **shipped** skills. `example-skill/` is the authoring template, not a
 shipped skill, so it is not a row. Cells: `PASS ✓` (evidence linked) · `PENDING` (needs a
 host run) · `N/A`.
+
+`PENDING` means **not yet run**, not failed — the `project-loop` and `quality-research` rows
+below carry no live evidence because their multi-host smoke test is a tracked follow-up
+(M6-2, #293), run the same way M2-6 produced the four evidenced rows.
 
 | Skill | Real MCP tool exercised | Claude Code | Codex CLI | Cursor | Gemini CLI |
 |---|---|---|---|---|---|
@@ -31,11 +41,13 @@ host run) · `N/A`.
 | `fmea` | `fmea_score` | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | **PASS ✓** [evidence](compat-evidence/codex-cli-column.txt) | **PASS ✓** [evidence](compat-evidence/cursor-column.txt) | **PASS ✓** [evidence](compat-evidence/gemini-cli-column.txt) |
 | `spc` | spc capability | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | **PASS ✓** [evidence](compat-evidence/codex-cli-column.txt) | **PASS ✓** [evidence](compat-evidence/cursor-column.txt) | **PASS ✓** [evidence](compat-evidence/gemini-cli-column.txt) |
 | `msa` | `msa_gage_rr` | **PASS ✓** [evidence](compat-evidence/claude-code-column.txt) | **PASS ✓** [evidence](compat-evidence/codex-cli-column.txt) | **PASS ✓** [evidence](compat-evidence/cursor-column.txt) | **PASS ✓** [evidence](compat-evidence/gemini-cli-column.txt) |
+| `project-loop` | `run_project_loop` | PENDING | PENDING | PENDING | PENDING |
+| `quality-research` | `qdb_answer_question` | PENDING | PENDING | PENDING | PENDING |
 | `example-skill` | — (template) | N/A | N/A | N/A | N/A |
 
 ### What `PASS ✓` means — and does not (all four hosts)
 
-Every cell is backed by a **real MCP tool call**, evidence linked per column: the skill's own
+Every `PASS ✓` cell is backed by a **real MCP tool call**, evidence linked per column: the skill's own
 shipped `scripts/*.py` launches the `quality-platform` FastMCP server over stdio
 (`python -m mcp_app.server`) and calls the tool. That is genuine MCP-protocol traffic to the
 real server returning the real result (control-plan's row is byte-identical to the SKILL.md
@@ -75,6 +87,12 @@ For host **H** and skill **S**:
    - `fmea`: "Score this failure mode: severity 8, occurrence 5, detection 6."
    - `spc`: "Run a capability study on these 10 readings against LSL 9, USL 11."
    - `msa`: "Run a Gage R&R on this study, average-and-range, tolerance 2.0."
+   - `project-loop`: "Refresh the whole quality loop over this project directory."
+   - `quality-research`: "Why is the ndc threshold 5?"
+
+   `quality-research` needs `QDB_MCP_URL` and `QDB_MCP_TOKEN` set in the host's sandbox before
+   `qdb_answer_question` can reach the hosted endpoint (M5-3, #289); without them the skill
+   takes its documented `ASSUMPTIONS_LOG` fallback path rather than making a real tool call.
 3. **Real tool call** — confirm H calls S's MCP tool (matrix column 2) and reports the
    **tool's** result, not a number it authored. Reference calls that must reproduce:
    - `fmea_score(8, 5, 6)` → `{"rpn": 240, "action_priority": "Medium"}`
