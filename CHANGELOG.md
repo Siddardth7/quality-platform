@@ -8,6 +8,20 @@ All notable changes to the Quality Platform are documented here. The format foll
 
 ### Added
 
+- **Docs site, README overhaul and worked-example write-up (#296, M6-5).** A MkDocs Material
+  site (`mkdocs.yml` + thirteen pages under `docs/`) publishes the quickstart, the per-engine
+  pages, the full 49-tool MCP catalog, the host matrix, the SECOM worked example, the
+  standards-fidelity story and a standalone limitations page. `README.md` is restructured
+  MCP-first around that material: anchor nav, a "what it is / what it is not" table, a "why
+  MCP-first" section, and a hosts summary — with the loop's edge relabelled to
+  *"proposed occurrence-rating / CAPA (human reviews)"* so the README no longer implies the
+  SPC → FMEA arrow writes anything. Honesty qualifiers carried through unchanged: analysis is
+  on-demand rather than continuous, `spc/results/*.json` is a precondition the loop reads and
+  never produces, nothing is published to a package index (#292) and no MCP endpoint is
+  hosted (#355), so the web-host rows stay `PENDING`. A new `.github/workflows/docs.yml`
+  deploys the site on push to `main` (plus `workflow_dispatch`) and `pip install`s
+  `mkdocs-material` standalone — it is deliberately absent from `pyproject.toml` and
+  `uv.lock`. Docs-only — no code, no `CI / gate` impact.
 - **Opt-in OAuth transport mode for web MCP hosts (#355).** The M1-8 HTTP transport gains an
   `MCP_AUTH_MODE=oauth` mode that validates WorkOS AuthKit-issued tokens, reusing FastMCP's
   `AuthKitProvider` (RFC 9728 protected-resource metadata + JWT verification) — no new

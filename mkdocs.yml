@@ -1,0 +1,53 @@
+site_name: Quality Platform
+site_description: AIAG core-tool engines (FMEA, SPC, Control Plan, MSA) callable by hand or by an AI agent.
+site_url: https://siddardth7.github.io/quality-platform/
+repo_url: https://github.com/Siddardth7/quality-platform
+repo_name: Siddardth7/quality-platform
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+
+# The site pages live alongside this repo's engineering docs in `docs/`. Those are written
+# for the repo (relative links into `apps/`, `skills/`, …), not for the site, so they are
+# excluded from the build rather than re-homed — moving them would break every existing
+# link from README.md and CLAUDE.md.
+exclude_docs: |
+  README.md
+  AGENT_TEAM_FRAMEWORK.md
+  CORPUS_LEDGER.md
+  CORPUS_LEDGER.tsv
+  COVERAGE_BASELINE_*.md
+  DEFINITION_OF_DONE.md
+  ENGINEERING_SYSTEM_PLAYBOOK.md
+  PROJECT_FILE_CONTRACT.md
+  research/
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Overview: index.md
+  - Quickstart: quickstart.md
+  - Two ways to use it: two-ways-to-use.md
+  - The loop: loop.md
+  - Engines:
+      - FMEA: fmea.md
+      - SPC: spc.md
+      - Control Plan: controlplan.md
+      - MSA / Gage R&R: msa.md
+  - MCP tool catalog: tools.md
+  - Hosts: hosts.md
+  - Worked example: demo.md
+  - Standards & fidelity: standards.md
+  - Limitations: limitations.md
