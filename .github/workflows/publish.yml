@@ -49,16 +49,20 @@ jobs:
         run: uv sync --frozen
 
       # Split at build time rather than glob-filtering at upload time: `packages-dir`
-      # takes a directory and uploads everything in it, so two directories are the whole
-      # ordering mechanism the two publish jobs below need.
+      # takes a directory and uploads everything in it, so one directory per package is
+      # the whole selection mechanism the publish jobs below need. Each package gets its
+      # own subdirectory because each is published from its own GitHub Environment (#292).
       - name: Build quality-core
-        run: uv build --package quality-core --out-dir dist/core
+        run: uv build --package quality-core --out-dir dist/quality-core
 
+      # ponytail: the seven names are also listed in the publish-dependents matrix below.
+      # Accepted duplication — a `needs.build.outputs` + `fromJSON` indirection is not
+      # worth it for a list of seven strings that changes at most once a year.
       - name: Build the seven dependent distributions
         run: |
           for pkg in quality-fmea quality-spc quality-msa quality-controlplan \
                      quality-secom quality-database quality-mcp; do
-            uv build --package "$pkg" --out-dir dist/dependents
+            uv build --package "$pkg" --out-dir "dist/$pkg"
           done
 
       - name: Upload built distributions
@@ -72,7 +76,7 @@ jobs:
   publish-core:
     needs: build
     runs-on: ubuntu-latest
-    environment: testpypi
+    environment: testpypi-quality-core
     permissions:
       contents: read
       id-token: write  # OIDC token for Trusted Publishing — the only elevated permission
@@ -87,13 +91,29 @@ jobs:
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
         with:
           repository-url: https://test.pypi.org/legacy/
-          packages-dir: dist/core
+          packages-dir: dist/quality-core
           skip-existing: true  # re-running a rehearsal must not fail on an existing version
 
+  # One job per dependent, each in its own environment: a PyPI Trusted Publisher identity
+  # is keyed on (owner, repo, workflow filename, environment name), so a shared environment
+  # name makes the eight pending-publisher registrations collide (#292).
   publish-dependents:
     needs: publish-core
     runs-on: ubuntu-latest
-    environment: testpypi
+    strategy:
+      # None of the seven depend on each other (only on quality-core), so one transient
+      # upload failure must not cancel the other six.
+      fail-fast: false
+      matrix:
+        package:
+          - quality-fmea
+          - quality-spc
+          - quality-msa
+          - quality-controlplan
+          - quality-secom
+          - quality-database
+          - quality-mcp
+    environment: testpypi-${{ matrix.package }}
     permissions:
       contents: read
       id-token: write
@@ -104,9 +124,9 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Publish the seven dependents to TestPyPI
+      - name: Publish ${{ matrix.package }} to TestPyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
         with:
           repository-url: https://test.pypi.org/legacy/
-          packages-dir: dist/dependents
+          packages-dir: dist/${{ matrix.package }}
           skip-existing: true

@@ -98,11 +98,25 @@ names exist on TestPyPI. Two manual steps, in order:
 
    | Field | Value |
    |---|---|
-   | PyPI project name | one of `quality-core`, `quality-fmea`, `quality-spc`, `quality-msa`, `quality-controlplan`, `quality-secom`, `quality-database`, `quality-mcp` |
    | Owner | `Siddardth7` |
    | Repository name | `quality-platform` |
    | Workflow name | `publish.yml` |
-   | Environment name | `testpypi` |
+
+   The project name and the environment name differ per package — a Trusted Publisher
+   identity is keyed on (owner, repository, workflow filename, environment name), so each
+   project needs its own environment or the registrations collide (#292). Submit one form
+   per row:
+
+   | PyPI project name | Environment name |
+   |---|---|
+   | `quality-core` | `testpypi-quality-core` |
+   | `quality-fmea` | `testpypi-quality-fmea` |
+   | `quality-spc` | `testpypi-quality-spc` |
+   | `quality-msa` | `testpypi-quality-msa` |
+   | `quality-controlplan` | `testpypi-quality-controlplan` |
+   | `quality-secom` | `testpypi-quality-secom` |
+   | `quality-database` | `testpypi-quality-database` |
+   | `quality-mcp` | `testpypi-quality-mcp` |
 
    A pending publisher reserves nothing until it is used — if someone else registers the
    name first, it is invalidated.
