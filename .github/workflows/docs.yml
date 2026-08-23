@@ -1,0 +1,39 @@
+name: Docs
+
+# Deploys the MkDocs site to GitHub Pages. Trunk only: the two triggers below are the
+# complete set, so this workflow stays dormant on every pull request and on every branch
+# below main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# `mkdocs gh-deploy` pushes the built site to the gh-pages branch; that write is the only
+# privilege this workflow needs (#203, audit A14 — least privilege by default).
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Installed standalone, deliberately NOT through uv: mkdocs-material is a docs-site
+      # build tool and must never enter pyproject.toml / uv.lock, where it would widen the
+      # workspace dependency contract the CI gate protects.
+      - name: Install MkDocs Material
+        run: pip install mkdocs-material
+
+      - name: Build and deploy
+        run: mkdocs gh-deploy --force
