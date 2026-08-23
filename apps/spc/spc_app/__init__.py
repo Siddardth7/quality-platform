@@ -9,4 +9,4 @@ value ``pyproject.toml`` is kept in sync with.
 Keep this in sync with ``apps/spc/pyproject.toml`` at release (bump both together).
 """
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"

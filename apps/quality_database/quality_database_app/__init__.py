@@ -9,4 +9,4 @@ names, and writes a clean intermediate corpus for M4-3 to embed.
 with ``apps/quality_database/pyproject.toml`` at release (bump both together).
 """
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"

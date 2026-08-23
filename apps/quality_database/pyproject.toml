@@ -1,6 +1,6 @@
 [project]
 name = "quality-database"
-version = "0.15.0"
+version = "0.16.0"
 description = "Quality knowledge base — corpus ingestion, chunking, embedding and retrieval (M4-2/M4-3)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
@@ -21,7 +21,7 @@ classifiers = [
 # only. OCR for the five image-only rows is the optional `ocr` extra below (#335), never
 # a runtime dependency.
 dependencies = [
-    "quality-core==0.15.0",  # exact pin: one version across the workspace (#292)
+    "quality-core==0.16.0",  # exact pin: one version across the workspace (#292)
     "pydantic>=2.0",
     "numpy>=2.4.4",
     "pypdf>=6.16.1",

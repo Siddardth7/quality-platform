@@ -1,6 +1,6 @@
 [project]
 name = "quality-msa"
-version = "0.15.0"
+version = "0.16.0"
 description = "Measurement System Analysis — Streamlit app (gage-study ingest; Gage R&R math lands later)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
@@ -14,7 +14,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "quality-core==0.15.0",  # exact pin: one version across the workspace (#292)
+    "quality-core==0.16.0",  # exact pin: one version across the workspace (#292)
     "streamlit>=1.56.0",
     "pandas>=3.0.2",
     "pydantic>=2.0",
