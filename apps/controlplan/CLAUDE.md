@@ -109,7 +109,7 @@ controlplan_app/exporter.py             export_csv / export_excel / export_pdf â
 - **Export escapes formula injection.** `export_csv`/`export_excel` route through
   `quality_core.io.export`, which escapes `=`, `+`, `-`, `@` prefixes on string columns.
   There are regression tests; don't bypass the shared primitives.
-- **Version SSOT** is `controlplan_app/__init__.py::__version__` (`0.13.0`), pinned by
+- **Version SSOT** is `controlplan_app/__init__.py::__version__` (`1.0.0`), pinned by
   `tests/test_version.py` and consumed by the exporter as `_TOOL_VERSION`.
 
 ## Engineering references

@@ -84,7 +84,7 @@ ui/filters.py | ui/charts.py | ui/exports.py    Streamlit-only helpers, consumed
 - **Strict-int validation for S/O/D** — floats and bools are rejected at the ingest boundary (`_is_strict_int` helper). Tests enforce this; don't loosen.
 - **CSV/formula-injection mitigation in exporters** — `=`, `+`, `-`, `@` prefixes are escaped on all string columns before Excel/CSV write. There is a regression test; don't regress.
 - **Export cache key** is a hash of the *filtered* DataFrame with index reset. Don't change the hashing without updating tests for index-sensitivity.
-- **Version SSOT** is `fmea_app/__init__.py::__version__` (currently `0.13.0`, matching the
+- **Version SSOT** is `fmea_app/__init__.py::__version__` (currently `1.0.0`, matching the
   workspace). `fmea_app/exporter.py` reads it as `_TOOL_VERSION = __version__` — do not
   reintroduce a hardcoded literal. `tests/test_version.py` pins it.
 - **`ruff.toml`:** target `py311`, line length 100, selects `E F W I`, ignores `E501` globally (formatter handles). `F401` is enforced globally (#203) with a per-file ignore on `fmea_app/exporter.py`, the one module that re-exports without `__all__`. Per-file: `F811` allowed in `tests/`.

@@ -4,7 +4,15 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-08-23 — M6 · Cross-platform packaging & release
+
+**M6** makes the platform installable and reachable from outside this repository. The eight
+distributions are renamed to the `quality-*` namespace with full PyPI metadata, pinned to one
+another exactly, and built by a TestPyPI publish workflow; the MCP server gains registry
+listing manifests, an `npx skills add` publish path, a copy-paste configuration matrix for six
+named hosts, and an opt-in OAuth transport mode for web hosts. A MkDocs Material site and an
+MCP-first README overhaul document the result. Nothing is published to a package index and no
+MCP endpoint is hosted yet, so the affected rows stay `PENDING`.
 
 ### Added
 

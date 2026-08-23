@@ -116,7 +116,7 @@ secom_app/selection.py     select_signals(SelectionCriteria) — three filters i
 - **SME resolutions are labelled and locked** (e.g. OQ1a in `yield_dppm.py`: the Pareto ranks
   by *violation events* on failed wafers, so one signal firing 3 rules on one wafer counts 3).
   Do not re-decide a labelled resolution without the SME.
-- **Version SSOT** is `secom_app/__init__.py::__version__` (`0.13.0`), pinned by
+- **Version SSOT** is `secom_app/__init__.py::__version__` (`1.0.0`), pinned by
   `tests/test_version.py`.
 
 ## Engineering references

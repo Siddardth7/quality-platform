@@ -1,6 +1,6 @@
 [project]
 name = "quality-mcp"
-version = "0.16.0"
+version = "1.0.0"
 description = "MCP server exposing the quality-platform engines as tools (FastMCP, stdio)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
@@ -18,13 +18,13 @@ classifiers = [
 # "## Version"). `[tool.uv.sources]` below only decides *where* uv resolves them from
 # during local dev; the constraint here is what hatchling stamps into Requires-Dist.
 dependencies = [
-    "quality-core==0.16.0",
+    "quality-core==1.0.0",
     "fastmcp==3.4.6",
-    "quality-fmea==0.16.0",
-    "quality-spc==0.16.0",
-    "quality-msa==0.16.0",
-    "quality-controlplan==0.16.0",
-    "quality-database==0.16.0",
+    "quality-fmea==1.0.0",
+    "quality-spc==1.0.0",
+    "quality-msa==1.0.0",
+    "quality-controlplan==1.0.0",
+    "quality-database==1.0.0",
 ]
 
 # The distribution name and the console-script name are deliberately the same string:

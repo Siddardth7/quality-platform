@@ -41,7 +41,7 @@ def test_server_name_matches_readme_ownership_marker():
 def test_server_package_matches_pyproject():
     pkg = _SERVER_JSON["packages"][0]
     assert pkg["identifier"] == _PYPROJECT["name"]  # quality-mcp
-    assert pkg["version"] == _PYPROJECT["version"]  # 0.16.0
+    assert pkg["version"] == _PYPROJECT["version"]  # 1.0.0
     assert _SERVER_JSON["version"] == _PYPROJECT["version"]
     assert _SERVER_JSON["description"] == _PYPROJECT["description"]
 
