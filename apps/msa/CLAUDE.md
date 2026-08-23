@@ -119,7 +119,7 @@ msa_app/exporter.py           GageStudyReport + export_csv / export_results_csv 
   `/Users/sid/Documents/Upskill/SixSigma/MSA_Reference_Manual_4th_Edition.md`. Never verify
   a quotation via web search. Match formatting-tolerantly — markdown emphasis and inline
   `<sup>` markup produce false "fabricated" verdicts.
-- **Version SSOT** is `msa_app/__init__.py::__version__` (`0.13.0`), pinned by
+- **Version SSOT** is `msa_app/__init__.py::__version__` (`1.0.0`), pinned by
   `tests/test_version.py` and consumed by the exporter as `_TOOL_VERSION`.
 
 ## Engineering references

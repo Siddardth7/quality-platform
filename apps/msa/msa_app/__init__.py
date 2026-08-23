@@ -8,4 +8,4 @@ resolves too; this constant stays the value ``pyproject.toml`` is kept in sync w
 Keep this in sync with ``apps/msa/pyproject.toml`` at release (bump both together).
 """
 
-__version__ = "0.16.0"
+__version__ = "1.0.0"
