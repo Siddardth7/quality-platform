@@ -53,7 +53,7 @@ The same calls are used on both layers so results are comparable:
 | Call | Expected result |
 |---|---|
 | `health()` | `{"status": "ok"}` |
-| `version()` | `{"version": "0.16.0"}` |
+| `version()` | `{"version": "1.0.0"}` |
 | `fmea_score(8, 5, 6)` | `{"rpn": 240, "action_priority": "Medium"}` |
 
 A host that answers with a number it computed itself is a **fail**, not a pass — the point is

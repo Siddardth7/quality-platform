@@ -48,7 +48,7 @@ Then ask your agent for something and watch it call a tool:
 
 The host should call `fmea_score` and report **the tool's** result —
 `{"rpn": 240, "action_priority": "Medium"}` — not a number it worked out itself.
-`health()` → `{"status": "ok"}` and `version()` → `{"version": "0.16.0"}` are the cheaper
+`health()` → `{"status": "ok"}` and `version()` → `{"version": "1.0.0"}` are the cheaper
 liveness checks.
 
 !!! warning "Don't smoke-test with `qdb_answer_question`"
