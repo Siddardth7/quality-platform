@@ -49,12 +49,12 @@ def test_core_hard_dependencies_are_only_the_data_path() -> None:
     it is honesty about a real import, not a new install.
 
     `scipy` is hard because `quality_core.spc.capability` imports it at module level
-    (#205 PR 3); it was already in the workspace lock via `spc-app`/`secom-app`, so
+    (#205 PR 3); it was already in the workspace lock via `quality-spc`/`quality-secom`, so
     declaring it is likewise honesty about a real import, not a new install.
 
     `pyyaml` is hard because `quality_core.project.io` imports it at module level
     (#276): `project.yaml` is the one hand-edited file in a project directory, so it
-    is YAML. Pure-python parser, already in the workspace lock via `mcp-app`, and not
+    is YAML. Pure-python parser, already in the workspace lock via `quality-mcp`, and not
     on the Streamlit chain — the UI contract above is unaffected.
     """
     assert _hard_requirements() == {

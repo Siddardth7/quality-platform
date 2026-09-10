@@ -1,12 +1,20 @@
 [project]
-name = "msa-app"
-version = "0.16.0"
+name = "quality-msa"
+version = "1.0.0"
 description = "Measurement System Analysis — Streamlit app (gage-study ingest; Gage R&R math lands later)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Manufacturing",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
-    "quality-core",
+    "quality-core==1.0.0",  # exact pin: one version across the workspace (#292)
     "streamlit>=1.56.0",
     "pandas>=3.0.2",
     "pydantic>=2.0",
@@ -14,6 +22,10 @@ dependencies = [
     "openpyxl>=3.1.5",  # msa_app.exporter writes .xlsx via openpyxl
     "fpdf2>=2.8.7",     # msa_app.exporter renders .pdf via fpdf2
 ]
+
+[project.urls]
+Homepage = "https://github.com/Siddardth7/quality-platform"
+Repository = "https://github.com/Siddardth7/quality-platform"
 
 [tool.uv.sources]
 quality-core = { workspace = true }

@@ -1,0 +1,132 @@
+name: Publish (TestPyPI)
+
+# Builds the eight workspace distributions and uploads them to **TestPyPI** via PyPI
+# Trusted Publishing (OIDC — no API token stored anywhere).
+#
+# Deliberately manual-only (#292, SME decision D2): there is no `push:`, no `pull_request:`
+# and no tag trigger, so merging a change to this file can never publish anything as a side
+# effect. The real-PyPI path (a `pypi` choice below plus a tag trigger) is added at the
+# v1.0.0 release, by the SME, in its own issue — not here.
+#
+# NOT YET EXERCISED. Trusted Publishing is registered on the index side, per project, and
+# none of the eight names exist on TestPyPI yet. Before the first run the SME must register
+# a **"pending" publisher** for each of the eight project names — see the manual step in
+# apps/mcp/README.md ("Publishing to TestPyPI"). Until that is done and this workflow has
+# been run once, `uvx quality-mcp` from TestPyPI is unverified.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Publish target"
+        required: true
+        default: testpypi
+        # Only TestPyPI. "pypi" is intentionally absent so a mis-click cannot publish
+        # for real (#292 D2).
+        type: choice
+        options:
+          - testpypi
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.11
+        run: uv python install 3.11
+
+      - name: Sync workspace (locked deps)
+        run: uv sync --frozen
+
+      # Split at build time rather than glob-filtering at upload time: `packages-dir`
+      # takes a directory and uploads everything in it, so one directory per package is
+      # the whole selection mechanism the publish jobs below need. Each package gets its
+      # own subdirectory because each is published from its own GitHub Environment (#292).
+      - name: Build quality-core
+        run: uv build --package quality-core --out-dir dist/quality-core
+
+      # ponytail: the seven names are also listed in the publish-dependents matrix below.
+      # Accepted duplication — a `needs.build.outputs` + `fromJSON` indirection is not
+      # worth it for a list of seven strings that changes at most once a year.
+      - name: Build the seven dependent distributions
+        run: |
+          for pkg in quality-fmea quality-spc quality-msa quality-controlplan \
+                     quality-secom quality-database quality-mcp; do
+            uv build --package "$pkg" --out-dir "dist/$pkg"
+          done
+
+      - name: Upload built distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: dist
+          path: dist/
+
+  # quality-core publishes first: the other seven declare `quality-core==<version>`, so a
+  # dependent that lands on the index before the core it pins is uninstallable in the gap.
+  publish-core:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi-quality-core
+    permissions:
+      contents: read
+      id-token: write  # OIDC token for Trusted Publishing — the only elevated permission
+    steps:
+      - name: Download built distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish quality-core to TestPyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/quality-core
+          skip-existing: true  # re-running a rehearsal must not fail on an existing version
+
+  # One job per dependent, each in its own environment: a PyPI Trusted Publisher identity
+  # is keyed on (owner, repo, workflow filename, environment name), so a shared environment
+  # name makes the eight pending-publisher registrations collide (#292).
+  publish-dependents:
+    needs: publish-core
+    runs-on: ubuntu-latest
+    strategy:
+      # None of the seven depend on each other (only on quality-core), so one transient
+      # upload failure must not cancel the other six.
+      fail-fast: false
+      matrix:
+        package:
+          - quality-fmea
+          - quality-spc
+          - quality-msa
+          - quality-controlplan
+          - quality-secom
+          - quality-database
+          - quality-mcp
+    environment: testpypi-${{ matrix.package }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download built distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish ${{ matrix.package }} to TestPyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/${{ matrix.package }}
+          skip-existing: true

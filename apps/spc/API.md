@@ -1,4 +1,4 @@
-# `spc-app` — stable API
+# `quality-spc` — stable API
 
 The SPC app's published surface is its **validated ingest contract**, `spc_app.schema`.
 The control-chart, capability, rule-detection and phase math a consumer would want lives in

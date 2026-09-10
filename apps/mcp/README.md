@@ -1,5 +1,7 @@
 # MCP Server
 
+<!-- mcp-name: io.github.siddardth7/quality-platform-mcp -->
+
 The quality-platform MCP server (#260, M1-1). It is a FastMCP app served over
 stdio. Two meta tools describe the server process itself — `health` and
 `version` — the FMEA (#262, M1-3), SPC (#263, M1-4), MSA (#264, M1-5) and Control Plan (#265, M1-6) engines are exposed, and M1-7 (#266) adds the export/report tools:
@@ -69,6 +71,70 @@ cd apps/mcp && uvx --from . quality-mcp   # via the console entry point
 `uvx --from .` must run from `apps/mcp` — the workspace root is a coordinator
 (`package = false`) and has no distribution to build.
 
+## Publishing to TestPyPI (#292, M6-1)
+
+This app is published as the distribution **`quality-mcp`** (renamed from `mcp-app` in
+#292), which is also the console-script name — that pairing is what lets a published
+release be run as `uvx quality-mcp`, with no `--from`. The import package is still
+`mcp_app`; nothing about `import mcp_app` changed.
+
+`.github/workflows/publish.yml` builds all eight workspace distributions and uploads them
+to TestPyPI over PyPI Trusted Publishing (OIDC — no stored token). It is
+`workflow_dispatch`-only: nothing publishes on push, on merge or on a tag, and TestPyPI is
+the only target offered. Real PyPI comes at v1.0.0, in its own issue.
+
+**Nothing has been uploaded yet, and `uvx quality-mcp` has not been verified against a live
+index.** Trusted Publishing is registered index-side, per project, and none of the eight
+names exist on TestPyPI. Two manual steps, in order:
+
+1. **Register a "pending" publisher for each of the eight project names** on
+   <https://test.pypi.org/manage/account/publishing/> (account sidebar → *Publishing*, not
+   a project page — the projects do not exist yet; a pending publisher is converted to a
+   normal one on first upload). Per PyPI's
+   [docs](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/), the
+   GitHub Actions form takes the PyPI project name to be created, the repository owner's
+   name, the repository's name, the filename of the workflow authorized to upload, and an
+   optional GitHub Actions environment name. For this repo those are:
+
+   | Field | Value |
+   |---|---|
+   | Owner | `Siddardth7` |
+   | Repository name | `quality-platform` |
+   | Workflow name | `publish.yml` |
+
+   The project name and the environment name differ per package — a Trusted Publisher
+   identity is keyed on (owner, repository, workflow filename, environment name), so each
+   project needs its own environment or the registrations collide (#292). Submit one form
+   per row:
+
+   | PyPI project name | Environment name |
+   |---|---|
+   | `quality-core` | `testpypi-quality-core` |
+   | `quality-fmea` | `testpypi-quality-fmea` |
+   | `quality-spc` | `testpypi-quality-spc` |
+   | `quality-msa` | `testpypi-quality-msa` |
+   | `quality-controlplan` | `testpypi-quality-controlplan` |
+   | `quality-secom` | `testpypi-quality-secom` |
+   | `quality-database` | `testpypi-quality-database` |
+   | `quality-mcp` | `testpypi-quality-mcp` |
+
+   A pending publisher reserves nothing until it is used — if someone else registers the
+   name first, it is invalidated.
+
+2. **Run the workflow once** (Actions → *Publish (TestPyPI)* → *Run workflow*), then verify
+   the acceptance criterion from a clean environment:
+
+   ```bash
+   uvx --index https://test.pypi.org/simple/ \
+       --index https://pypi.org/simple/ \
+       --index-strategy unsafe-best-match \
+       quality-mcp
+   ```
+
+   Both indexes are needed: TestPyPI does not mirror third-party dependencies
+   (`fastmcp`, `pandas`, `scipy`, …), and `unsafe-best-match` lets one resolution span
+   both indexes instead of the default first-index-wins-per-package.
+
 ## Transport (#267, M1-8)
 
 stdio is the default and is unauthenticated — a local host launching `quality-mcp`
@@ -85,21 +151,58 @@ MCP_TRANSPORT=http MCP_AUTH_TOKEN="$(openssl rand -hex 32)" uv run python -m mcp
 | `MCP_TRANSPORT` | `stdio` | `stdio` or `http`; any other value is a startup error |
 | `MCP_HOST` | `127.0.0.1` | bind address — loopback only unless you opt into `0.0.0.0` |
 | `MCP_PORT` | `8000` | bind port |
-| `MCP_AUTH_TOKEN` | *(none)* | shared secret, **required** in `http` mode |
+| `MCP_AUTH_MODE` | `bearer` | `bearer` or `oauth`; any other value is a startup error |
+| `MCP_AUTH_TOKEN` | *(none)* | shared secret, **required** in `bearer` mode over `http` |
+| `MCP_OAUTH_AUTHKIT_DOMAIN` | *(none)* | WorkOS AuthKit domain, **required** in `oauth` mode |
+| `MCP_OAUTH_BASE_URL` | *(none)* | this server's public URL, **required** in `oauth` mode |
 
 HTTP mode fails closed: with no `MCP_AUTH_TOKEN` the server refuses to start rather
 than binding an open port, and there is no way to serve HTTP unauthenticated. Clients
 send `Authorization: Bearer <token>`; a missing, malformed or wrong token gets a 401.
 The token is compared in constant time and is never logged.
 
+### OAuth mode (#355, M6)
+
+Web hosts (Claude.ai and ChatGPT connectors) cannot hold a shared secret, so `http` mode
+also accepts OAuth 2.1 tokens — opt in with `MCP_AUTH_MODE=oauth`:
+
+```bash
+MCP_TRANSPORT=http MCP_AUTH_MODE=oauth \
+  MCP_OAUTH_AUTHKIT_DOMAIN="https://your-app.authkit.app" \
+  MCP_OAUTH_BASE_URL="https://your-public-host.example.com" \
+  uv run python -m mcp_app.server
+```
+
+This server is only an OAuth **resource server**: FastMCP's `AuthKitProvider` validates
+JWTs issued by [WorkOS AuthKit](https://workos.com/docs/authkit/mcp/integrating/token-verification)
+against the AuthKit JWKS and serves RFC 9728 protected-resource metadata at
+`/.well-known/oauth-protected-resource`. Token issuance, Dynamic Client Registration and
+the auth-code/PKCE flow all stay with WorkOS — no authorization server is implemented here.
+In the WorkOS dashboard you must enable Dynamic Client Registration (Claude.ai requires it),
+add this server's URL as a redirect, and list the advertised resource URL as a Resource
+Indicator (RFC 8707) so minted tokens carry the matching `aud` claim.
+
+The two modes are mutually exclusive: `oauth` mode does not accept `MCP_AUTH_TOKEN`, and
+`bearer` remains the zero-config default. Both fail closed — missing or empty OAuth config
+refuses to start, and an unrecognised `MCP_AUTH_MODE` is a startup error.
+
+**Status:** the resource-server code and its hermetic tests ship here; a live Claude.ai /
+ChatGPT connector handshake is still PENDING a publicly hosted endpoint and a provisioned
+WorkOS AuthKit account.
+
 ### Connecting a remote host
 
-*Stub — full instructions land in M6, when hosting/deployment is decided.* Today the
-endpoint is `http://<host>:<port>/mcp` and any MCP client that supports Streamable
-HTTP with a bearer token can connect. The default loopback bind means "remote" means
-"another process on this machine" until M6 adds a real deployment (TLS termination,
-process supervision, secret management) — do not expose this port publicly with the
-single shared token as the only control. Per-client tokens / OAuth are deferred to M6.
+*Stub — full instructions land with hosting/deployment.* Today the endpoint is
+`http://<host>:<port>/mcp` and any MCP client that supports Streamable HTTP with a bearer
+token can connect. The default loopback bind means "remote" means "another process on this
+machine" until a real deployment exists (TLS termination, process supervision, secret
+management) — do not expose this port publicly with the single shared token as the only
+control. For a public, web-host-facing deployment use OAuth mode above; per-client tokens,
+scopes and rotation remain WorkOS's job, not this server's.
+
+See [`docs/HOSTS.md`](docs/HOSTS.md) for per-host copy-paste config (#295, M6-4) — stdio
+blocks for Claude Desktop, Cursor, VS Code and Gemini CLI, and the HTTP shape plus its two
+open blockers for Claude.ai and ChatGPT.
 
 ## Serving the private corpus (#288, M5-2)
 
@@ -164,6 +267,14 @@ fronted by Fly's built-in TLS.
   `MCP_AUTH_TOKEN` and the generator's credentials in Fly secrets (never in `fly.toml`),
   choose `auto_stop_machines` vs always-on, pick the generator vendor and a budget, and
   write the `fly.toml` itself — no deployment manifest exists in this repo yet, by design.
+
+## Registry listings
+
+Which public MCP registries this server is listed in — the manifests (`server.json`,
+`smithery.yaml`, root `glama.json`), the per-registry submission runbook, and the current
+status of each — lives in [`docs/REGISTRIES.md`](docs/REGISTRIES.md) (M6-3, #294). All
+three are **PENDING**: the MCP registry needs `quality-mcp` on real PyPI (see above), and
+Smithery and Glama need an SME account action.
 
 Coverage for `mcp_app.server` and `mcp_app.transport` is gated at 100% line+branch in
 CI — see the gate table in the root `CLAUDE.md`.

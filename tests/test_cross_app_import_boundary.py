@@ -29,7 +29,7 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Module name -> the directory the guard subprocess runs in, relative to _REPO_ROOT.
-# The cwd must be the app's *own* directory: `fmea-app` and `controlplan-app` set
+# The cwd must be the app's *own* directory: `quality-fmea` and `quality-controlplan` set
 # `package = false`, so they are never built as wheels and resolve only through the
 # implicit `sys.path[0] = cwd` that `python -c` inserts. A shared repo-root cwd would
 # fail them with ModuleNotFoundError before the guard logic ran.

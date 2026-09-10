@@ -1,10 +1,18 @@
 [project]
-name = "quality-database-app"
-version = "0.16.0"
+name = "quality-database"
+version = "1.0.0"
 description = "Quality knowledge base — corpus ingestion, chunking, embedding and retrieval (M4-2/M4-3)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Manufacturing",
+    "Topic :: Scientific/Engineering",
+]
 # Stdlib (csv/re/json/hashlib/logging) plus pydantic, reached through
 # quality_core.schema.StrictModel. numpy is declared here for M4-3's vector store; it
 # is already a direct dependency of quality-core (control_charts), so it costs the
@@ -13,7 +21,7 @@ requires-python = ">=3.11"
 # only. OCR for the five image-only rows is the optional `ocr` extra below (#335), never
 # a runtime dependency.
 dependencies = [
-    "quality-core",
+    "quality-core==1.0.0",  # exact pin: one version across the workspace (#292)
     "pydantic>=2.0",
     "numpy>=2.4.4",
     "pypdf>=6.16.1",
@@ -31,6 +39,10 @@ embed = ["fastembed>=0.7.0"]
 # at one instead of two. The CI path uses the offline NullOcr, so the gate needs neither.
 # See ocr_tesseract.py.
 ocr = ["pymupdf>=1.24.0", "pytesseract>=0.3.10"]
+
+[project.urls]
+Homepage = "https://github.com/Siddardth7/quality-platform"
+Repository = "https://github.com/Siddardth7/quality-platform"
 
 [tool.uv.sources]
 quality-core = { workspace = true }

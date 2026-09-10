@@ -1,0 +1,69 @@
+Host: Gemini CLI (Antigravity `agy` 1.1.18), macOS 25.5.0
+Date: 2026-08-22
+Branch: feat/295-m6-4-per-host-config
+Scope: NATIVE MCP-SERVER REGISTRATION (the layer skills/COMPATIBILITY.md did not attempt).
+       This is NOT the skill-script stdio run already evidenced in skills/compat-evidence/.
+
+Result: registration + tool discovery VERIFIED. Tool invocation NOT verified in this
+        environment (the host's permission gate auto-denies MCP calls in non-interactive
+        print mode). The matrix records this as PASS on config, PENDING on worked example.
+
+--------------------------------------------------------------------------------
+1. Register the server natively
+--------------------------------------------------------------------------------
+
+$ agy mcp add quality-platform uv run \
+    --directory "/Users/sid/Documents/Claude/Projects/Quality Platform/quality-platform" \
+    python -m mcp_app.server
+Added MCP server "quality-platform" (stdio)
+
+--------------------------------------------------------------------------------
+2. Confirm the host holds the registration
+--------------------------------------------------------------------------------
+
+$ agy mcp list
+NAME              TYPE   STATUS   COMMAND/URL
+data-agent-kit    stdio  enabled  node .../mcp_proxy_bundle.js dataAgentKit-antigravityide
+notebooks         stdio  enabled  node .../mcp_proxy_bundle.js notebooks-antigravityide
+quality-platform  stdio  enabled  uv run --directory /Users/sid/Documents/Claude/Projects/Quality Platform/quality-platform python -m mcp_app.server
+visualization     stdio  enabled  node .../mcp_proxy_bundle.js visualization-antigravityide
+
+--------------------------------------------------------------------------------
+3. Attempt a real tool call
+--------------------------------------------------------------------------------
+
+$ agy --print-timeout 6m -p 'Use the quality-platform MCP server ONLY. Call its health
+  tool, its version tool, and its fmea_score tool with severity=8 occurrence=5
+  detection=6. Report the three raw JSON results verbatim, nothing else. Do not compute
+  anything yourself.'
+
+Error: permission check failed for mcp "quality-platform/health": user denied permission
+for mcp(quality-platform/health)
+
+--------------------------------------------------------------------------------
+What this does and does not prove
+--------------------------------------------------------------------------------
+
+PROVES: the host accepted the config, spawned the server over stdio, completed the MCP
+handshake and resolved the fully-qualified tool name `quality-platform/health`. A host
+cannot name a tool it never enumerated, so `tools/list` succeeded against the real server.
+The command in the config block is therefore the correct, working command.
+
+DOES NOT PROVE: that the tool returned a value. `tools/call` never ran — the host's own
+permission gate denied it. Non-interactive `agy -p` has no prompt to answer, so the
+default is deny; the documented bypass (`--dangerously-skip-permissions`, which M2-6
+recorded must come BEFORE `-p`) is not available in this agent sandbox.
+
+TO FLIP THE WORKED-EXAMPLE CELL GREEN: run step 3 in an INTERACTIVE `agy` session and
+approve the permission prompt, then append the transcript below. Expected values (the
+reference call set from skills/COMPATIBILITY.md, which must reproduce byte-for-byte):
+
+  health()             -> {"status": "ok"}
+  version()            -> {"version": "0.15.0"}
+  fmea_score(8, 5, 6)  -> {"rpn": 240, "action_priority": "Medium"}
+
+--------------------------------------------------------------------------------
+Cleanup / re-registration
+--------------------------------------------------------------------------------
+
+$ agy mcp remove quality-platform

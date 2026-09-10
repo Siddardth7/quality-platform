@@ -83,7 +83,9 @@ npx skills add Siddardth7/quality-platform
 That resolves this repo's root `skills/` directory and offers each subfolder containing a
 valid `SKILL.md`. There is no manifest, no `package.json`, no marketplace entry — the
 directory *is* the wiring, which is why `skills/` lives at the repo root next to `apps/` and
-`packages/` rather than inside the `apps/mcp` workspace package.
+`packages/` rather than inside the `apps/mcp` workspace package. Re-verified 2026-08-21 for
+#293 (M6-2) against the current agentskills.io specification and the `vercel-labs/skills` CLI
+behind `npx skills add`: still no manifest and no registration step — GitHub is the registry.
 
 Which hosts this has actually been installed and invoked on — the skill × host matrix, the
 per-host runbook, and the linked evidence — lives in [`COMPATIBILITY.md`](COMPATIBILITY.md)
