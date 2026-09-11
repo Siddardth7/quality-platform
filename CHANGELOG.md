@@ -4,6 +4,117 @@ All notable changes to the Quality Platform are documented here. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to adhere to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-08-23 — M6 · Cross-platform packaging & release
+
+**M6** makes the platform installable and reachable from outside this repository. The eight
+distributions are renamed to the `quality-*` namespace with full PyPI metadata, pinned to one
+another exactly, and built by a TestPyPI publish workflow; the MCP server gains registry
+listing manifests, an `npx skills add` publish path, a copy-paste configuration matrix for six
+named hosts, and an opt-in OAuth transport mode for web hosts. A MkDocs Material site and an
+MCP-first README overhaul document the result. Nothing is published to a package index and no
+MCP endpoint is hosted yet, so the affected rows stay `PENDING`.
+
+### Added
+
+- **Docs site, README overhaul and worked-example write-up (#296, M6-5).** A MkDocs Material
+  site (`mkdocs.yml` + thirteen pages under `docs/`) publishes the quickstart, the per-engine
+  pages, the full 49-tool MCP catalog, the host matrix, the SECOM worked example, the
+  standards-fidelity story and a standalone limitations page. `README.md` is restructured
+  MCP-first around that material: anchor nav, a "what it is / what it is not" table, a "why
+  MCP-first" section, and a hosts summary — with the loop's edge relabelled to
+  *"proposed occurrence-rating / CAPA (human reviews)"* so the README no longer implies the
+  SPC → FMEA arrow writes anything. Honesty qualifiers carried through unchanged: analysis is
+  on-demand rather than continuous, `spc/results/*.json` is a precondition the loop reads and
+  never produces, nothing is published to a package index (#292) and no MCP endpoint is
+  hosted (#355), so the web-host rows stay `PENDING`. A new `.github/workflows/docs.yml`
+  deploys the site on push to `main` (plus `workflow_dispatch`) and `pip install`s
+  `mkdocs-material` standalone — it is deliberately absent from `pyproject.toml` and
+  `uv.lock`. Docs-only — no code, no `CI / gate` impact.
+- **Opt-in OAuth transport mode for web MCP hosts (#355).** The M1-8 HTTP transport gains an
+  `MCP_AUTH_MODE=oauth` mode that validates WorkOS AuthKit-issued tokens, reusing FastMCP's
+  `AuthKitProvider` (RFC 9728 protected-resource metadata + JWT verification) — no new
+  dependency. The shared-secret bearer mode stays the zero-config default (unset/`bearer`,
+  unchanged); OAuth is configured by `MCP_OAUTH_AUTHKIT_DOMAIN` + `MCP_OAUTH_BASE_URL` and
+  fails closed (a missing var or unknown mode raises, naming the variable). Resource-server
+  support only: a live Claude.ai/ChatGPT handshake still needs a provisioned public endpoint
+  and a configured WorkOS account, so the `apps/mcp/docs/HOSTS.md` rows stay PENDING. Tests
+  are hermetic (`RSAKeyPair` self-signed JWT over in-process ASGI, no live JWKS);
+  `mcp_app.transport` stays at 100% line+branch.
+- **Per-host MCP configuration matrix (#295, M6-4).** `apps/mcp/docs/HOSTS.md` gives
+  copy-paste config for the six named MCP hosts — Claude Desktop, Cursor, VS Code, Gemini CLI
+  (stdio) and Claude.ai, ChatGPT (HTTP) — plus a runbook for turning a `PENDING` cell green,
+  a per-host quirks table and the reference calls (`health`, `version`, `fmea_score(8, 5, 6)`
+  → `rpn 240`) shared with `skills/COMPATIBILITY.md`. This is the **native MCP-server
+  registration** layer that M2-6 (#275) explicitly did not attempt; COMPATIBILITY.md's
+  skill-script results are referenced, not re-derived. Docs-only — no code, no `CI / gate`
+  impact. **Only Gemini CLI was actually registered** ([evidence](apps/mcp/docs/host-evidence/gemini-cli.txt)):
+  the host spawned the server and enumerated its tools, but the call itself was denied by the
+  host's non-interactive permission gate, so its worked-example cell stays `PENDING` — as do
+  the three GUI hosts (not launchable headless) and both web hosts, which are blocked twice
+  over: no hosted endpoint is provisioned, and the M1-8 bearer-only transport has no path
+  through connector UIs that expose OAuth only (#355). No cell claims `PASS ✓` for a config
+  that was never invoked.
+- **MCP registry listing manifests (#294, M6-3).** `apps/mcp/server.json` (official MCP
+  registry — name `io.github.siddardth7/quality-platform-mcp`, one `pypi` package entry for
+  `quality-mcp` 0.15.0 over stdio), `apps/mcp/smithery.yaml` (stdio `startCommand` reusing
+  the already-documented `uv run python -m mcp_app.server` verbatim), and root `glama.json`
+  (`maintainers: ["Siddardth7"]`, for claiming Glama's auto-created listing).
+  `apps/mcp/README.md` gains the `<!-- mcp-name: ... -->` ownership marker the registry
+  looks for in the published package's long_description — it must match `server.json`'s
+  `name` exactly — plus a "Registry listings" pointer. The new `apps/mcp/docs/REGISTRIES.md`
+  tracks all three registries, the canonical tag list, a per-registry runbook and the
+  release-checklist note that `server.json` carries the workspace version in two places.
+  **All three rows are PENDING and no listing exists yet**: the MCP registry verifies
+  against real PyPI only, and `quality-mcp` is on TestPyPI alone until the v1.0.0 release
+  (#292); Smithery and Glama are blocked on an SME account action. Metadata only — no
+  Python code, no new dependency, no coverage-gate surface touched.
+- **`npx skills add` publish path verified against the current agentskills.io spec (#293,
+  M6-2).** Re-checked `npx skills add Siddardth7/quality-platform` against the live
+  specification and the `vercel-labs/skills` CLI behind it: **no packaging change is
+  required** — GitHub is the registry, there is no manifest and no registration step, and the
+  `skills/<name>/SKILL.md` directory *is* the manifest, which is the shape the repo already
+  has. Docs-only diff: `skills/COMPATIBILITY.md` gains the `#test`-ref install caveat (a bare
+  `owner/repo` install pulls the default branch, which does not yet carry `quality-research`)
+  and `PENDING` matrix rows for `project-loop` (`run_project_loop`) and `quality-research`
+  (`qdb_answer_question`) — `PENDING` meaning *not yet run*, with the live multi-host smoke
+  test tracked as a follow-up — plus a runbook note that `quality-research` needs
+  `QDB_MCP_URL` / `QDB_MCP_TOKEN` in the host sandbox. `skills/CONVENTIONS.md` §5 records the
+  re-verification date. No code, CI or dependency change.
+- **TestPyPI publish workflow (#292, M6-1).** `.github/workflows/publish.yml` builds all eight
+  distributions and uploads them to TestPyPI over PyPI Trusted Publishing (OIDC, no stored
+  token), `quality-core` first and the seven that pin it second. It is `workflow_dispatch`-only
+  with TestPyPI as the sole target — no push, merge or tag can publish as a side effect, and
+  the real-PyPI path is deferred to the v1.0.0 release issue. `CI / gate` (`ci.yml`) is
+  untouched. **Nothing has been uploaded and `uvx quality-mcp` is not yet verified against a
+  live index**: Trusted Publishing is registered index-side per project, so the SME must first
+  register a "pending" publisher for each of the eight names on TestPyPI and run the workflow
+  once. The manual step and the verification command are in `apps/mcp/README.md`.
+- **PyPI metadata on all eight distributions (#292, M6-1).** `classifiers` and `[project.urls]`
+  — the half of #261's metadata deferred to M6 — plus the missing `authors` on `quality-mcp`.
+  `license` is still deliberately absent, and no `License ::` classifier was added: the repo
+  still has no LICENSE file, and an identifier without one would be the same false claim #261
+  rejected. Both land together before the real-PyPI publish.
+
+### Changed
+
+- **The eight distributions are renamed to the `quality-*` namespace (#292, M6-1):**
+  `fmea-app` → `quality-fmea`, `spc-app` → `quality-spc`, `msa-app` → `quality-msa`,
+  `controlplan-app` → `quality-controlplan`, `secom-app` → `quality-secom`,
+  `quality-database-app` → `quality-database`, `mcp-app` → `quality-mcp` (`quality-core` was
+  already correct). **Only the distribution names changed — no import package name and no
+  `import` statement anywhere in the repo** (`mcp_app`, `fmea_app`, `spc_app`, … are
+  untouched). The rename is what makes `uvx quality-mcp` resolvable once published: `uvx X`
+  resolves the *distribution* named `X`, and the console script inside was already
+  `quality-mcp`. `uv.lock` was regenerated; `uv sync --frozen` is unaffected.
+- **Internal dependencies are pinned exactly (#292, M6-1).** Every internal entry in a
+  `[project] dependencies` list is now `<name>==<workspace version>` rather than a bare name,
+  so a published wheel's `Requires-Dist` states the lockstep the workspace already releases in
+  (one version across all eight, bumped together). `[tool.uv.sources] { workspace = true }` is
+  unchanged and still decides *where* uv resolves them from locally.
+  `packages/quality-core/tests/test_publish_metadata.py` asserts both the new distribution
+  names (and that the import names did not move) and the pins, read from installed
+  distribution metadata.
+
 ## [0.16.0] - 2026-08-21 — M5 · Quality Research Skill
 
 The Quality Knowledge Base built in M4 becomes something an engineer can ask questions of. A

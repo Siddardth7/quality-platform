@@ -1,12 +1,20 @@
 [project]
-name = "secom-app"
-version = "0.16.0"
+name = "quality-secom"
+version = "1.0.0"
 description = "SECOM semiconductor manufacturing dataset — honest ingest + signal-selection screen (W09-1)."
 authors = [{ name = "Siddardth Pathipaka", email = "siddardth7@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Manufacturing",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
-    "quality-core",
+    "quality-core==1.0.0",  # exact pin: one version across the workspace (#292)
     "streamlit>=1.56.0",
     "pandas>=3.0.2",
     "pydantic>=2.0",
@@ -14,16 +22,20 @@ dependencies = [
     "numpy>=2.4.4",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Siddardth7/quality-platform"
+Repository = "https://github.com/Siddardth7/quality-platform"
+
 [tool.uv.sources]
 quality-core = { workspace = true }
-msa-app = { workspace = true }
+quality-msa = { workspace = true }
 
 # Test-only edge, deliberately NOT a [project] dependency: no secom_app module imports
 # msa_app. tests/test_msa.py proves the real W08 compute_gage_rr also refuses a
 # SECOM-shaped frame (#68). A runtime dependency here would re-create the cross-app
 # coupling #205 removed.
 [dependency-groups]
-dev = ["msa-app"]
+dev = ["quality-msa"]
 
 # Engine-only (#206): a library with no entry script, deliberately not mounted in
 # the Streamlit shell. Still installed (editable) so apps/api can `import secom_app`

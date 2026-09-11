@@ -1,4 +1,4 @@
-# `fmea-app` — stable API
+# `quality-fmea` — stable API
 
 The FMEA engine surface: the pure-pandas RPN pipeline (`fmea_app.rpn_engine`) and the
 data-driven S/O/D rating scales (`fmea_app.rating_scales`). Both are UI-free and import

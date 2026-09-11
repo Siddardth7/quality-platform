@@ -2,10 +2,10 @@
 
 `__version__` is the single source of truth for the MSA app version. It is read
 by ``app.py`` so the displayed/stamped version never drifts. Since #231 the app is an
-installed (editable) workspace package, so ``importlib.metadata.version("msa-app")``
+installed (editable) workspace package, so ``importlib.metadata.version("quality-msa")``
 resolves too; this constant stays the value ``pyproject.toml`` is kept in sync with.
 
 Keep this in sync with ``apps/msa/pyproject.toml`` at release (bump both together).
 """
 
-__version__ = "0.16.0"
+__version__ = "1.0.0"
