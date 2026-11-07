@@ -19,7 +19,7 @@ classifiers = [
 # during local dev; the constraint here is what hatchling stamps into Requires-Dist.
 dependencies = [
     "quality-core==1.0.0",
-    "fastmcp==3.4.6",
+    "fastmcp==3.4.10",
     "quality-fmea==1.0.0",
     "quality-spc==1.0.0",
     "quality-msa==1.0.0",

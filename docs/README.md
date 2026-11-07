@@ -8,7 +8,8 @@ these paths, so living docs are never moved once created. Each entry is one line
 | Doc | What / why |
 |---|---|
 | [`../README.md`](../README.md) | Front door — what the platform is, how to run it. |
-| [`../ROADMAP.md`](../ROADMAP.md) | Canonical plan: vision, architecture (diagrams), the 12-week version ladder, done + planned. |
+| [`../ROADMAP.md`](../ROADMAP.md) | Where it stands (v1.0.0) and the next stages (undated). |
+| [`history.md`](history.md) | Archive: the original 12-week plan, architecture diagrams and the week-by-week build log. |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | The one-page process: setup, test hygiene, the bar, workflow, architecture ground rules. |
 
 ## Contracts (how we work)
