@@ -131,7 +131,7 @@ primary source, tracked like coverage.
 ```
 .
 ├── README.md                      # front door → links to ROADMAP + docs
-├── ROADMAP.md                     # canonical plan + version ladder + architecture diagrams
+├── ROADMAP.md                     # where it stands + next stages (history → docs/history.md)
 ├── CHANGELOG.md                   # Keep a Changelog; [Unreleased] on top, entry per PR
 ├── CONTRIBUTING.md                # the one-page process
 ├── pyproject.toml                 # workspace + pytest + coverage ratchet (branch=true)
@@ -162,7 +162,7 @@ undated and update in place.
 
 | Type | Pattern | Job | Cadence |
 |---|---|---|---|
-| **Roadmap** | `ROADMAP.md` | canonical plan + version ladder + architecture | living |
+| **Roadmap** | `ROADMAP.md` | where it stands + next stages; build log in `docs/history.md` | living |
 | **Process contract** | `DEFINITION_OF_DONE.md` | the gates; pinned issue | living |
 | **Playbook** | `ENGINEERING_SYSTEM_PLAYBOOK.md` | the whole system (this file) | living |
 | **Baseline** | `COVERAGE_BASELINE_<date>.md` | per-module line+branch before a gate flip | point-in-time |

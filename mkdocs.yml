@@ -23,6 +23,7 @@ exclude_docs: |
   DEFINITION_OF_DONE.md
   ENGINEERING_SYSTEM_PLAYBOOK.md
   PROJECT_FILE_CONTRACT.md
+  history.md
   research/
 
 markdown_extensions:
