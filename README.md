@@ -15,6 +15,8 @@
 [![Coverage](https://img.shields.io/badge/coverage-core%20100%25%20%C2%B7%20SPC%20%E2%89%A595%25-2ea043)](#-the-quality-gate)
 [![Release](https://img.shields.io/github/v/release/Siddardth7/quality-platform?sort=semver&color=e65100&label=release)](https://github.com/Siddardth7/quality-platform/releases/latest)
 
+**Stable · v1.0.0 · actively maintained · Next stages → [ROADMAP.md](ROADMAP.md)**
+
 <br>
 
 **[Quickstart](#-quickstart) · [Tools](#-the-tools) · [Hosts](#-hosts) · [The Loop](#-the-loop) · [Docs](https://siddardth7.github.io/quality-platform/)**
@@ -76,7 +78,8 @@ semiconductor process data**.
   </tr>
 </table>
 
-**▶ [Open the live demo →](https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/)**
+**▶ [Open the live demo →](https://quality-platform-nplyhc6rvsd3bfw6q9vvkd.streamlit.app/)**<br>
+<sub>Hosted on Streamlit Community Cloud, so it sleeps when idle. Click <i>"Yes, get this app back up"</i> and allow about 30 s for it to start.</sub>
 
 </div>
 
@@ -111,15 +114,16 @@ drift apart.
 - **The agent does not do the arithmetic.** The point of the tool layer is that
   `fmea_score(8, 5, 6)` returns `{"rpn": 240, "action_priority": "Medium"}` from tested,
   coverage-gated code — not from a model's head.
-- **Roadmap.** MCP + skills today. A standalone status-product website is a **Phase-2 item that is
-  not built and not live**; nothing on this page depends on it.
+- **Roadmap.** MCP + skills today. A Next.js + FastAPI **web platform is a planned v2 stage**.
+  It is not built and not live, and nothing on this page depends on it. See [ROADMAP.md](ROADMAP.md).
 
 ---
 
 ## 🚀 Quickstart
 
-Clone first — nothing is published to a package index yet (`uvx quality-mcp` does **not** work;
-[#292](https://github.com/Siddardth7/quality-platform/issues/292) is open).
+Clone first. Nothing is published to PyPI yet, so `uvx quality-mcp` does **not** work. The
+publish workflow exists ([#292](https://github.com/Siddardth7/quality-platform/issues/292)), but
+the first real upload is still pending.
 
 ```bash
 git clone https://github.com/Siddardth7/quality-platform.git
@@ -364,17 +368,19 @@ if a week can't ship green, **cut scope, not quality**.
 
 ## 🗺️ Roadmap
 
-Twelve tracked weeks, one release each, ending on a portfolio-grade `v1.0.0`.
+**v1.0.0 has shipped and is stable.** FMEA, SPC, Control Plan and MSA run as a closed loop over
+one shared core, and AI agents can call them through MCP and Agent Skills. The SECOM case study
+proves the platform on real data.
 
-| Phase | Weeks | Focus |
-| ----- | ----- | ----- |
-| **A · Foundation** | 1–2 | Monorepo, shared core, shell, one CI gate · `v0.1–v0.2` ✅ |
-| **B · Standards-correct cores** | 3–5 | AP-native + relational FMEA, shared validation/export · `v0.3–v0.5` ✅ |
-| **C · Integration & core-tool completion** | 6–9 | Control Plan → close the loop → **MSA** → **SECOM** real-data case study |
-| **D · Depth & legibility** | 10–12 | Modern SPC depth, DOE on SECOM, then a hardening pass → **`v1.0.0-portfolio`** |
+| Stage | Status |
+| ----- | ------ |
+| **v1.0.x · Maintenance** | Ongoing: bug fixes and standards-fidelity hardening |
+| **v2 · Web platform** (Next.js + FastAPI) | Planned |
+| **v2 · OAuth for web MCP hosts** | Planned |
+| **v2 · AI FMEA copilot** (LLM + RAG + evals) | Planned |
 
-<sub>An explainable **AI FMEA copilot** (LLM + RAG + eval harness) is a documented, unscheduled future
-phase. The full plan — vision, diagrams, week-by-week detail — lives in **[ROADMAP.md](ROADMAP.md)**.</sub>
+<sub>No stage has a date. New tools and skills are welcome. Details, and how to propose a stage, are
+in **[ROADMAP.md](ROADMAP.md)**. The original 12-week build log is in [docs/history.md](docs/history.md).</sub>
 
 ---
 
@@ -388,7 +394,7 @@ quality-platform/
 ├── docs/                   # docs-site pages + engineering docs
 ├── skills/                 # Agent Skills — fmea · spc · msa · control-plan · project-loop · quality-research
 ├── examples/               # worked examples — secom-quality-loop/
-├── ROADMAP.md              # the full project guide (vision, diagrams, 12-week plan)
+├── ROADMAP.md              # where it stands + next stages (history → docs/history.md)
 ├── packages/
 │   └── quality-core/       # shared core  →  import quality_core
 │       └── src/quality_core/
@@ -452,6 +458,8 @@ example, standards and limitations — is at:
 <div align="center">
 
 **New here?** Start with the **[docs site](https://siddardth7.github.io/quality-platform/)** or the **[ROADMAP.md](ROADMAP.md)** · **Contributing?** See **[CONTRIBUTING.md](CONTRIBUTING.md)** and the [Definition of Done](docs/DEFINITION_OF_DONE.md).
+
+**Sister project:** [quality-engineering-skills](https://github.com/Siddardth7/quality-engineering-skills)
 
 <br>
 
